@@ -12,7 +12,7 @@ import { Separator } from "@/components/ui/separator";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useUIStore } from "@/store/ui-store";
+import { useTheme } from "next-themes";
 import { toast } from "sonner";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { getInitials } from "@/lib/utils";
@@ -28,7 +28,7 @@ interface SettingsClientProps {
 }
 
 export function SettingsClient({ user }: SettingsClientProps) {
-  const { theme, setTheme } = useUIStore();
+  const { theme, setTheme } = useTheme();
   const [notifications, setNotifications] = useState({
     orderUpdates: true,
     appointments: true,

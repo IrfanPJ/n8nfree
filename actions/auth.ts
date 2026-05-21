@@ -1,0 +1,58 @@
+"use server";
+
+import { z } from "zod";
+import bcrypt from "bcryptjs";
+import { randomUUID } from "crypto";
+import { supabase } from "@/lib/supabase";
+
+const signUpSchema = z
+  .object({
+    name: z.string().min(2, "Name must be at least 2 characters"),
+    email: z.string().email("Invalid email address"),
+    password: z.string().min(8, "Password must be at least 8 characters"),
+    confirmPassword: z.string(),
+  })
+  .refine((d) => d.password === d.confirmPassword, {
+    message: "Passwords do not match",
+    path: ["confirmPassword"],
+  });
+
+export async function signUpAction(
+  data: unknown
+): Promise<{ success: boolean; error?: string }> {
+  const parsed = signUpSchema.safeParse(data);
+  if (!parsed.success) {
+    return { success: false, error: parsed.error.issues[0]?.message ?? "Validation failed" };
+  }
+
+  const { name, email, password } = parsed.data;
+
+  const { data: existing } = await supabase
+    .from("User")
+    .select("id")
+    .eq("email", email)
+    .maybeSingle();
+
+  if (existing) return { success: false, error: "An account with this email already exists" };
+
+  const hashed = await bcrypt.hash(password, 10);
+
+  const now = new Date().toISOString();
+  const { error } = await supabase.from("User").insert({
+    id: randomUUID(),
+    name,
+    email,
+    password: hashed,
+    role: "ADMIN",
+    isActive: true,
+    createdAt: now,
+    updatedAt: now,
+  });
+
+  if (error) {
+    console.error("Signup error:", error);
+    return { success: false, error: "Failed to create account" };
+  }
+
+  return { success: true };
+}

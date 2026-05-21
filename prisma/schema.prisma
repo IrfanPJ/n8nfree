@@ -1,0 +1,446 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum UserRole {
+  ADMIN
+  MANAGER
+  TAILOR
+  STAFF
+}
+
+enum Gender {
+  MALE
+  FEMALE
+  OTHER
+}
+
+enum OrderStatus {
+  PENDING
+  MEASURING
+  CUTTING
+  STITCHING
+  TRIAL
+  READY
+  DELIVERED
+  CANCELLED
+}
+
+enum OrderPriority {
+  LOW
+  NORMAL
+  HIGH
+  URGENT
+}
+
+enum AppointmentStatus {
+  SCHEDULED
+  CONFIRMED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+  NO_SHOW
+}
+
+enum InvoiceStatus {
+  DRAFT
+  SENT
+  PARTIAL
+  PAID
+  OVERDUE
+  CANCELLED
+}
+
+enum FollowUpStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum PaymentMethod {
+  CASH
+  CARD
+  UPI
+  BANK_TRANSFER
+  CHEQUE
+  OTHER
+}
+
+enum NotificationType {
+  ORDER_STATUS
+  APPOINTMENT
+  PAYMENT
+  FOLLOWUP
+  SYSTEM
+  DELIVERY
+}
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String    @unique
+  emailVerified DateTime?
+  image         String?
+  password      String?
+  role          UserRole  @default(STAFF)
+  isActive      Boolean   @default(true)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  accounts      Account[]
+  sessions      Session[]
+  orders        Order[]         @relation("AssignedTailor")
+  appointments  Appointment[]   @relation("StaffAppointments")
+  followUps     FollowUp[]      @relation("StaffFollowUps")
+  activities    ActivityLog[]
+  notifications Notification[]
+
+  @@index([email])
+  @@index([role])
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@index([userId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+model Customer {
+  id          String   @id @default(cuid())
+  name        String
+  email       String?
+  phone       String
+  address     String?
+  city        String?
+  gender      Gender   @default(MALE)
+  dateOfBirth DateTime?
+  notes       String?  @db.Text
+  tags        String[] @default([])
+  isVIP       Boolean  @default(false)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  measurements Measurement[]
+  orders       Order[]
+  appointments Appointment[]
+  invoices     Invoice[]
+  followUps    FollowUp[]
+  activities   ActivityLog[]
+
+  @@index([phone])
+  @@index([email])
+  @@index([isVIP])
+  @@index([createdAt])
+}
+
+model Measurement {
+  id            String   @id @default(cuid())
+  customerId    String
+  label         String   @default("Standard")
+  chest         Float?
+  waist         Float?
+  hip           Float?
+  shoulder      Float?
+  neck          Float?
+  sleeve        Float?
+  armhole       Float?
+  inseam        Float?
+  outseam       Float?
+  rise          Float?
+  thigh         Float?
+  ankle         Float?
+  backLength    Float?
+  frontLength   Float?
+  jacketLength  Float?
+  shirtLength   Float?
+  unit          String   @default("inches")
+  notes         String?  @db.Text
+  takenAt       DateTime @default(now())
+  takenBy       String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@index([customerId])
+  @@index([takenAt])
+}
+
+model Order {
+  id              String        @id @default(cuid())
+  orderNumber     String        @unique
+  customerId      String
+  assignedToId    String?
+  status          OrderStatus   @default(PENDING)
+  priority        OrderPriority @default(NORMAL)
+  garmentType     String
+  garmentDetails  String?       @db.Text
+  fabricName      String?
+  fabricCode      String?
+  fabricColor     String?
+  fabricQuantity  Float?
+  designNotes     String?       @db.Text
+  imageUrls       String[]      @default([])
+  orderDate       DateTime      @default(now())
+  deliveryDate    DateTime
+  trialDate       DateTime?
+  advanceAmount   Float         @default(0)
+  totalAmount     Float         @default(0)
+  notes           String?       @db.Text
+  cancelReason    String?
+  isActive        Boolean       @default(true)
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  customer     Customer      @relation(fields: [customerId], references: [id])
+  assignedTo   User?         @relation("AssignedTailor", fields: [assignedToId], references: [id])
+  invoice      Invoice?
+  statusHistory OrderHistory[]
+  activities   ActivityLog[]
+
+  @@index([customerId])
+  @@index([assignedToId])
+  @@index([status])
+  @@index([deliveryDate])
+  @@index([orderNumber])
+}
+
+model OrderHistory {
+  id        String      @id @default(cuid())
+  orderId   String
+  status    OrderStatus
+  notes     String?
+  changedBy String?
+  changedAt DateTime    @default(now())
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([orderId])
+}
+
+model Appointment {
+  id          String            @id @default(cuid())
+  customerId  String
+  staffId     String?
+  title       String
+  description String?           @db.Text
+  status      AppointmentStatus @default(SCHEDULED)
+  type        String            @default("FITTING")
+  startTime   DateTime
+  endTime     DateTime
+  location    String?
+  notes       String?           @db.Text
+  reminderAt  DateTime?
+  isActive    Boolean           @default(true)
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+
+  customer Customer @relation(fields: [customerId], references: [id])
+  staff    User?    @relation("StaffAppointments", fields: [staffId], references: [id])
+
+  @@index([customerId])
+  @@index([staffId])
+  @@index([startTime])
+  @@index([status])
+}
+
+model Invoice {
+  id            String        @id @default(cuid())
+  invoiceNumber String        @unique
+  customerId    String
+  orderId       String?       @unique
+  status        InvoiceStatus @default(DRAFT)
+  subtotal      Float
+  discountType  String?
+  discountValue Float         @default(0)
+  taxRate       Float         @default(18)
+  taxAmount     Float         @default(0)
+  totalAmount   Float
+  paidAmount    Float         @default(0)
+  dueAmount     Float
+  dueDate       DateTime?
+  notes         String?       @db.Text
+  terms         String?       @db.Text
+  isActive      Boolean       @default(true)
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  customer Customer       @relation(fields: [customerId], references: [id])
+  order    Order?         @relation(fields: [orderId], references: [id])
+  items    InvoiceItem[]
+  payments Payment[]
+
+  @@index([customerId])
+  @@index([orderId])
+  @@index([status])
+  @@index([invoiceNumber])
+}
+
+model InvoiceItem {
+  id          String  @id @default(cuid())
+  invoiceId   String
+  description String
+  quantity    Float   @default(1)
+  unitPrice   Float
+  amount      Float
+
+  invoice Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@index([invoiceId])
+}
+
+model Payment {
+  id            String        @id @default(cuid())
+  invoiceId     String
+  amount        Float
+  method        PaymentMethod @default(CASH)
+  reference     String?
+  notes         String?
+  paidAt        DateTime      @default(now())
+  createdAt     DateTime      @default(now())
+
+  invoice Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@index([invoiceId])
+}
+
+model FollowUp {
+  id          String         @id @default(cuid())
+  customerId  String
+  staffId     String?
+  title       String
+  description String?        @db.Text
+  status      FollowUpStatus @default(PENDING)
+  priority    OrderPriority  @default(NORMAL)
+  dueDate     DateTime?
+  completedAt DateTime?
+  notes       String?        @db.Text
+  isActive    Boolean        @default(true)
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  customer Customer @relation(fields: [customerId], references: [id])
+  staff    User?    @relation("StaffFollowUps", fields: [staffId], references: [id])
+
+  @@index([customerId])
+  @@index([staffId])
+  @@index([status])
+  @@index([dueDate])
+}
+
+model Supplier {
+  id        String    @id @default(cuid())
+  name      String
+  email     String?
+  phone     String?
+  address   String?
+  notes     String?   @db.Text
+  isActive  Boolean   @default(true)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  purchases Purchase[]
+
+  @@index([name])
+}
+
+model Purchase {
+  id           String   @id @default(cuid())
+  supplierId   String?
+  itemName     String
+  itemCode     String?
+  category     String   @default("FABRIC")
+  quantity     Float
+  unit         String   @default("meters")
+  unitPrice    Float
+  totalAmount  Float
+  paidAmount   Float    @default(0)
+  notes        String?  @db.Text
+  purchaseDate DateTime @default(now())
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  supplier Supplier? @relation(fields: [supplierId], references: [id])
+
+  @@index([supplierId])
+  @@index([purchaseDate])
+  @@index([category])
+}
+
+model Notification {
+  id        String           @id @default(cuid())
+  userId    String
+  type      NotificationType @default(SYSTEM)
+  title     String
+  message   String
+  link      String?
+  isRead    Boolean          @default(false)
+  createdAt DateTime         @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([isRead])
+  @@index([createdAt])
+}
+
+model ActivityLog {
+  id          String   @id @default(cuid())
+  userId      String?
+  customerId  String?
+  orderId     String?
+  action      String
+  entity      String
+  entityId    String
+  description String
+  metadata    Json?
+  createdAt   DateTime @default(now())
+
+  user     User?     @relation(fields: [userId], references: [id])
+  customer Customer? @relation(fields: [customerId], references: [id])
+  order    Order?    @relation(fields: [orderId], references: [id])
+
+  @@index([userId])
+  @@index([customerId])
+  @@index([orderId])
+  @@index([createdAt])
+  @@index([entity])
+}

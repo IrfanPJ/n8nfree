@@ -23,11 +23,6 @@ import { updateOrderStatus, updateOrderDesign } from "@/actions/orders";
 import type { OrderWithRelations, OrderStatus } from "@/types";
 import { ORDER_STATUS_CONFIG, formatCurrency, formatDate, cn, openWhatsApp } from "@/lib/utils";
 
-const KANBAN_LABELS: Record<OrderStatus, string> = {
-  PENDING: "Consultation", MEASURING: "Measuring", CUTTING: "Cutting",
-  STITCHING: "Stitching", TRIAL: "Fitting", READY: "Ready",
-  DELIVERED: "Delivered", CANCELLED: "Cancelled",
-};
 
 type StatusKey = keyof typeof ORDER_STATUS_CONFIG;
 const statusConfig = (s: OrderStatus) => ORDER_STATUS_CONFIG[s as StatusKey];
@@ -214,7 +209,7 @@ function OrderKanbanCard({
             {order.customer.phone && (
               <button type="button" onClick={(e) => {
                 e.stopPropagation();
-                openWhatsApp(order.customer.phone, `Hello ${order.customer.name}, your order ${order.orderNumber} (${order.garmentType}) is in *${KANBAN_LABELS[order.status]}*. Delivery: ${formatDate(order.deliveryDate)}.`);
+                openWhatsApp(order.customer.phone, `Hello ${order.customer.name}, your order ${order.orderNumber} (${order.garmentType}) is in *${statusConfig(order.status).label}*. Delivery: ${formatDate(order.deliveryDate)}.`);
               }}
                 className="flex items-center gap-1 text-[10px] px-2 py-1 rounded-md bg-green-500/10 text-green-400 hover:bg-green-500/20 transition-colors font-medium">
                 <MessageCircle className="w-3 h-3" /> WA
@@ -272,7 +267,7 @@ function KanbanColumn({
     >
       <div className="px-3 py-2.5 border-b border-border flex items-center justify-between">
         <span className={cn("flex items-center gap-1.5 text-xs font-semibold", config.color)}>
-          {STATUS_ICONS[status]}{KANBAN_LABELS[status]}
+          {STATUS_ICONS[status]}{config.label}
         </span>
         <span className={cn("text-xs font-bold px-2 py-0.5 rounded-full", config.bg, config.color)}>
           {orders.length}
@@ -322,9 +317,11 @@ function KanbanColumn({
 export function OrderKanban({
   initialOrders,
   visibleStatuses = KANBAN_COLUMNS,
+  onStatusChange,
 }: {
   initialOrders: OrderWithRelations[];
   visibleStatuses?: OrderStatus[];
+  onStatusChange?: (orderId: string, newStatus: OrderStatus) => void;
 }) {
   const [orders, setOrders] = useState<OrderWithRelations[]>(initialOrders);
   const [movingOrder, setMovingOrder] = useState<OrderWithRelations | null>(null);
@@ -350,6 +347,7 @@ export function OrderKanban({
           : o
       )
     );
+    onStatusChange?.(orderId, newStatus);
   };
 
   const handleDrop = async (orderId: string, targetStatus: OrderStatus) => {
@@ -361,6 +359,7 @@ export function OrderKanban({
     const result = await updateOrderStatus(orderId, targetStatus, undefined, true);
     if (result.success) {
       toast.success(`Moved to ${statusConfig(targetStatus).label}`);
+      onStatusChange?.(orderId, targetStatus);
     } else {
       setOrders((prev) => prev.map((o) => o.id === orderId ? { ...o, status: order.status } : o));
       toast.error(result.error ?? "Failed to move order");

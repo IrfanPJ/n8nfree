@@ -406,7 +406,15 @@ export function OrdersClient({
 
       {/* Content */}
       {view === "kanban" ? (
-        <OrderKanban initialOrders={data.data} />
+        <OrderKanban
+          initialOrders={data.data}
+          onStatusChange={(orderId, newStatus) =>
+            setData((prev) => ({
+              ...prev,
+              data: prev.data.map((o) => o.id === orderId ? { ...o, status: newStatus } : o),
+            }))
+          }
+        />
       ) : (
         <>
           {/* Table / List View */}

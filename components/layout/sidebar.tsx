@@ -66,12 +66,12 @@ export function Sidebar({ user }: SidebarProps) {
         className="fixed left-0 top-0 h-full z-40 flex flex-col border-r border-border bg-card overflow-hidden"
       >
         {/* Logo */}
-        <div className="flex items-center justify-center h-16 px-3 border-b border-border">
+        <div className="flex items-center justify-center h-16 px-4 border-b border-border">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={markLogoSrc}
-            alt="HT"
-            className="object-contain h-14 w-14"
+            alt="House of Tailors"
+            className="object-contain w-full h-10"
           />
         </div>
 

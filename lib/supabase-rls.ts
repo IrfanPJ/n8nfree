@@ -1,48 +1,27 @@
 import { createClient } from "@supabase/supabase-js";
 
-/**
- * Returns a Supabase client that sets RLS claims for the current user
- * before executing queries. Use this in place of the bare `supabase`
- * client when you want RLS policies to apply (e.g. for audit queries).
- *
- * The service-role key is still used — RLS is enforced via
- * SET LOCAL app.user_id / app.user_role, not via JWT auth.
- *
- * For most server actions the bare service-role client is fine because
- * access control is handled at the action layer (auth() checks + RBAC).
- * Use this client when you specifically need row-level isolation.
- */
-export function createRLSClient(userId: string, userRole: string) {
+export function createRLSClient() {
   return createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    {
-      auth: { autoRefreshToken: false, persistSession: false },
-      global: {
-        headers: {
-          // Postgres SET LOCAL runs inside each transaction automatically
-          // via the Supabase client's request pipeline when you use db.rpc
-        },
-      },
-      db: {
-        // Inject claims at the start of every statement batch
-        schema: "public",
-      },
-    }
+    { auth: { autoRefreshToken: false, persistSession: false } }
   );
 }
 
 /**
- * Sets the per-request RLS claims using a raw SQL call.
- * Call this once at the start of a request handler that needs RLS.
+ * Sets per-request RLS claims so Postgres policies can read
+ * current_user_id() / current_user_role() during the session.
  *
- * Usage:
- *   await setRLSClaims(supabase, session.user.id, session.user.role);
+ * Usage in a server action:
+ *   const rls = createRLSClient();
+ *   await setRLSClaims(rls, session.user.id, session.user.role);
+ *   const { data } = await rls.from("Notification").select("*");
  */
 export async function setRLSClaims(
-  client: ReturnType<typeof createClient>,
+  client: ReturnType<typeof createRLSClient>,
   userId: string,
   userRole: string
 ) {
-  await client.rpc("set_rls_claims", { p_user_id: userId, p_user_role: userRole });
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  await (client.rpc as any)("set_rls_claims", { p_user_id: userId, p_user_role: userRole });
 }

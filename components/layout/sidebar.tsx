@@ -2,16 +2,18 @@
 
 import React from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   LayoutDashboard, Users, ShoppingBag, Calendar, FileText,
   Bell, Settings, LogOut, ChevronLeft, ChevronRight,
   Scissors, Package, MessageSquare, BarChart3, Phone,
-  Crown, Target, Layers, ShoppingCart,
+  Target, Layers, ShoppingCart,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useUIStore } from "@/store/ui-store";
+import { useTheme } from "next-themes";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip";
 import { getInitials } from "@/lib/utils";
@@ -50,6 +52,8 @@ interface SidebarProps {
 export function Sidebar({ user }: SidebarProps) {
   const pathname = usePathname();
   const { sidebarCollapsed, setSidebarCollapsed } = useUIStore();
+  const { resolvedTheme } = useTheme();
+  const logoSrc = resolvedTheme === "light" ? "/logo-black.png" : "/logo-white.png";
 
   return (
     <TooltipProvider delayDuration={0}>
@@ -60,7 +64,7 @@ export function Sidebar({ user }: SidebarProps) {
         className="fixed left-0 top-0 h-full z-40 flex flex-col border-r border-border bg-card overflow-hidden"
       >
         {/* Logo */}
-        <div className="flex items-center h-16 px-4 border-b border-border">
+        <div className="flex items-center justify-center h-16 px-3 border-b border-border">
           <AnimatePresence mode="wait">
             {!sidebarCollapsed ? (
               <motion.div
@@ -68,15 +72,16 @@ export function Sidebar({ user }: SidebarProps) {
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
-                className="flex items-center gap-2 overflow-hidden"
+                className="flex items-center justify-center w-full"
               >
-                <div className="w-8 h-8 rounded-lg bg-gold-gradient flex items-center justify-center flex-shrink-0">
-                  <Crown className="w-4 h-4 text-black" />
-                </div>
-                <div>
-                  <p className="text-sm font-bold text-white leading-none">House of</p>
-                  <p className="text-xs font-bold luxury-gradient leading-none mt-0.5">TAILORS</p>
-                </div>
+                <Image
+                  src={logoSrc}
+                  alt="House of Tailors"
+                  width={160}
+                  height={48}
+                  className="object-contain h-10 w-auto"
+                  priority
+                />
               </motion.div>
             ) : (
               <motion.div
@@ -84,9 +89,15 @@ export function Sidebar({ user }: SidebarProps) {
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
-                className="w-8 h-8 rounded-lg bg-gold-gradient flex items-center justify-center"
               >
-                <Crown className="w-4 h-4 text-black" />
+                <Image
+                  src={logoSrc}
+                  alt="HT"
+                  width={36}
+                  height={36}
+                  className="object-contain h-9 w-9"
+                  priority
+                />
               </motion.div>
             )}
           </AnimatePresence>

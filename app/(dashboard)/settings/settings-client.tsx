@@ -1,8 +1,7 @@
 "use client";
 
-import React, { useState } from "react";
-import { motion } from "framer-motion";
-import { User, Bell, Shield, Palette, Building2, Save } from "lucide-react";
+import { useState } from "react";
+import { User, Bell, Palette, Building2, Save } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";

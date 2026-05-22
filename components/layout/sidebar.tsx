@@ -1,8 +1,7 @@
 "use client";
 
-import React from "react";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
-import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -53,7 +52,9 @@ export function Sidebar({ user }: SidebarProps) {
   const pathname = usePathname();
   const { sidebarCollapsed, setSidebarCollapsed } = useUIStore();
   const { resolvedTheme } = useTheme();
-  const logoSrc = resolvedTheme === "light" ? "/logo-black.png" : "/logo-white.png";
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+  const logoSrc = mounted && resolvedTheme === "light" ? "/logo-black.png" : "/logo-white.png";
 
   return (
     <TooltipProvider delayDuration={0}>
@@ -74,13 +75,11 @@ export function Sidebar({ user }: SidebarProps) {
                 exit={{ opacity: 0 }}
                 className="flex items-center justify-center w-full"
               >
-                <Image
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
                   src={logoSrc}
                   alt="House of Tailors"
-                  width={160}
-                  height={48}
                   className="object-contain h-10 w-auto"
-                  priority
                 />
               </motion.div>
             ) : (
@@ -90,13 +89,11 @@ export function Sidebar({ user }: SidebarProps) {
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
               >
-                <Image
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
                   src={logoSrc}
                   alt="HT"
-                  width={36}
-                  height={36}
                   className="object-contain h-9 w-9"
-                  priority
                 />
               </motion.div>
             )}

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Bell, Search, Moon, Sun, Menu } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useUIStore } from "@/store/ui-store";
@@ -18,6 +18,9 @@ export function Topbar({ title, subtitle }: TopbarProps) {
   const { resolvedTheme, setTheme } = useTheme();
   const [searchOpen, setSearchOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => setMounted(true), []);
 
   return (
     <>
@@ -54,10 +57,10 @@ export function Topbar({ title, subtitle }: TopbarProps) {
           <Button
             variant="ghost"
             size="icon-sm"
-            onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
+            onClick={() => mounted && setTheme(resolvedTheme === "dark" ? "light" : "dark")}
             className="text-muted-foreground hover:text-foreground"
           >
-            {resolvedTheme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+            {mounted && resolvedTheme === "light" ? <Moon className="h-4 w-4" /> : <Sun className="h-4 w-4" />}
           </Button>
 
           <Button

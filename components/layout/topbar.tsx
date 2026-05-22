@@ -4,6 +4,7 @@ import React, { useState } from "react";
 import { Bell, Search, Moon, Sun, Menu } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useUIStore } from "@/store/ui-store";
+import { useTheme } from "next-themes";
 import { GlobalSearch } from "@/components/shared/global-search";
 import { NotificationsPanel } from "@/components/shared/notifications-panel";
 
@@ -13,7 +14,8 @@ interface TopbarProps {
 }
 
 export function Topbar({ title, subtitle }: TopbarProps) {
-  const { theme, setTheme, setSidebarCollapsed, sidebarCollapsed } = useUIStore();
+  const { setSidebarCollapsed, sidebarCollapsed } = useUIStore();
+  const { resolvedTheme, setTheme } = useTheme();
   const [searchOpen, setSearchOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
 
@@ -52,10 +54,10 @@ export function Topbar({ title, subtitle }: TopbarProps) {
           <Button
             variant="ghost"
             size="icon-sm"
-            onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+            onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
             className="text-muted-foreground hover:text-foreground"
           >
-            {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+            {resolvedTheme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
           </Button>
 
           <Button

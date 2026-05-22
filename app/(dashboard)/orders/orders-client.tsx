@@ -416,34 +416,46 @@ export function OrdersClient({
               </div>
               <p className="text-muted-foreground font-medium">No orders found</p>
               <p className="text-sm text-muted-foreground">
-                {activeFilters.length > 0
-                  ? "Try removing some filters"
-                  : "Create your first order to get started"}
+                {activeFilters.length > 0 ? "Try removing some filters" : "Create your first order to get started"}
               </p>
               {activeFilters.length === 0 && (
                 <Button variant="gold" onClick={() => setCreateOpen(true)}>
-                  <Plus className="w-4 h-4 mr-2" />
-                  New Order
+                  <Plus className="w-4 h-4 mr-2" />New Order
                 </Button>
               )}
             </div>
           ) : (
-            <div className="space-y-2">
-              <AnimatePresence mode="popLayout">
-                {data.data.map((order, i) => (
-                  <OrderRow
-                    key={order.id}
-                    order={order}
-                    index={i}
-                    deletingId={deletingId}
-                    statusUpdating={statusUpdating}
-                    onView={() => setViewOrder(order)}
-                    onEdit={() => setEditOrder(order)}
-                    onDelete={() => handleDelete(order)}
-                    onStatusUpdate={(status) => handleStatusUpdate(order, status)}
-                  />
-                ))}
-              </AnimatePresence>
+            <div className="rounded-xl border border-border overflow-hidden">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-border bg-secondary/40">
+                    <th className="text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide px-4 py-3">Order</th>
+                    <th className="text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide px-3 py-3">Customer</th>
+                    <th className="text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide px-3 py-3 hidden md:table-cell">Garment</th>
+                    <th className="text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide px-3 py-3 hidden sm:table-cell">Status</th>
+                    <th className="text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide px-3 py-3 hidden lg:table-cell">Delivery</th>
+                    <th className="text-right text-xs font-semibold text-muted-foreground uppercase tracking-wide px-3 py-3 hidden lg:table-cell">Amount</th>
+                    <th className="text-right text-xs font-semibold text-muted-foreground uppercase tracking-wide px-4 py-3">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <AnimatePresence mode="popLayout">
+                    {data.data.map((order, i) => (
+                      <OrderTableRow
+                        key={order.id}
+                        order={order}
+                        index={i}
+                        deletingId={deletingId}
+                        statusUpdating={statusUpdating}
+                        onView={() => setViewOrder(order)}
+                        onEdit={() => setEditOrder(order)}
+                        onDelete={() => handleDelete(order)}
+                        onStatusUpdate={(status) => handleStatusUpdate(order, status)}
+                      />
+                    ))}
+                  </AnimatePresence>
+                </tbody>
+              </table>
             </div>
           )}
 
@@ -559,7 +571,7 @@ export function OrdersClient({
 }
 
 /* ─────────────────────────────────────────────
-   Order Row (Table View)
+   Order Table Row
 ───────────────────────────────────────────── */
 interface OrderRowProps {
   order: OrderWithRelations;
@@ -572,171 +584,114 @@ interface OrderRowProps {
   onStatusUpdate: (status: OrderStatus) => void;
 }
 
-function OrderRow({
-  order,
-  index,
-  deletingId,
-  statusUpdating,
-  onView,
-  onEdit,
-  onDelete,
-  onStatusUpdate,
-}: OrderRowProps) {
+function OrderTableRow({ order, index, deletingId, statusUpdating, onView, onEdit, onDelete, onStatusUpdate }: OrderRowProps) {
   const isOverdue =
     order.deliveryDate &&
     new Date(order.deliveryDate) < new Date() &&
     !["DELIVERED", "CANCELLED"].includes(order.status);
-
   const balanceDue = order.totalAmount - order.advanceAmount;
 
   return (
-    <motion.div
+    <motion.tr
       layout
-      initial={{ opacity: 0, y: 8 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: -8 }}
-      transition={{ delay: Math.min(index * 0.025, 0.3) }}
-      className={cn(
-        "group flex items-center gap-4 p-4 rounded-xl border bg-card hover:border-[#D4AF37]/30 transition-all",
-        order.priority === "URGENT"
-          ? "border-red-400/20"
-          : order.priority === "HIGH"
-          ? "border-yellow-400/10"
-          : "border-border"
-      )}
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={{ delay: Math.min(index * 0.02, 0.2) }}
+      className="group border-b border-border last:border-0 hover:bg-secondary/20 transition-colors"
     >
-      {/* Order Number & Customer */}
-      <div className="min-w-0 flex-1">
-        <div className="flex items-center gap-2 flex-wrap">
-          <button
-            onClick={onView}
-            className="text-sm font-semibold text-[#D4AF37] hover:underline truncate leading-none"
-          >
+      {/* Order # */}
+      <td className="px-4 py-3">
+        <div className="flex flex-col gap-0.5">
+          <button onClick={onView} className="text-sm font-semibold text-[#D4AF37] hover:underline text-left">
             {order.orderNumber}
           </button>
-          <PriorityBadge priority={order.priority} />
-          {isOverdue && (
-            <span className="flex items-center gap-0.5 text-[10px] text-red-400 font-semibold">
-              <AlertCircle className="w-3 h-3" /> OVERDUE
-            </span>
-          )}
+          <div className="flex items-center gap-1.5">
+            <PriorityBadge priority={order.priority} />
+            {isOverdue && (
+              <span className="flex items-center gap-0.5 text-[10px] text-red-400 font-semibold">
+                <AlertCircle className="w-3 h-3" /> OVERDUE
+              </span>
+            )}
+          </div>
         </div>
-        <p className="text-sm font-medium mt-0.5">{order.customer.name}</p>
-        <div className="flex items-center gap-3 mt-1 flex-wrap">
-          <span className="text-xs text-muted-foreground flex items-center gap-1">
-            <Package className="w-3 h-3" />
-            {order.garmentType}
-            {order.fabricName && ` · ${order.fabricName}`}
-          </span>
-          {order.assignedTo && (
-            <span className="text-xs text-muted-foreground flex items-center gap-1">
-              <User2 className="w-3 h-3" />
-              {order.assignedTo.name}
-            </span>
-          )}
-        </div>
-      </div>
+      </td>
+
+      {/* Customer */}
+      <td className="px-3 py-3">
+        <p className="text-sm font-medium">{order.customer.name}</p>
+        {order.assignedTo && (
+          <p className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
+            <User2 className="w-3 h-3" />{order.assignedTo.name}
+          </p>
+        )}
+      </td>
+
+      {/* Garment */}
+      <td className="px-3 py-3 hidden md:table-cell">
+        <p className="text-sm">{order.garmentType}</p>
+        {order.fabricName && <p className="text-xs text-muted-foreground">{order.fabricName}</p>}
+      </td>
 
       {/* Status */}
-      <div className="hidden sm:flex flex-col items-start gap-1.5">
+      <td className="px-3 py-3 hidden sm:table-cell">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <button
-              disabled={statusUpdating === order.id}
-              className="flex items-center gap-1 group/status"
-            >
+            <button disabled={statusUpdating === order.id} className="flex items-center gap-1 group/status">
               <OrderStatusBadge status={order.status} />
               <ChevronDown className="w-3 h-3 text-muted-foreground opacity-0 group-hover/status:opacity-100 transition-opacity" />
             </button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="start" className="w-44">
-            <div className="px-2 py-1.5 text-xs text-muted-foreground font-medium">
-              Change Status
-            </div>
+            <div className="px-2 py-1.5 text-xs text-muted-foreground font-medium">Change Status</div>
             <DropdownMenuSeparator />
             {ORDER_STATUSES.filter((s) => s !== order.status).map((s) => (
-              <DropdownMenuItem
-                key={s}
-                onClick={() => onStatusUpdate(s)}
-                className={cn("text-xs", statusConfig(s).color)}
-              >
+              <DropdownMenuItem key={s} onClick={() => onStatusUpdate(s)} className={cn("text-xs", statusConfig(s).color)}>
                 {statusConfig(s).label}
               </DropdownMenuItem>
             ))}
           </DropdownMenuContent>
         </DropdownMenu>
-      </div>
+      </td>
 
-      {/* Dates */}
-      <div className="hidden md:flex flex-col gap-1 text-xs text-muted-foreground min-w-[100px]">
-        <span className={cn("flex items-center gap-1", isOverdue && "text-red-400")}>
-          <Calendar className="w-3 h-3" />
-          {formatDate(order.deliveryDate)}
+      {/* Delivery */}
+      <td className="px-3 py-3 hidden lg:table-cell">
+        <span className={cn("text-xs flex items-center gap-1", isOverdue ? "text-red-400" : "text-muted-foreground")}>
+          <Calendar className="w-3 h-3" />{formatDate(order.deliveryDate)}
         </span>
         {order.trialDate && (
-          <span className="flex items-center gap-1 text-cyan-400/70">
-            <Calendar className="w-3 h-3" />
-            Trial: {formatDate(order.trialDate)}
+          <span className="text-xs flex items-center gap-1 text-cyan-400/70 mt-0.5">
+            <Calendar className="w-3 h-3" />Trial: {formatDate(order.trialDate)}
           </span>
         )}
-      </div>
+      </td>
 
       {/* Amount */}
-      <div className="hidden lg:flex flex-col gap-1 text-xs min-w-[100px]">
-        <span className="flex items-center gap-1 font-semibold">
-          <DollarSign className="w-3 h-3 text-muted-foreground" />
-          {formatCurrency(order.totalAmount)}
-        </span>
-        {balanceDue > 0 ? (
-          <span className="text-yellow-400">
-            {formatCurrency(balanceDue)} due
-          </span>
-        ) : (
-          <span className="text-green-400">Paid</span>
-        )}
-      </div>
+      <td className="px-3 py-3 text-right hidden lg:table-cell">
+        <p className="text-sm font-semibold">{formatCurrency(order.totalAmount)}</p>
+        <p className={cn("text-xs", balanceDue > 0 ? "text-yellow-400" : "text-green-400")}>
+          {balanceDue > 0 ? `${formatCurrency(balanceDue)} due` : "Paid"}
+        </p>
+      </td>
 
       {/* Actions */}
-      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
-        {order.customer.phone && (
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            title="WhatsApp update"
-            className="text-green-400 hover:text-green-300"
-            onClick={() => openWhatsApp(
-              order.customer.phone,
-              `Hello ${order.customer.name}, your order ${order.orderNumber} (${order.garmentType}) status: *${ORDER_STATUS_CONFIG[order.status]?.label}*. Delivery: ${formatDate(order.deliveryDate)}. — House of Tailors`
-            )}
-          >
-            <MessageCircle className="w-4 h-4" />
+      <td className="px-4 py-3">
+        <div className="flex items-center gap-1 justify-end opacity-0 group-hover:opacity-100 transition-opacity">
+          {order.customer.phone && (
+            <Button variant="ghost" size="icon-sm" className="text-green-400 hover:text-green-300"
+              onClick={() => openWhatsApp(order.customer.phone, `Hello ${order.customer.name}, your order ${order.orderNumber} (${order.garmentType}) status: *${ORDER_STATUS_CONFIG[order.status]?.label}*. Delivery: ${formatDate(order.deliveryDate)}. — House of Tailors`)}>
+              <MessageCircle className="w-4 h-4" />
+            </Button>
+          )}
+          <Button variant="ghost" size="icon-sm" onClick={() => printOrderSlip(order)}><Printer className="w-4 h-4" /></Button>
+          <Button variant="ghost" size="icon-sm" onClick={onView}><Eye className="w-4 h-4" /></Button>
+          <Button variant="ghost" size="icon-sm" onClick={onEdit}><Edit2 className="w-4 h-4" /></Button>
+          <Button variant="ghost" size="icon-sm" onClick={onDelete} disabled={deletingId === order.id} className="text-destructive hover:text-destructive">
+            <Trash2 className="w-4 h-4" />
           </Button>
-        )}
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          title="Print slip"
-          onClick={() => printOrderSlip(order)}
-        >
-          <Printer className="w-4 h-4" />
-        </Button>
-        <Button variant="ghost" size="icon-sm" onClick={onView}>
-          <Eye className="w-4 h-4" />
-        </Button>
-        <Button variant="ghost" size="icon-sm" onClick={onEdit}>
-          <Edit2 className="w-4 h-4" />
-        </Button>
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          onClick={onDelete}
-          disabled={deletingId === order.id}
-          className="text-destructive hover:text-destructive"
-        >
-          <Trash2 className="w-4 h-4" />
-        </Button>
-      </div>
-    </motion.div>
+        </div>
+      </td>
+    </motion.tr>
   );
 }
 

@@ -2,7 +2,7 @@
 
 import { useEffect } from "react";
 import { useSession } from "next-auth/react";
-import { supabaseBrowser } from "@/lib/supabase-browser";
+import { getSupabaseBrowser } from "@/lib/supabase-browser";
 import { useNotificationsStore } from "@/store/notifications-store";
 import type { Notification } from "@/types";
 
@@ -12,8 +12,10 @@ export function useRealtimeNotifications() {
 
   useEffect(() => {
     if (!session?.user?.id) return;
+    const client = getSupabaseBrowser();
+    if (!client) return; // anon key not configured — Realtime disabled
 
-    const channel = supabaseBrowser
+    const channel = client
       .channel(`notifications:${session.user.id}`)
       .on(
         "postgres_changes",
@@ -24,14 +26,13 @@ export function useRealtimeNotifications() {
           filter: `userId=eq.${session.user.id}`,
         },
         (payload) => {
-          const notification = payload.new as Notification;
-          addNotification(notification);
+          addNotification(payload.new as Notification);
         }
       )
       .subscribe();
 
     return () => {
-      supabaseBrowser.removeChannel(channel);
+      client.removeChannel(channel);
     };
   }, [session?.user?.id, addNotification]);
 }

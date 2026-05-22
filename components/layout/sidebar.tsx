@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 import {
   LayoutDashboard, Users, ShoppingBag, Calendar, FileText,
   Bell, Settings, LogOut, ChevronLeft, ChevronRight,
@@ -55,7 +55,6 @@ export function Sidebar({ user }: SidebarProps) {
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
   const isLight = mounted && resolvedTheme === "light";
-  const fullLogoSrc = isLight ? "/logo-black.png" : "/logo-white.png";
   const markLogoSrc = isLight ? "/HT_Black.png" : "/HT_White.png";
 
   return (
@@ -68,38 +67,12 @@ export function Sidebar({ user }: SidebarProps) {
       >
         {/* Logo */}
         <div className="flex items-center justify-center h-16 px-3 border-b border-border">
-          <AnimatePresence mode="wait">
-            {!sidebarCollapsed ? (
-              <motion.div
-                key="full"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                className="flex items-center justify-center w-full"
-              >
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={fullLogoSrc}
-                  alt="House of Tailors"
-                  className="object-contain h-10 w-auto"
-                />
-              </motion.div>
-            ) : (
-              <motion.div
-                key="icon"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-              >
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={markLogoSrc}
-                  alt="HT"
-                  className="object-contain h-9 w-9"
-                />
-              </motion.div>
-            )}
-          </AnimatePresence>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={markLogoSrc}
+            alt="HT"
+            className="object-contain h-10 w-10"
+          />
         </div>
 
         {/* Nav Items */}

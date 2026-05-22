@@ -8,7 +8,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { signIn } from "next-auth/react";
 import { motion } from "framer-motion";
-import { Crown, Eye, EyeOff } from "lucide-react";
+import { Eye, EyeOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -71,33 +71,13 @@ export default function LoginPage() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6 }}
           >
-            <div className="w-20 h-20 rounded-2xl bg-gold-gradient flex items-center justify-center mx-auto mb-6 shadow-2xl shadow-yellow-900/30">
-              <Crown className="w-10 h-10 text-black" />
-            </div>
-            <h1 className="text-4xl font-bold text-white font-display mb-2">House of</h1>
-            <h1 className="text-5xl font-bold luxury-gradient font-display mb-6">TAILORS</h1>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/HT_White.png" alt="House of Tailors" className="object-contain w-full h-20 mx-auto mb-8" />
             <p className="text-muted-foreground text-sm max-w-xs mx-auto leading-relaxed">
               Enterprise-grade tailoring management platform for luxury fashion houses.
             </p>
           </motion.div>
 
-          <motion.div
-            initial={{ opacity: 0, y: 30 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, delay: 0.2 }}
-            className="mt-16 grid grid-cols-3 gap-6"
-          >
-            {[
-              { label: "Orders", value: "10K+" },
-              { label: "Customers", value: "5K+" },
-              { label: "Revenue", value: "AED 2M+" },
-            ].map((stat) => (
-              <div key={stat.label} className="glass-gold rounded-xl p-4">
-                <p className="text-2xl font-bold text-[#D4AF37]">{stat.value}</p>
-                <p className="text-xs text-muted-foreground mt-1">{stat.label}</p>
-              </div>
-            ))}
-          </motion.div>
         </div>
       </div>
 
@@ -110,14 +90,9 @@ export default function LoginPage() {
           className="w-full max-w-md"
         >
           {/* Mobile logo */}
-          <div className="lg:hidden flex items-center gap-3 mb-10">
-            <div className="w-10 h-10 rounded-xl bg-gold-gradient flex items-center justify-center">
-              <Crown className="w-5 h-5 text-black" />
-            </div>
-            <div>
-              <p className="text-sm font-bold text-white">House of</p>
-              <p className="text-lg font-bold luxury-gradient">TAILORS</p>
-            </div>
+          <div className="lg:hidden mb-10">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/HT_White.png" alt="House of Tailors" className="object-contain w-full h-20" />
           </div>
 
           <div className="mb-8">

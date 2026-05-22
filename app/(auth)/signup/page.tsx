@@ -82,9 +82,7 @@ export default function SignUpPage() {
           className="relative z-10 text-center"
         >
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/HT_White.png" alt="House of Tailors" className="h-20 w-auto mx-auto mb-6 object-contain" />
-          <h1 className="text-4xl font-bold text-white font-display mb-2">House of</h1>
-          <h1 className="text-5xl font-bold luxury-gradient font-display mb-6">TAILORS</h1>
+          <img src="/HT_White.png" alt="House of Tailors" className="object-contain w-full h-20 mx-auto mb-8" />
           <p className="text-muted-foreground text-sm max-w-xs mx-auto leading-relaxed">
             Enterprise-grade tailoring management platform for luxury fashion houses.
           </p>
@@ -99,9 +97,9 @@ export default function SignUpPage() {
           transition={{ duration: 0.5 }}
           className="w-full max-w-md"
         >
-          <div className="lg:hidden flex items-center gap-3 mb-10">
+          <div className="lg:hidden mb-10">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/HT_White.png" alt="House of Tailors" className="h-10 w-auto object-contain" />
+            <img src="/HT_White.png" alt="House of Tailors" className="object-contain w-full h-20" />
           </div>
 
           <div className="mb-8">

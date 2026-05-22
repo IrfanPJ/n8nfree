@@ -221,7 +221,8 @@ export async function updateOrder(id: string, data: unknown): Promise<ApiRespons
 export async function updateOrderStatus(
   id: string,
   status: string,
-  notes?: string
+  notes?: string,
+  skipRevalidate?: boolean
 ): Promise<ApiResponse<OrderWithRelations>> {
   const session = await auth();
   if (!session?.user) return { success: false, error: "Unauthorized" };
@@ -264,8 +265,10 @@ export async function updateOrderStatus(
       metadata: { status: parsed.data.status, notes: parsed.data.notes },
     });
 
-    revalidatePath("/orders");
-    revalidatePath(`/orders/${id}`);
+    if (!skipRevalidate) {
+      revalidatePath("/orders");
+      revalidatePath(`/orders/${id}`);
+    }
     return {
       success: true,
       data: { ...order, statusHistory: (order?.statusHistory ?? []).sort((a: any, b: any) => new Date(b.changedAt).getTime() - new Date(a.changedAt).getTime()) } as OrderWithRelations,

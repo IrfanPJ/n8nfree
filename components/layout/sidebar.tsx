@@ -71,7 +71,7 @@ export function Sidebar({ user }: SidebarProps) {
           <img
             src={markLogoSrc}
             alt="HT"
-            className="object-contain h-10 w-10"
+            className="object-contain h-14 w-14"
           />
         </div>
 

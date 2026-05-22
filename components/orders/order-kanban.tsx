@@ -77,7 +77,7 @@ function MoveOrderDialog({
   const handleMove = () => {
     if (!order || !targetStatus) return;
     startTransition(async () => {
-      const result = await updateOrderStatus(order.id, targetStatus, notes || undefined);
+      const result = await updateOrderStatus(order.id, targetStatus, notes || undefined, true);
       if (result.success) {
         toast.success(`Moved to ${statusConfig(targetStatus as OrderStatus).label}`);
         onMoved(order.id, targetStatus as OrderStatus, notes || undefined);
@@ -358,7 +358,7 @@ export function OrderKanban({
 
     setOrders((prev) => prev.map((o) => o.id === orderId ? { ...o, status: targetStatus } : o));
 
-    const result = await updateOrderStatus(orderId, targetStatus);
+    const result = await updateOrderStatus(orderId, targetStatus, undefined, true);
     if (result.success) {
       toast.success(`Moved to ${statusConfig(targetStatus).label}`);
     } else {

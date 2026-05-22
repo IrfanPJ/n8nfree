@@ -1,5 +1,14 @@
 // ── Enums ────────────────────────────────────────────────────────────────────
-export type UserRole = "ADMIN" | "MANAGER" | "TAILOR" | "STAFF";
+export type UserRole = "ADMIN" | "MANAGER" | "STAFF";
+export type StaffPosition =
+  | "SALES_STAFF"
+  | "PURCHASE_STAFF"
+  | "PRODUCTION_IN_CHARGE"
+  | "MASTER"
+  | "TAILOR"
+  | "QUALITY_CHECK"
+  | "LOGISTICS_COORDINATOR"
+  | "LEAD_MANAGEMENT_STAFF";
 export type Gender = "MALE" | "FEMALE" | "OTHER";
 export type OrderStatus =
   | "PENDING" | "MEASURING" | "CUTTING" | "STITCHING"
@@ -22,6 +31,7 @@ export type User = {
   image: string | null;
   password: string | null;
   role: UserRole;
+  position: StaffPosition | null;
   isActive: boolean;
   createdAt: string;
   updatedAt: string;

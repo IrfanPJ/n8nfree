@@ -8,7 +8,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { signIn } from "next-auth/react";
 import { motion } from "framer-motion";
-import { Crown, Eye, EyeOff } from "lucide-react";
+import { Eye, EyeOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -81,9 +81,8 @@ export default function SignUpPage() {
           transition={{ duration: 0.6 }}
           className="relative z-10 text-center"
         >
-          <div className="w-20 h-20 rounded-2xl bg-gold-gradient flex items-center justify-center mx-auto mb-6 shadow-2xl shadow-yellow-900/30">
-            <Crown className="w-10 h-10 text-black" />
-          </div>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/HT_White.png" alt="House of Tailors" className="h-20 w-auto mx-auto mb-6 object-contain" />
           <h1 className="text-4xl font-bold text-white font-display mb-2">House of</h1>
           <h1 className="text-5xl font-bold luxury-gradient font-display mb-6">TAILORS</h1>
           <p className="text-muted-foreground text-sm max-w-xs mx-auto leading-relaxed">
@@ -101,13 +100,8 @@ export default function SignUpPage() {
           className="w-full max-w-md"
         >
           <div className="lg:hidden flex items-center gap-3 mb-10">
-            <div className="w-10 h-10 rounded-xl bg-gold-gradient flex items-center justify-center">
-              <Crown className="w-5 h-5 text-black" />
-            </div>
-            <div>
-              <p className="text-sm font-bold text-white">House of</p>
-              <p className="text-lg font-bold luxury-gradient">TAILORS</p>
-            </div>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/HT_White.png" alt="House of Tailors" className="h-10 w-auto object-contain" />
           </div>
 
           <div className="mb-8">

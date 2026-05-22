@@ -193,7 +193,7 @@ function OrderKanbanCard({ order, isDragging, onMoveClick, onDesignClick, onDrag
       transition={{ duration: 0.15 }}
       draggable
       onDragStart={(e) => {
-        (e as unknown as DragEvent).dataTransfer?.setData("text/plain", order.id);
+        try { (e as unknown as DragEvent).dataTransfer?.setData("text/plain", order.id); } catch {}
         onDragStart(order.id);
       }}
       onDragEnd={onDragEnd}
@@ -317,7 +317,8 @@ function KanbanColumn({
       onDrop={(e) => {
         e.preventDefault();
         setIsDragOver(false);
-        const orderId = e.dataTransfer.getData("text/plain");
+        // Prefer state-tracked id over dataTransfer (more reliable with Framer Motion)
+        const orderId = draggedOrderId || e.dataTransfer.getData("text/plain");
         if (orderId) onDrop(orderId, status);
       }}
     >

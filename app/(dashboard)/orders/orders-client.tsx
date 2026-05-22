@@ -7,7 +7,6 @@ import { toast } from "sonner";
 import {
   Plus,
   Search,
-  Filter,
   LayoutGrid,
   LayoutList,
   ChevronLeft,
@@ -17,13 +16,13 @@ import {
   Eye,
   Calendar,
   User2,
-  DollarSign,
   Package,
   AlertCircle,
   ChevronDown,
   X,
   Printer,
   MessageCircle,
+  Sparkles,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -52,7 +51,8 @@ import {
 import { OrderForm } from "@/components/orders/order-form";
 import { OrderStatusBadge, PriorityBadge } from "@/components/orders/order-status-badge";
 import { OrderKanban } from "@/components/orders/order-kanban";
-import { deleteOrder, updateOrderStatus } from "@/actions/orders";
+import { BespokeDesigner } from "@/components/orders/bespoke-designer";
+import { deleteOrder, updateOrderStatus, updateOrderDesign } from "@/actions/orders";
 import type { OrderWithRelations, PaginatedResult, OrderStatus } from "@/types";
 import {
   formatCurrency,
@@ -189,6 +189,7 @@ export function OrdersClient({
   const [viewOrder, setViewOrder] = useState<OrderWithRelations | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [statusUpdating, setStatusUpdating] = useState<string | null>(null);
+  const [designOrder, setDesignOrder] = useState<OrderWithRelations | null>(null);
 
   const debouncedSearch = useCallback(
     debounce((...args: unknown[]) => {
@@ -450,6 +451,7 @@ export function OrdersClient({
                         onView={() => setViewOrder(order)}
                         onEdit={() => setEditOrder(order)}
                         onDelete={() => handleDelete(order)}
+                        onDesign={() => setDesignOrder(order)}
                         onStatusUpdate={(status) => handleStatusUpdate(order, status)}
                       />
                     ))}
@@ -550,6 +552,24 @@ export function OrdersClient({
         </DialogContent>
       </Dialog>
 
+      {/* Bespoke Designer */}
+      <BespokeDesigner
+        open={!!designOrder}
+        onClose={() => setDesignOrder(null)}
+        orderId={designOrder?.id}
+        orderNumber={designOrder?.orderNumber}
+        onSave={async (_design, specText) => {
+          if (!designOrder) return;
+          await updateOrderDesign(designOrder.id, specText);
+          setData((prev) => ({
+            ...prev,
+            data: prev.data.map((o) =>
+              o.id === designOrder.id ? { ...o, designNotes: specText } : o
+            ),
+          }));
+        }}
+      />
+
       {/* View Detail Dialog */}
       <Dialog open={!!viewOrder} onOpenChange={() => setViewOrder(null)}>
         <DialogContent className="max-w-xl max-h-[92vh] overflow-y-auto">
@@ -581,10 +601,11 @@ interface OrderRowProps {
   onView: () => void;
   onEdit: () => void;
   onDelete: () => void;
+  onDesign: () => void;
   onStatusUpdate: (status: OrderStatus) => void;
 }
 
-function OrderTableRow({ order, index, deletingId, statusUpdating, onView, onEdit, onDelete, onStatusUpdate }: OrderRowProps) {
+function OrderTableRow({ order, index, deletingId, statusUpdating, onView, onEdit, onDelete, onDesign, onStatusUpdate }: OrderRowProps) {
   const isOverdue =
     order.deliveryDate &&
     new Date(order.deliveryDate) < new Date() &&
@@ -631,6 +652,11 @@ function OrderTableRow({ order, index, deletingId, statusUpdating, onView, onEdi
       <td className="px-3 py-3 hidden md:table-cell">
         <p className="text-sm">{order.garmentType}</p>
         {order.fabricName && <p className="text-xs text-muted-foreground">{order.fabricName}</p>}
+        {order.designNotes && (
+          <p className="text-[10px] text-[#D4AF37]/70 mt-0.5 truncate max-w-[180px]" title={order.designNotes}>
+            ✦ {order.designNotes}
+          </p>
+        )}
       </td>
 
       {/* Status */}
@@ -677,6 +703,9 @@ function OrderTableRow({ order, index, deletingId, statusUpdating, onView, onEdi
       {/* Actions */}
       <td className="px-4 py-3">
         <div className="flex items-center gap-1 justify-end opacity-0 group-hover:opacity-100 transition-opacity">
+          <Button variant="ghost" size="icon-sm" onClick={onDesign} title="Bespoke Design" className="text-[#D4AF37] hover:text-[#D4AF37]">
+            <Sparkles className="w-4 h-4" />
+          </Button>
           {order.customer.phone && (
             <Button variant="ghost" size="icon-sm" className="text-green-400 hover:text-green-300"
               onClick={() => openWhatsApp(order.customer.phone, `Hello ${order.customer.name}, your order ${order.orderNumber} (${order.garmentType}) status: *${ORDER_STATUS_CONFIG[order.status]?.label}*. Delivery: ${formatDate(order.deliveryDate)}. — House of Tailors`)}>

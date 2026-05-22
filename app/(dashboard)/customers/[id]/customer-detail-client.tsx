@@ -164,6 +164,11 @@ export function CustomerDetailClient({ customer }: CustomerDetailClientProps) {
                         </span>
                       </div>
                       <p className="text-xs text-muted-foreground mt-0.5">{order.garmentType}</p>
+                      {(order as any).designNotes && (
+                        <p className="text-[10px] text-[#D4AF37]/70 mt-0.5 truncate max-w-xs" title={(order as any).designNotes}>
+                          ✦ {(order as any).designNotes}
+                        </p>
+                      )}
                     </div>
                     <div className="text-right text-sm">
                       <p className="font-semibold">{formatCurrency(order.totalAmount)}</p>

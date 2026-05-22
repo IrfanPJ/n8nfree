@@ -54,7 +54,9 @@ export function Sidebar({ user }: SidebarProps) {
   const { resolvedTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
-  const logoSrc = mounted && resolvedTheme === "light" ? "/logo-black.png" : "/logo-white.png";
+  const isLight = mounted && resolvedTheme === "light";
+  const fullLogoSrc = isLight ? "/logo-black.png" : "/logo-white.png";
+  const markLogoSrc = isLight ? "/HT_Black.png" : "/HT_White.png";
 
   return (
     <TooltipProvider delayDuration={0}>
@@ -77,7 +79,7 @@ export function Sidebar({ user }: SidebarProps) {
               >
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
-                  src={logoSrc}
+                  src={fullLogoSrc}
                   alt="House of Tailors"
                   className="object-contain h-10 w-auto"
                 />
@@ -91,7 +93,7 @@ export function Sidebar({ user }: SidebarProps) {
               >
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
-                  src={logoSrc}
+                  src={markLogoSrc}
                   alt="HT"
                   className="object-contain h-9 w-9"
                 />

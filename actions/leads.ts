@@ -7,16 +7,17 @@ import { auth } from "@/lib/auth";
 import { leadSchema } from "@/validators/lead";
 import type { ApiResponse, Lead, LeadStage } from "@/types";
 
-export async function getLeads(): Promise<Lead[]> {
+export async function getLeads(params: { branch?: string } = {}): Promise<Lead[]> {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
 
-  const { data } = await supabase
-    .from("Lead")
-    .select("*")
-    .eq("isActive", true)
-    .order("createdAt", { ascending: false });
+  let q = supabase.from("Lead").select("*").eq("isActive", true);
 
+  if (params.branch && params.branch !== "All Branches") {
+    q = q.eq("branch", params.branch);
+  }
+
+  const { data } = await q.order("createdAt", { ascending: false });
   return (data ?? []) as Lead[];
 }
 
@@ -105,6 +106,9 @@ export async function updateLeadStage(id: string, stage: LeadStage): Promise<Api
 export async function deleteLead(id: string): Promise<ApiResponse<void>> {
   const session = await auth();
   if (!session?.user) return { success: false, error: "Unauthorized" };
+  if (!["ADMIN", "MANAGER"].includes(session.user.role)) {
+    return { success: false, error: "Insufficient permissions" };
+  }
 
   await supabase.from("Lead").update({ isActive: false, updatedAt: new Date().toISOString() }).eq("id", id);
   revalidatePath("/leads");

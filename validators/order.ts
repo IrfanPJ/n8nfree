@@ -13,7 +13,7 @@ export const orderSchema = z.object({
   priority: z.enum(["LOW", "NORMAL", "HIGH", "URGENT"]),
   designNotes: z.string().optional(),
   notes: z.string().optional(),
-  assignedToId: z.string().optional(),
+  assignedToId: z.string().optional().transform(v => v || undefined),
 });
 
 export const orderStatusUpdateSchema = z.object({

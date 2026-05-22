@@ -34,7 +34,12 @@ import {
   isSameMonth,
   addMonths,
   subMonths,
-  parseISO,
+  addWeeks,
+  subWeeks,
+  addDays,
+  subDays,
+  getHours,
+  getMinutes,
 } from "date-fns";
 import { openWhatsApp } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -243,9 +248,12 @@ function AppointmentCard({
   );
 }
 
-type ViewMode = "month" | "list";
+type ViewMode = "month" | "week" | "day" | "list";
 
 const DAY_HEADERS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+
+// Hours displayed in week/day views
+const HOURS = Array.from({ length: 14 }, (_, i) => i + 7); // 7am–8pm
 
 export function AppointmentsClient({
   appointments: initialAppointments,
@@ -256,6 +264,8 @@ export function AppointmentsClient({
   const [appointments, setAppointments] = useState(initialAppointments);
   const [viewMode, setViewMode] = useState<ViewMode>("list");
   const [currentMonth, setCurrentMonth] = useState(() => startOfMonth(new Date()));
+  const [currentWeekStart, setCurrentWeekStart] = useState(() => startOfWeek(new Date(), { weekStartsOn: 1 }));
+  const [selectedDay, setSelectedDay] = useState(() => new Date());
   const [createOpen, setCreateOpen] = useState(false);
   const [createDate, setCreateDate] = useState<Date | undefined>();
   const [editAppointment, setEditAppointment] = useState<AppointmentWithRelations | null>(null);
@@ -361,23 +371,18 @@ export function AppointmentsClient({
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <div className="flex items-center rounded-lg border border-border overflow-hidden">
-            <Button
-              variant={viewMode === "list" ? "default" : "ghost"}
-              size="icon-sm"
-              onClick={() => setViewMode("list")}
-              className="rounded-none border-0"
-            >
-              <List className="w-4 h-4" />
-            </Button>
-            <Button
-              variant={viewMode === "month" ? "default" : "ghost"}
-              size="icon-sm"
-              onClick={() => setViewMode("month")}
-              className="rounded-none border-0"
-            >
-              <Calendar className="w-4 h-4" />
-            </Button>
+          <div className="flex items-center rounded-lg border border-border overflow-hidden text-xs">
+            {(["list", "day", "week", "month"] as ViewMode[]).map((v) => (
+              <Button
+                key={v}
+                variant={viewMode === v ? "default" : "ghost"}
+                size="sm"
+                onClick={() => setViewMode(v)}
+                className="rounded-none border-0 capitalize px-3 h-8"
+              >
+                {v === "list" ? <List className="w-4 h-4" /> : v === "month" ? <Calendar className="w-4 h-4" /> : <span className="capitalize">{v}</span>}
+              </Button>
+            ))}
           </div>
           <Button variant="gold" onClick={() => setCreateOpen(true)}>
             <Plus className="w-4 h-4 mr-2" />
@@ -497,6 +502,158 @@ export function AppointmentsClient({
         </Card>
       )}
 
+      {/* Week View */}
+      {viewMode === "week" && (
+        <Card className="border-border/60">
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-base font-semibold">
+                {format(currentWeekStart, "dd MMM")} – {format(addDays(currentWeekStart, 6), "dd MMM yyyy")}
+              </CardTitle>
+              <div className="flex items-center gap-2">
+                <Button variant="outline" size="icon-sm" onClick={() => setCurrentWeekStart((d) => subWeeks(d, 1))}>
+                  <ChevronLeft className="w-4 h-4" />
+                </Button>
+                <Button variant="outline" size="sm" onClick={() => setCurrentWeekStart(startOfWeek(new Date(), { weekStartsOn: 1 }))}>
+                  This Week
+                </Button>
+                <Button variant="outline" size="icon-sm" onClick={() => setCurrentWeekStart((d) => addWeeks(d, 1))}>
+                  <ChevronRight className="w-4 h-4" />
+                </Button>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent className="p-0 pb-2 overflow-x-auto">
+            <div className="min-w-[640px]">
+              {/* Column headers */}
+              <div className="grid grid-cols-8 border-b border-border/40">
+                <div className="py-2 px-2 text-[11px] text-muted-foreground" />
+                {Array.from({ length: 7 }, (_, i) => addDays(currentWeekStart, i)).map((day) => (
+                  <div
+                    key={day.toISOString()}
+                    className={cn(
+                      "py-2 text-center text-[11px] font-semibold uppercase tracking-wide",
+                      isToday(day) ? "text-[#D4AF37]" : "text-muted-foreground"
+                    )}
+                  >
+                    <div>{format(day, "EEE")}</div>
+                    <div className={cn(
+                      "mx-auto mt-0.5 w-6 h-6 rounded-full flex items-center justify-center text-sm font-bold",
+                      isToday(day) ? "bg-[#D4AF37] text-black" : ""
+                    )}>
+                      {format(day, "d")}
+                    </div>
+                  </div>
+                ))}
+              </div>
+              {/* Time rows */}
+              {HOURS.map((hour) => (
+                <div key={hour} className="grid grid-cols-8 border-b border-border/20 min-h-[56px]">
+                  <div className="px-2 py-1 text-[10px] text-muted-foreground text-right whitespace-nowrap pt-1">
+                    {hour === 12 ? "12pm" : hour < 12 ? `${hour}am` : `${hour - 12}pm`}
+                  </div>
+                  {Array.from({ length: 7 }, (_, i) => addDays(currentWeekStart, i)).map((day) => {
+                    const slotAppts = filtered.filter((a) => {
+                      const d = new Date(a.startTime);
+                      return isSameDay(d, day) && getHours(d) === hour;
+                    });
+                    return (
+                      <div
+                        key={day.toISOString()}
+                        className="border-l border-border/20 px-0.5 py-0.5 space-y-0.5"
+                        onClick={() => {
+                          const d = new Date(day);
+                          d.setHours(hour, 0, 0, 0);
+                          setCreateDate(d);
+                          setCreateOpen(true);
+                        }}
+                      >
+                        {slotAppts.map((a) => {
+                          const dot = TYPE_DOT_COLORS[a.type] ?? TYPE_DOT_COLORS.OTHER;
+                          return (
+                            <button
+                              key={a.id}
+                              type="button"
+                              onClick={(e) => { e.stopPropagation(); setEditAppointment(a); }}
+                              className="w-full text-left rounded px-1 py-0.5 bg-secondary/60 hover:bg-secondary text-[9px] leading-tight truncate"
+                            >
+                              <span className={cn("inline-block w-1.5 h-1.5 rounded-full mr-0.5 align-middle", dot)} />
+                              {format(new Date(a.startTime), "h:mm")} {a.title}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    );
+                  })}
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Day View */}
+      {viewMode === "day" && (
+        <Card className="border-border/60">
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-base font-semibold">
+                {format(selectedDay, "EEEE, dd MMMM yyyy")}
+              </CardTitle>
+              <div className="flex items-center gap-2">
+                <Button variant="outline" size="icon-sm" onClick={() => setSelectedDay((d) => subDays(d, 1))}>
+                  <ChevronLeft className="w-4 h-4" />
+                </Button>
+                <Button variant="outline" size="sm" onClick={() => setSelectedDay(new Date())}>
+                  Today
+                </Button>
+                <Button variant="outline" size="icon-sm" onClick={() => setSelectedDay((d) => addDays(d, 1))}>
+                  <ChevronRight className="w-4 h-4" />
+                </Button>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent className="p-0 pb-2">
+            {HOURS.map((hour) => {
+              const slotAppts = filtered.filter((a) => {
+                const d = new Date(a.startTime);
+                return isSameDay(d, selectedDay) && getHours(d) === hour;
+              });
+              return (
+                <div
+                  key={hour}
+                  className="grid grid-cols-[64px_1fr] border-b border-border/20 min-h-[60px]"
+                >
+                  <div className="px-3 py-2 text-xs text-muted-foreground text-right pt-2 border-r border-border/20 whitespace-nowrap">
+                    {hour === 12 ? "12:00 pm" : hour < 12 ? `${hour}:00 am` : `${hour - 12}:00 pm`}
+                  </div>
+                  <div
+                    className="px-2 py-1 space-y-1 cursor-pointer hover:bg-secondary/10 transition-colors"
+                    onClick={() => {
+                      const d = new Date(selectedDay);
+                      d.setHours(hour, 0, 0, 0);
+                      setCreateDate(d);
+                      setCreateOpen(true);
+                    }}
+                  >
+                    {slotAppts.map((a) => (
+                      <AppointmentCard
+                        key={a.id}
+                        appointment={a}
+                        onEdit={setEditAppointment}
+                        onDelete={handleDelete}
+                        onStatusChange={handleStatusChange}
+                        compact
+                      />
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+          </CardContent>
+        </Card>
+      )}
+
       {/* Monthly Calendar View */}
       {viewMode === "month" && (
         <Card className="border-border/60">
@@ -564,8 +721,8 @@ export function AppointmentsClient({
                         <button
                           type="button"
                           onClick={() => {
-                            setCreateDate(day);
-                            setCreateOpen(true);
+                            setSelectedDay(day);
+                            setViewMode("day");
                           }}
                           className={cn(
                             "w-7 h-7 rounded-full flex items-center justify-center text-xs font-semibold self-start transition-colors hover:bg-secondary",

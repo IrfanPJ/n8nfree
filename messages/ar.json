@@ -1,0 +1,92 @@
+{
+  "nav": {
+    "dashboard": "لوحة التحكم",
+    "customers": "العملاء",
+    "orders": "الطلبات",
+    "appointments": "المواعيد",
+    "invoices": "الفواتير",
+    "leads": "العملاء المحتملون",
+    "fabrics": "الأقمشة",
+    "followups": "المتابعات",
+    "pos": "نقطة البيع",
+    "settings": "الإعدادات",
+    "logout": "تسجيل الخروج"
+  },
+  "common": {
+    "save": "حفظ",
+    "cancel": "إلغاء",
+    "delete": "حذف",
+    "edit": "تعديل",
+    "create": "إنشاء",
+    "search": "بحث",
+    "filter": "تصفية",
+    "loading": "جاري التحميل...",
+    "noResults": "لا توجد نتائج",
+    "allBranches": "جميع الفروع",
+    "confirmDelete": "هل أنت متأكد من الحذف؟",
+    "actions": "الإجراءات",
+    "status": "الحالة",
+    "date": "التاريخ",
+    "notes": "ملاحظات",
+    "name": "الاسم",
+    "email": "البريد الإلكتروني",
+    "phone": "الهاتف"
+  },
+  "customers": {
+    "title": "العملاء",
+    "subtitle": "إدارة ملفات تعريف العملاء",
+    "new": "عميل جديد",
+    "vip": "عميل مميز",
+    "gender": {
+      "MALE": "ذكر",
+      "FEMALE": "أنثى",
+      "OTHER": "آخر"
+    }
+  },
+  "orders": {
+    "title": "الطلبات",
+    "subtitle": "تتبع إنتاج الملابس",
+    "new": "طلب جديد",
+    "status": {
+      "PENDING": "قيد الانتظار",
+      "MEASURING": "القياس",
+      "CUTTING": "القص",
+      "STITCHING": "الخياطة",
+      "TRIAL": "التجربة",
+      "READY": "جاهز",
+      "DELIVERED": "تم التسليم",
+      "CANCELLED": "ملغي"
+    },
+    "priority": {
+      "LOW": "منخفض",
+      "NORMAL": "عادي",
+      "HIGH": "مرتفع",
+      "URGENT": "عاجل"
+    }
+  },
+  "appointments": {
+    "title": "المواعيد",
+    "subtitle": "جدولة وإدارة المواعيد",
+    "new": "موعد جديد"
+  },
+  "invoices": {
+    "title": "الفواتير",
+    "subtitle": "الفوترة والمدفوعات",
+    "new": "فاتورة جديدة",
+    "status": {
+      "DRAFT": "مسودة",
+      "SENT": "مرسلة",
+      "PARTIAL": "مدفوعة جزئياً",
+      "PAID": "مدفوعة",
+      "OVERDUE": "متأخرة",
+      "CANCELLED": "ملغاة"
+    }
+  },
+  "dashboard": {
+    "welcome": "مرحباً بعودتك",
+    "totalRevenue": "إجمالي الإيرادات",
+    "totalOrders": "إجمالي الطلبات",
+    "pendingOrders": "الطلبات المعلقة",
+    "totalCustomers": "إجمالي العملاء"
+  }
+}

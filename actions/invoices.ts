@@ -248,6 +248,9 @@ export async function recordPayment(invoiceId: string, data: unknown): Promise<A
 export async function deleteInvoice(id: string): Promise<ApiResponse<void>> {
   const session = await auth();
   if (!session?.user) return { success: false, error: "Unauthorized" };
+  if (session.user.role !== "ADMIN") {
+    return { success: false, error: "Only admins can delete invoices" };
+  }
 
   try {
     await supabase.from("Invoice").update({ isActive: false, updatedAt: new Date().toISOString() }).eq("id", id);

@@ -5,6 +5,7 @@ import { randomUUID } from "crypto";
 import { supabase } from "@/lib/supabase";
 import { auth } from "@/lib/auth";
 import { customerSchema } from "@/validators/customer";
+import * as Sentry from "@sentry/nextjs";
 import type { ApiResponse, CustomerWithRelations, PaginatedResult } from "@/types";
 
 export async function getCustomers(params: {
@@ -13,11 +14,12 @@ export async function getCustomers(params: {
   search?: string;
   isVIP?: boolean;
   gender?: string;
+  branch?: string;
 }): Promise<PaginatedResult<CustomerWithRelations>> {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
 
-  const { page = 1, pageSize = 20, search, isVIP, gender } = params;
+  const { page = 1, pageSize = 20, search, isVIP, gender, branch } = params;
   const skip = (page - 1) * pageSize;
 
   let countQ = supabase
@@ -42,6 +44,10 @@ export async function getCustomers(params: {
   if (gender) {
     countQ = countQ.eq("gender", gender);
     dataQ = dataQ.eq("gender", gender);
+  }
+  if (branch && branch !== "All Branches") {
+    countQ = countQ.eq("branch", branch);
+    dataQ = dataQ.eq("branch", branch);
   }
 
   const [{ count: total }, { data: rawData }] = await Promise.all([
@@ -158,7 +164,7 @@ export async function createCustomer(data: unknown): Promise<ApiResponse<Custome
       message: "Customer created successfully",
     };
   } catch (error) {
-    console.error("Create customer error:", error);
+    Sentry.captureException(error); console.error("Create customer error:", error);
     return { success: false, error: "Failed to create customer" };
   }
 }
@@ -202,7 +208,7 @@ export async function updateCustomer(id: string, data: unknown): Promise<ApiResp
     revalidatePath(`/customers/${id}`);
     return { success: true, data: customer as CustomerWithRelations, message: "Customer updated successfully" };
   } catch (error) {
-    console.error("Update customer error:", error);
+    Sentry.captureException(error); console.error("Update customer error:", error);
     return { success: false, error: "Failed to update customer" };
   }
 }
@@ -210,6 +216,9 @@ export async function updateCustomer(id: string, data: unknown): Promise<ApiResp
 export async function deleteCustomer(id: string): Promise<ApiResponse<void>> {
   const session = await auth();
   if (!session?.user) return { success: false, error: "Unauthorized" };
+  if (!["ADMIN", "MANAGER"].includes(session.user.role)) {
+    return { success: false, error: "Insufficient permissions" };
+  }
 
   try {
     await supabase

@@ -16,6 +16,7 @@ async function AppointmentsContent({
     dateFrom?: string;
     dateTo?: string;
     customerId?: string;
+    branch?: string;
   }>;
 }) {
   const params = await searchParams;
@@ -27,6 +28,7 @@ async function AppointmentsContent({
       dateFrom: params.dateFrom,
       dateTo: params.dateTo,
       customerId: params.customerId,
+      branch: params.branch,
     }),
     getCustomers({ pageSize: 500 }),
     supabase
@@ -53,6 +55,7 @@ export default function AppointmentsPage({
     dateFrom?: string;
     dateTo?: string;
     customerId?: string;
+    branch?: string;
   }>;
 }) {
   return (

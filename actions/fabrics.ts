@@ -10,6 +10,7 @@ import type { ApiResponse, Fabric } from "@/types";
 export async function getFabrics(params: {
   search?: string;
   lowStockOnly?: boolean;
+  branch?: string;
 } = {}): Promise<Fabric[]> {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
@@ -17,6 +18,7 @@ export async function getFabrics(params: {
   let q = supabase.from("Fabric").select("*").eq("isActive", true);
 
   if (params.search) q = q.ilike("name", `%${params.search}%`);
+  if (params.branch && params.branch !== "All Branches") q = q.eq("branch", params.branch);
 
   const { data } = await q.order("name", { ascending: true });
   const fabrics = (data ?? []) as Fabric[];
@@ -120,6 +122,9 @@ export async function adjustStock(id: string, delta: number, notes?: string): Pr
 export async function deleteFabric(id: string): Promise<ApiResponse<void>> {
   const session = await auth();
   if (!session?.user) return { success: false, error: "Unauthorized" };
+  if (!["ADMIN", "MANAGER"].includes(session.user.role)) {
+    return { success: false, error: "Insufficient permissions" };
+  }
 
   await supabase.from("Fabric").update({ isActive: false, updatedAt: new Date().toISOString() }).eq("id", id);
   revalidatePath("/fabrics");

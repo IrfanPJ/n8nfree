@@ -6,6 +6,8 @@ import { supabase } from "@/lib/supabase";
 import { auth } from "@/lib/auth";
 import { orderSchema, orderStatusUpdateSchema } from "@/validators/order";
 import { generateOrderNumber } from "@/lib/utils";
+import * as Sentry from "@sentry/nextjs";
+import { sendOrderStatusUpdate } from "@/lib/email";
 import type { ApiResponse, OrderWithRelations, PaginatedResult, OrderStatus } from "@/types";
 
 const ORDER_SELECT = `
@@ -22,27 +24,37 @@ export async function getOrders(params: {
   search?: string;
   status?: string;
   priority?: string;
+  branch?: string;
+  cursor?: string; // createdAt ISO string of last item for cursor-based pagination
 }): Promise<PaginatedResult<OrderWithRelations>> {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
 
-  const { page = 1, pageSize = 20, search, status, priority } = params;
-  const skip = (page - 1) * pageSize;
+  const { page = 1, pageSize = 20, search, status, priority, branch, cursor } = params;
 
   let countQ = supabase.from("Order").select("*", { count: "exact", head: true }).eq("isActive", true);
   let dataQ = supabase.from("Order").select(ORDER_SELECT).eq("isActive", true);
 
   if (status) { countQ = countQ.eq("status", status); dataQ = dataQ.eq("status", status); }
   if (priority) { countQ = countQ.eq("priority", priority); dataQ = dataQ.eq("priority", priority); }
+  if (branch && branch !== "All Branches") { countQ = countQ.eq("branch", branch); dataQ = dataQ.eq("branch", branch); }
   if (search) {
     const f = `orderNumber.ilike.%${search}%,garmentType.ilike.%${search}%,fabricName.ilike.%${search}%`;
     countQ = countQ.or(f);
     dataQ = dataQ.or(f);
   }
 
+  // Cursor-based: skip offset when cursor provided
+  if (cursor) {
+    dataQ = dataQ.lt("createdAt", cursor);
+  } else {
+    const skip = (page - 1) * pageSize;
+    dataQ = dataQ.range(skip, skip + pageSize - 1);
+  }
+
   const [{ count: total }, { data: rawData }] = await Promise.all([
     countQ,
-    dataQ.order("createdAt", { ascending: false }).range(skip, skip + pageSize - 1),
+    dataQ.order("createdAt", { ascending: false }).limit(pageSize),
   ]);
 
   const data = (rawData ?? []).map((o: any) => ({
@@ -52,12 +64,16 @@ export async function getOrders(params: {
     ),
   }));
 
+  const lastItem = data[data.length - 1] as any;
+  const nextCursor = data.length === pageSize ? lastItem?.createdAt ?? null : null;
+
   return {
     data: data as OrderWithRelations[],
     total: total ?? 0,
     page,
     pageSize,
     totalPages: Math.ceil((total ?? 0) / pageSize),
+    nextCursor,
   };
 }
 
@@ -112,7 +128,7 @@ export async function createOrder(data: unknown): Promise<ApiResponse<OrderWithR
       priority: parsed.data.priority,
       designNotes: parsed.data.designNotes ?? null,
       notes: parsed.data.notes ?? null,
-      assignedToId: parsed.data.assignedToId ?? null,
+      assignedToId: parsed.data.assignedToId || null,
       status: "PENDING",
       createdAt: now,
       updatedAt: now,
@@ -159,7 +175,7 @@ export async function createOrder(data: unknown): Promise<ApiResponse<OrderWithR
       message: `Order ${orderNumber} created successfully`,
     };
   } catch (error) {
-    console.error("Create order error:", error);
+    Sentry.captureException(error); console.error("Create order error:", error);
     return { success: false, error: "Failed to create order" };
   }
 }
@@ -189,7 +205,7 @@ export async function updateOrder(id: string, data: unknown): Promise<ApiRespons
         priority: parsed.data.priority,
         designNotes: parsed.data.designNotes ?? null,
         notes: parsed.data.notes ?? null,
-        assignedToId: parsed.data.assignedToId ?? null,
+        assignedToId: parsed.data.assignedToId || null,
         updatedAt: new Date().toISOString(),
       })
       .eq("id", id);
@@ -213,7 +229,7 @@ export async function updateOrder(id: string, data: unknown): Promise<ApiRespons
     revalidatePath(`/orders/${id}`);
     return { success: true, data: order as OrderWithRelations, message: "Order updated successfully" };
   } catch (error) {
-    console.error("Update order error:", error);
+    Sentry.captureException(error); console.error("Update order error:", error);
     return { success: false, error: "Failed to update order" };
   }
 }
@@ -265,6 +281,17 @@ export async function updateOrderStatus(
       metadata: { status: parsed.data.status, notes: parsed.data.notes },
     });
 
+    const customer = (order as any)?.customer;
+    if (customer?.email) {
+      sendOrderStatusUpdate({
+        to: customer.email,
+        customerName: customer.name,
+        orderNumber: order?.orderNumber ?? "",
+        status: parsed.data.status,
+        garmentType: (order as any)?.garmentType ?? "",
+      }).catch(() => {});
+    }
+
     if (!skipRevalidate) {
       revalidatePath("/orders");
       revalidatePath(`/orders/${id}`);
@@ -275,7 +302,7 @@ export async function updateOrderStatus(
       message: `Order status updated to ${parsed.data.status}`,
     };
   } catch (error) {
-    console.error("Update order status error:", error);
+    Sentry.captureException(error); console.error("Update order status error:", error);
     return { success: false, error: "Failed to update order status" };
   }
 }
@@ -283,6 +310,9 @@ export async function updateOrderStatus(
 export async function deleteOrder(id: string): Promise<ApiResponse<void>> {
   const session = await auth();
   if (!session?.user) return { success: false, error: "Unauthorized" };
+  if (!["ADMIN", "MANAGER"].includes(session.user.role)) {
+    return { success: false, error: "Insufficient permissions" };
+  }
 
   try {
     const { data: order } = await supabase
@@ -307,7 +337,7 @@ export async function deleteOrder(id: string): Promise<ApiResponse<void>> {
     revalidatePath("/orders");
     return { success: true, message: "Order deleted successfully" };
   } catch (error) {
-    console.error("Delete order error:", error);
+    Sentry.captureException(error); console.error("Delete order error:", error);
     return { success: false, error: "Failed to delete order" };
   }
 }

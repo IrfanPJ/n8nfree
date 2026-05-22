@@ -7,22 +7,23 @@ import { Skeleton } from "@/components/ui/skeleton";
 async function CustomersContent({
   searchParams,
 }: {
-  searchParams: Promise<{ page?: string; search?: string; vip?: string; gender?: string }>;
+  searchParams: Promise<{ page?: string; search?: string; vip?: string; gender?: string; branch?: string }>;
 }) {
   const params = await searchParams;
   const page = parseInt(params.page ?? "1", 10);
   const search = params.search;
   const isVIP = params.vip === "true" ? true : undefined;
   const gender = params.gender;
+  const branch = params.branch;
 
-  const result = await getCustomers({ page, search, isVIP, gender });
+  const result = await getCustomers({ page, search, isVIP, gender, branch });
   return <CustomersClient initialData={result} />;
 }
 
 export default function CustomersPage({
   searchParams,
 }: {
-  searchParams: Promise<{ page?: string; search?: string; vip?: string; gender?: string }>;
+  searchParams: Promise<{ page?: string; search?: string; vip?: string; gender?: string; branch?: string }>;
 }) {
   return (
     <Suspense fallback={<CustomersSkeleton />}>

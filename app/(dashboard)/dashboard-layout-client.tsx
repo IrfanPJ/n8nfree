@@ -4,6 +4,7 @@ import React from "react";
 import { Sidebar } from "@/components/layout/sidebar";
 import { Topbar } from "@/components/layout/topbar";
 import { useUIStore } from "@/store/ui-store";
+import { useRealtimeNotifications } from "@/hooks/use-realtime-notifications";
 
 interface DashboardLayoutClientProps {
   children: React.ReactNode;
@@ -17,6 +18,7 @@ interface DashboardLayoutClientProps {
 
 export function DashboardLayoutClient({ children, user }: DashboardLayoutClientProps) {
   const { sidebarCollapsed } = useUIStore();
+  useRealtimeNotifications();
 
   return (
     <div className="min-h-screen bg-background">

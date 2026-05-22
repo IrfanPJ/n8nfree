@@ -7,6 +7,8 @@ import { useUIStore } from "@/store/ui-store";
 import { useTheme } from "next-themes";
 import { GlobalSearch } from "@/components/shared/global-search";
 import { NotificationsPanel } from "@/components/shared/notifications-panel";
+import { BranchSelector } from "@/components/shared/branch-selector";
+import { LanguageToggle } from "@/components/shared/language-toggle";
 
 interface TopbarProps {
   title?: string;
@@ -45,6 +47,8 @@ export function Topbar({ title, subtitle }: TopbarProps) {
         </div>
 
         <div className="flex items-center gap-2">
+          <BranchSelector />
+
           <Button
             variant="ghost"
             size="icon-sm"
@@ -53,6 +57,8 @@ export function Topbar({ title, subtitle }: TopbarProps) {
           >
             <Search className="h-4 w-4" />
           </Button>
+
+          <LanguageToggle />
 
           <Button
             variant="ghost"

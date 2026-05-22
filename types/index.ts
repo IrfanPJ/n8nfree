@@ -40,6 +40,7 @@ export type Customer = {
   tags: string[];
   isVIP: boolean;
   isActive: boolean;
+  branch: string;
   createdAt: string;
   updatedAt: string;
 };
@@ -95,6 +96,7 @@ export type Order = {
   notes: string | null;
   cancelReason: string | null;
   isActive: boolean;
+  branch: string;
   createdAt: string;
   updatedAt: string;
 };
@@ -122,6 +124,7 @@ export type Appointment = {
   notes: string | null;
   reminderAt: string | null;
   isActive: boolean;
+  branch: string;
   createdAt: string;
   updatedAt: string;
 };
@@ -383,6 +386,7 @@ export type PaginatedResult<T> = {
   page: number;
   pageSize: number;
   totalPages: number;
+  nextCursor?: string | null;
 };
 
 export type ApiResponse<T> = {

@@ -5,6 +5,7 @@ import { randomUUID } from "crypto";
 import { supabase } from "@/lib/supabase";
 import { auth } from "@/lib/auth";
 import { appointmentSchema } from "@/validators/appointment";
+import { sendAppointmentConfirmation } from "@/lib/email";
 import type { ApiResponse, AppointmentWithRelations, AppointmentStatus } from "@/types";
 
 export interface GetAppointmentsParams {
@@ -13,6 +14,7 @@ export interface GetAppointmentsParams {
   status?: AppointmentStatus;
   customerId?: string;
   staffId?: string;
+  branch?: string;
 }
 
 const APPT_SELECT = `*, customer:Customer!customerId(*), staff:User!staffId(*)`;
@@ -21,7 +23,7 @@ export async function getAppointments(params: GetAppointmentsParams = {}): Promi
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
 
-  const { dateFrom, dateTo, status, customerId, staffId } = params;
+  const { dateFrom, dateTo, status, customerId, staffId, branch } = params;
 
   let q = supabase.from("Appointment").select(APPT_SELECT).eq("isActive", true);
 
@@ -30,6 +32,7 @@ export async function getAppointments(params: GetAppointmentsParams = {}): Promi
   if (staffId) q = q.eq("staffId", staffId);
   if (dateFrom) q = q.gte("startTime", new Date(dateFrom).toISOString());
   if (dateTo) q = q.lte("startTime", new Date(dateTo).toISOString());
+  if (branch && branch !== "All Branches") q = q.eq("branch", branch);
 
   const { data } = await q.order("startTime", { ascending: true });
   return (data ?? []) as AppointmentWithRelations[];
@@ -84,6 +87,20 @@ export async function createAppointment(data: unknown): Promise<ApiResponse<Appo
     });
 
     const { data: appointment } = await supabase.from("Appointment").select(APPT_SELECT).eq("id", id).single();
+
+    const { data: customer } = await supabase.from("Customer").select("email, name").eq("id", parsed.data.customerId).single();
+    if (customer?.email) {
+      sendAppointmentConfirmation({
+        to: customer.email,
+        customerName: customer.name,
+        title: parsed.data.title,
+        startTime: parsed.data.startTime,
+        endTime: parsed.data.endTime,
+        location: parsed.data.location,
+        notes: parsed.data.notes,
+      }).catch(() => {});
+    }
+
     revalidatePath("/appointments");
     return { success: true, data: appointment as AppointmentWithRelations, message: "Appointment created" };
   } catch (error) {
@@ -143,6 +160,9 @@ export async function updateAppointmentStatus(id: string, status: AppointmentSta
 export async function deleteAppointment(id: string): Promise<ApiResponse<void>> {
   const session = await auth();
   if (!session?.user) return { success: false, error: "Unauthorized" };
+  if (!["ADMIN", "MANAGER"].includes(session.user.role)) {
+    return { success: false, error: "Insufficient permissions" };
+  }
 
   try {
     await supabase.from("Appointment").update({ isActive: false, updatedAt: new Date().toISOString() }).eq("id", id);

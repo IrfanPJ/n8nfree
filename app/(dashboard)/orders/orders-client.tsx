@@ -23,6 +23,7 @@ import {
   Printer,
   MessageCircle,
   Sparkles,
+  Ruler,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -53,7 +54,7 @@ import { OrderStatusBadge, PriorityBadge } from "@/components/orders/order-statu
 import { OrderKanban } from "@/components/orders/order-kanban";
 import { BespokeDesigner } from "@/components/orders/bespoke-designer";
 import { deleteOrder, updateOrderStatus, updateOrderDesign } from "@/actions/orders";
-import type { OrderWithRelations, PaginatedResult, OrderStatus } from "@/types";
+import type { OrderWithRelations, PaginatedResult, OrderStatus, Measurement } from "@/types";
 import {
   formatCurrency,
   formatDate,
@@ -63,6 +64,9 @@ import {
   PRIORITY_CONFIG,
   openWhatsApp,
 } from "@/lib/utils";
+import { format } from "date-fns";
+import { getMeasurements, deleteMeasurement } from "@/actions/measurements";
+import { MeasurementForm } from "@/components/measurements/measurement-form";
 
 function printOrderSlip(order: OrderWithRelations) {
   const win = window.open("", "_blank", "width=700,height=900");
@@ -586,7 +590,7 @@ export function OrdersClient({
 
       {/* View Detail Dialog */}
       <Dialog open={!!viewOrder} onOpenChange={() => setViewOrder(null)}>
-        <DialogContent className="max-w-xl max-h-[92vh] overflow-y-auto">
+        <DialogContent className="max-w-2xl max-h-[92vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <span>Order Details</span>
@@ -739,181 +743,406 @@ function OrderTableRow({ order, index, deletingId, statusUpdating, onView, onEdi
 }
 
 /* ─────────────────────────────────────────────
+   Compact Measurement Row (inside order detail)
+───────────────────────────────────────────── */
+function OrderMeasurementRow({
+  measurement,
+  isDeleting,
+  onEdit,
+  onDelete,
+}: {
+  measurement: Measurement;
+  isDeleting: boolean;
+  onEdit: () => void;
+  onDelete: () => void;
+}) {
+  const unit = measurement.unit === "cm" ? "cm" : "in";
+  const keyFields = [
+    { label: "Chest", value: measurement.chest },
+    { label: "Waist", value: measurement.waist },
+    { label: "Shoulder", value: measurement.shoulder },
+    { label: "Sleeve", value: measurement.sleeve },
+  ].filter((f) => f.value !== null);
+
+  return (
+    <div className="p-3 rounded-lg border border-border bg-secondary/20 flex items-start gap-3">
+      <div className="w-8 h-8 rounded-full bg-[#D4AF37]/10 flex items-center justify-center flex-shrink-0 mt-0.5">
+        <Ruler className="w-3.5 h-3.5 text-[#D4AF37]" />
+      </div>
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="text-sm font-medium">{measurement.label}</span>
+          <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-[#D4AF37]/30 text-[#D4AF37]">
+            {measurement.unit}
+          </Badge>
+          <span className="text-xs text-muted-foreground">
+            {format(new Date(measurement.takenAt), "dd MMM yyyy")}
+          </span>
+        </div>
+        {keyFields.length > 0 && (
+          <div className="flex items-center gap-3 mt-1.5 flex-wrap">
+            {keyFields.map((f) => (
+              <span key={f.label} className="text-xs">
+                <span className="text-muted-foreground">{f.label}: </span>
+                <span className="font-medium">{f.value}{unit}</span>
+              </span>
+            ))}
+          </div>
+        )}
+        {measurement.takenBy && (
+          <p className="text-[10px] text-muted-foreground mt-1">By: {measurement.takenBy}</p>
+        )}
+        {measurement.notes && (
+          <p className="text-[10px] text-muted-foreground/70 mt-0.5 italic truncate">{measurement.notes}</p>
+        )}
+      </div>
+      <div className="flex items-center gap-1 flex-shrink-0">
+        <Button variant="ghost" size="icon-sm" onClick={onEdit}>
+          <Edit2 className="w-3.5 h-3.5" />
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          onClick={onDelete}
+          disabled={isDeleting}
+          className="text-destructive hover:text-destructive"
+        >
+          <Trash2 className="w-3.5 h-3.5" />
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+/* ─────────────────────────────────────────────
    Order Detail View (inside Dialog)
 ───────────────────────────────────────────── */
 function OrderDetailView({ order }: { order: OrderWithRelations }) {
+  const [activeTab, setActiveTab] = useState<"details" | "measurements">("details");
+  const [measurements, setMeasurements] = useState<Measurement[] | null>(null);
+  const [loadingMeasurements, setLoadingMeasurements] = useState(false);
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [editMeasurement, setEditMeasurement] = useState<Measurement | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const balanceDue = order.totalAmount - order.advanceAmount;
 
+  const loadMeasurements = async () => {
+    if (measurements !== null) return;
+    setLoadingMeasurements(true);
+    const data = await getMeasurements(order.customerId);
+    setMeasurements(data);
+    setLoadingMeasurements(false);
+  };
+
+  const handleTabChange = async (tab: "details" | "measurements") => {
+    setActiveTab(tab);
+    if (tab === "measurements") await loadMeasurements();
+  };
+
+  const handleDeleteMeasurement = async (id: string) => {
+    if (!confirm("Delete this measurement? This cannot be undone.")) return;
+    setDeletingId(id);
+    const result = await deleteMeasurement(id);
+    if (result.success) {
+      setMeasurements((prev) => prev?.filter((m) => m.id !== id) ?? null);
+      toast.success("Measurement deleted");
+    } else {
+      toast.error(result.error ?? "Failed to delete");
+    }
+    setDeletingId(null);
+  };
+
   return (
-    <div className="space-y-5">
-      {/* Status & Priority + Actions */}
-      <div className="flex items-center gap-3 flex-wrap justify-between">
-        <div className="flex items-center gap-3 flex-wrap">
-          <OrderStatusBadge status={order.status} size="lg" />
-          <PriorityBadge priority={order.priority} />
-          {order.invoice && (
-            <Badge variant="info" className="text-xs">
-              Invoice #{order.invoice.invoiceNumber}
-            </Badge>
+    <div className="space-y-4">
+      {/* Tab bar */}
+      <div className="flex border-b border-border">
+        <button
+          onClick={() => handleTabChange("details")}
+          className={cn(
+            "px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors",
+            activeTab === "details"
+              ? "border-[#D4AF37] text-[#D4AF37]"
+              : "border-transparent text-muted-foreground hover:text-foreground"
           )}
-        </div>
-        <div className="flex items-center gap-2">
-          {order.customer.phone && (
-            <Button
-              variant="outline"
-              size="sm"
-              className="text-green-400 border-green-400/30 hover:bg-green-400/10"
-              onClick={() => openWhatsApp(
-                order.customer.phone,
-                `Hello ${order.customer.name}, your order ${order.orderNumber} (${order.garmentType}) status: *${ORDER_STATUS_CONFIG[order.status]?.label}*. Delivery: ${formatDate(order.deliveryDate)}. — House of Tailors`
+        >
+          Details
+        </button>
+        <button
+          onClick={() => handleTabChange("measurements")}
+          className={cn(
+            "px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors flex items-center gap-1.5",
+            activeTab === "measurements"
+              ? "border-[#D4AF37] text-[#D4AF37]"
+              : "border-transparent text-muted-foreground hover:text-foreground"
+          )}
+        >
+          <Ruler className="w-3.5 h-3.5" />
+          Measurements
+          {measurements !== null && measurements.length > 0 && (
+            <span className="text-[10px] bg-secondary px-1.5 py-0.5 rounded-full leading-none">
+              {measurements.length}
+            </span>
+          )}
+        </button>
+      </div>
+
+      {/* ── Details Tab ─────────────────────── */}
+      {activeTab === "details" && (
+        <div className="space-y-5">
+          {/* Status & Priority + Actions */}
+          <div className="flex items-center gap-3 flex-wrap justify-between">
+            <div className="flex items-center gap-3 flex-wrap">
+              <OrderStatusBadge status={order.status} size="lg" />
+              <PriorityBadge priority={order.priority} />
+              {order.invoice && (
+                <Badge variant="info" className="text-xs">
+                  Invoice #{order.invoice.invoiceNumber}
+                </Badge>
               )}
-            >
-              <MessageCircle className="w-3.5 h-3.5 mr-1.5" />
-              WhatsApp
-            </Button>
-          )}
-          <Button variant="outline" size="sm" onClick={() => printOrderSlip(order)}>
-            <Printer className="w-3.5 h-3.5 mr-1.5" />
-            Print Slip
-          </Button>
-        </div>
-      </div>
-
-      {/* Customer & Assignment */}
-      <div className="grid grid-cols-2 gap-4">
-        <div>
-          <p className="text-xs text-muted-foreground mb-1">Customer</p>
-          <p className="text-sm font-semibold">{order.customer.name}</p>
-          {order.customer.phone && (
-            <p className="text-xs text-muted-foreground">{order.customer.phone}</p>
-          )}
-        </div>
-        {order.assignedTo && (
-          <div>
-            <p className="text-xs text-muted-foreground mb-1">Assigned Tailor</p>
-            <p className="text-sm font-semibold">{order.assignedTo.name}</p>
-            <p className="text-xs text-muted-foreground capitalize">
-              {order.assignedTo.role?.toLowerCase()}
-            </p>
-          </div>
-        )}
-      </div>
-
-      {/* Garment */}
-      <div className="p-3 rounded-lg border border-border bg-secondary/20 space-y-2">
-        <p className="text-xs font-semibold text-[#D4AF37] uppercase tracking-wide">
-          Garment Details
-        </p>
-        <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
-          <div>
-            <span className="text-xs text-muted-foreground">Type</span>
-            <p className="font-medium">{order.garmentType}</p>
-          </div>
-          {order.fabricName && (
-            <div>
-              <span className="text-xs text-muted-foreground">Fabric</span>
-              <p className="font-medium">{order.fabricName}</p>
             </div>
-          )}
-          {order.fabricColor && (
-            <div>
-              <span className="text-xs text-muted-foreground">Color</span>
-              <p className="font-medium">{order.fabricColor}</p>
+            <div className="flex items-center gap-2">
+              {order.customer.phone && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="text-green-400 border-green-400/30 hover:bg-green-400/10"
+                  onClick={() => openWhatsApp(
+                    order.customer.phone,
+                    `Hello ${order.customer.name}, your order ${order.orderNumber} (${order.garmentType}) status: *${ORDER_STATUS_CONFIG[order.status]?.label}*. Delivery: ${formatDate(order.deliveryDate)}. — House of Tailors`
+                  )}
+                >
+                  <MessageCircle className="w-3.5 h-3.5 mr-1.5" />
+                  WhatsApp
+                </Button>
+              )}
+              <Button variant="outline" size="sm" onClick={() => printOrderSlip(order)}>
+                <Printer className="w-3.5 h-3.5 mr-1.5" />
+                Print Slip
+              </Button>
             </div>
-          )}
-          {order.fabricQuantity && (
+          </div>
+
+          {/* Customer & Assignment */}
+          <div className="grid grid-cols-2 gap-4">
             <div>
-              <span className="text-xs text-muted-foreground">Quantity</span>
-              <p className="font-medium">{order.fabricQuantity} meters</p>
+              <p className="text-xs text-muted-foreground mb-1">Customer</p>
+              <p className="text-sm font-semibold">{order.customer.name}</p>
+              {order.customer.phone && (
+                <p className="text-xs text-muted-foreground">{order.customer.phone}</p>
+              )}
             </div>
-          )}
-        </div>
-        {order.designNotes && (
-          <div>
-            <span className="text-xs text-muted-foreground">Design Notes</span>
-            <p className="text-sm mt-0.5 leading-relaxed">{order.designNotes}</p>
-          </div>
-        )}
-      </div>
-
-      {/* Dates */}
-      <div className="grid grid-cols-2 gap-4">
-        <div className="p-3 rounded-lg border border-border bg-secondary/20">
-          <p className="text-xs text-muted-foreground mb-1 flex items-center gap-1">
-            <Calendar className="w-3 h-3" /> Delivery Date
-          </p>
-          <p className="text-sm font-semibold">{formatDate(order.deliveryDate)}</p>
-        </div>
-        {order.trialDate && (
-          <div className="p-3 rounded-lg border border-cyan-400/20 bg-cyan-400/5">
-            <p className="text-xs text-cyan-400/80 mb-1 flex items-center gap-1">
-              <Calendar className="w-3 h-3" /> Trial Date
-            </p>
-            <p className="text-sm font-semibold">{formatDate(order.trialDate)}</p>
-          </div>
-        )}
-      </div>
-
-      {/* Payment */}
-      <div className="p-3 rounded-lg border border-border bg-secondary/20 space-y-2">
-        <p className="text-xs font-semibold text-[#D4AF37] uppercase tracking-wide">
-          Payment
-        </p>
-        <div className="flex items-center justify-between text-sm">
-          <span className="text-muted-foreground">Total</span>
-          <span className="font-semibold">{formatCurrency(order.totalAmount)}</span>
-        </div>
-        <div className="flex items-center justify-between text-sm">
-          <span className="text-muted-foreground">Advance Paid</span>
-          <span className="text-green-400 font-medium">
-            {formatCurrency(order.advanceAmount)}
-          </span>
-        </div>
-        <div className="flex items-center justify-between text-sm border-t border-border pt-2">
-          <span className="font-medium">Balance Due</span>
-          <span
-            className={cn(
-              "font-bold",
-              balanceDue > 0 ? "text-yellow-400" : "text-green-400"
+            {order.assignedTo && (
+              <div>
+                <p className="text-xs text-muted-foreground mb-1">Assigned Tailor</p>
+                <p className="text-sm font-semibold">{order.assignedTo.name}</p>
+                <p className="text-xs text-muted-foreground capitalize">
+                  {order.assignedTo.role?.toLowerCase()}
+                </p>
+              </div>
             )}
-          >
-            {balanceDue > 0 ? formatCurrency(balanceDue) : "Paid"}
-          </span>
-        </div>
-      </div>
+          </div>
 
-      {/* Notes */}
-      {order.notes && (
-        <div>
-          <p className="text-xs text-muted-foreground mb-1">Notes</p>
-          <p className="text-sm leading-relaxed">{order.notes}</p>
+          {/* Garment */}
+          <div className="p-3 rounded-lg border border-border bg-secondary/20 space-y-2">
+            <p className="text-xs font-semibold text-[#D4AF37] uppercase tracking-wide">
+              Garment Details
+            </p>
+            <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
+              <div>
+                <span className="text-xs text-muted-foreground">Type</span>
+                <p className="font-medium">{order.garmentType}</p>
+              </div>
+              {order.fabricName && (
+                <div>
+                  <span className="text-xs text-muted-foreground">Fabric</span>
+                  <p className="font-medium">{order.fabricName}</p>
+                </div>
+              )}
+              {order.fabricColor && (
+                <div>
+                  <span className="text-xs text-muted-foreground">Color</span>
+                  <p className="font-medium">{order.fabricColor}</p>
+                </div>
+              )}
+              {order.fabricQuantity && (
+                <div>
+                  <span className="text-xs text-muted-foreground">Quantity</span>
+                  <p className="font-medium">{order.fabricQuantity} meters</p>
+                </div>
+              )}
+            </div>
+            {order.designNotes && (
+              <div>
+                <span className="text-xs text-muted-foreground">Design Notes</span>
+                <p className="text-sm mt-0.5 leading-relaxed">{order.designNotes}</p>
+              </div>
+            )}
+          </div>
+
+          {/* Dates */}
+          <div className="grid grid-cols-2 gap-4">
+            <div className="p-3 rounded-lg border border-border bg-secondary/20">
+              <p className="text-xs text-muted-foreground mb-1 flex items-center gap-1">
+                <Calendar className="w-3 h-3" /> Delivery Date
+              </p>
+              <p className="text-sm font-semibold">{formatDate(order.deliveryDate)}</p>
+            </div>
+            {order.trialDate && (
+              <div className="p-3 rounded-lg border border-cyan-400/20 bg-cyan-400/5">
+                <p className="text-xs text-cyan-400/80 mb-1 flex items-center gap-1">
+                  <Calendar className="w-3 h-3" /> Trial Date
+                </p>
+                <p className="text-sm font-semibold">{formatDate(order.trialDate)}</p>
+              </div>
+            )}
+          </div>
+
+          {/* Payment */}
+          <div className="p-3 rounded-lg border border-border bg-secondary/20 space-y-2">
+            <p className="text-xs font-semibold text-[#D4AF37] uppercase tracking-wide">
+              Payment
+            </p>
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-muted-foreground">Total</span>
+              <span className="font-semibold">{formatCurrency(order.totalAmount)}</span>
+            </div>
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-muted-foreground">Advance Paid</span>
+              <span className="text-green-400 font-medium">
+                {formatCurrency(order.advanceAmount)}
+              </span>
+            </div>
+            <div className="flex items-center justify-between text-sm border-t border-border pt-2">
+              <span className="font-medium">Balance Due</span>
+              <span className={cn("font-bold", balanceDue > 0 ? "text-yellow-400" : "text-green-400")}>
+                {balanceDue > 0 ? formatCurrency(balanceDue) : "Paid"}
+              </span>
+            </div>
+          </div>
+
+          {/* Notes */}
+          {order.notes && (
+            <div>
+              <p className="text-xs text-muted-foreground mb-1">Notes</p>
+              <p className="text-sm leading-relaxed">{order.notes}</p>
+            </div>
+          )}
+
+          {/* Status History */}
+          {order.statusHistory && order.statusHistory.length > 0 && (
+            <div className="space-y-2">
+              <p className="text-xs font-semibold text-[#D4AF37] uppercase tracking-wide">
+                Status History
+              </p>
+              <div className="space-y-1.5 max-h-48 overflow-y-auto">
+                {order.statusHistory.map((h: { id: string; status: OrderStatus; notes: string | null; changedAt: Date | string }) => (
+                  <div
+                    key={h.id}
+                    className="flex items-start gap-3 text-xs text-muted-foreground p-2 rounded-lg bg-secondary/20"
+                  >
+                    <OrderStatusBadge status={h.status} size="sm" />
+                    <div className="flex-1 min-w-0">
+                      {h.notes && (
+                        <p className="text-foreground/80 truncate">{h.notes}</p>
+                      )}
+                      <p className="text-[10px] text-muted-foreground/70 mt-0.5">
+                        {formatDate(h.changedAt)}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
 
-      {/* Status History */}
-      {order.statusHistory && order.statusHistory.length > 0 && (
-        <div className="space-y-2">
-          <p className="text-xs font-semibold text-[#D4AF37] uppercase tracking-wide">
-            Status History
-          </p>
-          <div className="space-y-1.5 max-h-48 overflow-y-auto">
-            {order.statusHistory.map((h: { id: string; status: OrderStatus; notes: string | null; changedAt: Date | string }) => (
-              <div
-                key={h.id}
-                className="flex items-start gap-3 text-xs text-muted-foreground p-2 rounded-lg bg-secondary/20"
-              >
-                <OrderStatusBadge status={h.status} size="sm" />
-                <div className="flex-1 min-w-0">
-                  {h.notes && (
-                    <p className="text-foreground/80 truncate">{h.notes}</p>
-                  )}
-                  <p className="text-[10px] text-muted-foreground/70 mt-0.5">
-                    {formatDate(h.changedAt)}
-                  </p>
-                </div>
-              </div>
-            ))}
+      {/* ── Measurements Tab ─────────────────── */}
+      {activeTab === "measurements" && (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium">{order.customer.name}</p>
+              <p className="text-xs text-muted-foreground">
+                {measurements?.length ?? 0} measurement record{measurements?.length !== 1 ? "s" : ""}
+              </p>
+            </div>
+            {!showAddForm && !editMeasurement && (
+              <Button variant="gold" size="sm" onClick={() => setShowAddForm(true)}>
+                <Plus className="w-3.5 h-3.5 mr-1.5" />
+                Add Measurement
+              </Button>
+            )}
           </div>
+
+          {/* Add / Edit inline form */}
+          {(showAddForm || editMeasurement) && (
+            <div className="p-4 rounded-xl border border-[#D4AF37]/20 bg-[#D4AF37]/5">
+              <div className="flex items-center justify-between mb-4">
+                <p className="text-sm font-semibold text-[#D4AF37]">
+                  {editMeasurement ? "Edit Measurement" : "New Measurement"}
+                </p>
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  onClick={() => { setShowAddForm(false); setEditMeasurement(null); }}
+                >
+                  <X className="w-4 h-4" />
+                </Button>
+              </div>
+              <MeasurementForm
+                measurement={editMeasurement ?? undefined}
+                defaultCustomerId={order.customerId}
+                onSuccess={(m) => {
+                  if (editMeasurement) {
+                    setMeasurements((prev) => prev?.map((x) => x.id === m.id ? m : x) ?? null);
+                  } else {
+                    setMeasurements((prev) => prev ? [m, ...prev] : [m]);
+                  }
+                  setShowAddForm(false);
+                  setEditMeasurement(null);
+                }}
+                onCancel={() => { setShowAddForm(false); setEditMeasurement(null); }}
+              />
+            </div>
+          )}
+
+          {/* Loading spinner */}
+          {loadingMeasurements && (
+            <div className="flex items-center justify-center py-10 text-muted-foreground text-sm gap-2">
+              <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+              Loading measurements...
+            </div>
+          )}
+
+          {/* Empty state */}
+          {!loadingMeasurements && measurements !== null && measurements.length === 0 && !showAddForm && (
+            <div className="text-center py-10 space-y-3">
+              <div className="w-12 h-12 rounded-full bg-secondary flex items-center justify-center mx-auto">
+                <Ruler className="w-5 h-5 text-muted-foreground" />
+              </div>
+              <p className="text-sm text-muted-foreground">No measurements recorded yet</p>
+              <Button variant="outline" size="sm" onClick={() => setShowAddForm(true)}>
+                <Plus className="w-3.5 h-3.5 mr-1.5" />
+                Add first measurement
+              </Button>
+            </div>
+          )}
+
+          {/* Measurements list */}
+          {!loadingMeasurements && measurements !== null && measurements.length > 0 && (
+            <div className="space-y-2 max-h-[50vh] overflow-y-auto pr-1">
+              {measurements.map((m) => (
+                <OrderMeasurementRow
+                  key={m.id}
+                  measurement={m}
+                  isDeleting={deletingId === m.id}
+                  onEdit={() => { setEditMeasurement(m); setShowAddForm(false); }}
+                  onDelete={() => handleDeleteMeasurement(m.id)}
+                />
+              ))}
+            </div>
+          )}
         </div>
       )}
     </div>

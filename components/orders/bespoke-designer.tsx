@@ -520,7 +520,7 @@ export function BespokeDesigner({ open, onClose, orderId, orderNumber, onSave }:
                 <OptionGroup label="Sleeve Buttons" options={["3 Buttons", "4 Buttons", "5 Buttons"]}
                   value={jacket.sleeveButtons} onChange={(v) => setJ("sleeveButtons", v)} />
 
-                <OptionGroup label="Pick Stitch" options={["Full Pick Lapel", "Lapel Pick", "None"]}
+                <OptionGroup label="Pick Stitch" options={["Full Pick", "Lapel Pick", "None"]}
                   value={jacket.pickStitch} onChange={(v) => setJ("pickStitch", v)} />
 
                 <div>

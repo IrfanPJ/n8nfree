@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { motion } from "framer-motion";
@@ -8,7 +8,7 @@ import {
   LayoutDashboard, Users, ShoppingBag, Calendar, FileText,
   Bell, Settings, LogOut, ChevronLeft, ChevronRight,
   Scissors, Package, MessageSquare, BarChart3, Phone,
-  Target, Layers, ShoppingCart,
+  Target, Layers, ShoppingCart, X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useUIStore } from "@/store/ui-store";
@@ -46,33 +46,79 @@ interface SidebarProps {
     image?: string | null;
     role?: string;
   };
+  mobileOpen?: boolean;
+  onMobileClose?: () => void;
 }
 
-export function Sidebar({ user }: SidebarProps) {
+export function Sidebar({ user, mobileOpen = false, onMobileClose }: SidebarProps) {
   const pathname = usePathname();
   const { sidebarCollapsed, setSidebarCollapsed } = useUIStore();
   const { resolvedTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
+  const [isLg, setIsLg] = useState(true);
+  const prevPathname = useRef(pathname);
+
   useEffect(() => setMounted(true), []);
+
+  useEffect(() => {
+    const mql = window.matchMedia("(min-width: 1024px)");
+    setIsLg(mql.matches);
+    const handler = (e: MediaQueryListEvent) => setIsLg(e.matches);
+    mql.addEventListener("change", handler);
+    return () => mql.removeEventListener("change", handler);
+  }, []);
+
+  useEffect(() => {
+    if (pathname !== prevPathname.current) {
+      prevPathname.current = pathname;
+      onMobileClose?.();
+    }
+  }, [pathname, onMobileClose]);
+
   const isLight = mounted && resolvedTheme === "light";
   const markLogoSrc = isLight ? "/HT_Black.png" : "/HT_White.png";
+  const showLabels = isLg ? !sidebarCollapsed : true;
 
   return (
     <TooltipProvider delayDuration={0}>
+      {/* Mobile backdrop */}
+      {!isLg && mobileOpen && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.2 }}
+          className="fixed inset-0 z-30 bg-black/60"
+          onClick={onMobileClose}
+        />
+      )}
+
       <motion.aside
         initial={false}
-        animate={{ width: sidebarCollapsed ? 72 : 240 }}
+        animate={
+          !isLg
+            ? { x: mobileOpen ? 0 : -240, width: 240 }
+            : { x: 0, width: sidebarCollapsed ? 72 : 240 }
+        }
         transition={{ duration: 0.2, ease: "easeInOut" }}
         className="fixed left-0 top-0 h-full z-40 flex flex-col border-r border-border bg-card overflow-hidden"
       >
         {/* Logo */}
-        <div className="flex items-center justify-center h-16 px-4 border-b border-border">
+        <div className="flex items-center h-16 px-4 border-b border-border relative">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={markLogoSrc}
             alt="House of Tailors"
             className="object-contain w-full h-10"
           />
+          {!isLg && (
+            <button
+              onClick={onMobileClose}
+              className="absolute right-3 top-1/2 -translate-y-1/2 w-7 h-7 flex items-center justify-center rounded-md text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          )}
         </div>
 
         {/* Nav Items */}
@@ -82,7 +128,7 @@ export function Sidebar({ user }: SidebarProps) {
               const isActive = pathname === item.href || pathname.startsWith(`${item.href}/`);
               const Icon = item.icon;
 
-              if (sidebarCollapsed) {
+              if (!showLabels) {
                 return (
                   <li key={item.href}>
                     <Tooltip>
@@ -138,7 +184,7 @@ export function Sidebar({ user }: SidebarProps) {
               const Icon = item.icon;
               const isActive = pathname === item.href;
 
-              if (sidebarCollapsed) {
+              if (!showLabels) {
                 return (
                   <li key={item.href}>
                     <Tooltip>
@@ -178,7 +224,7 @@ export function Sidebar({ user }: SidebarProps) {
 
           {/* User section */}
           <div className="px-2 pb-4">
-            {sidebarCollapsed ? (
+            {!showLabels ? (
               <Tooltip>
                 <TooltipTrigger asChild>
                   <button
@@ -213,13 +259,15 @@ export function Sidebar({ user }: SidebarProps) {
           </div>
         </div>
 
-        {/* Collapse toggle */}
-        <button
-          onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-          className="absolute -right-3 top-20 w-6 h-6 rounded-full bg-card border border-border flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-secondary transition-all z-10"
-        >
-          {sidebarCollapsed ? <ChevronRight className="w-3 h-3" /> : <ChevronLeft className="w-3 h-3" />}
-        </button>
+        {/* Collapse toggle - desktop only */}
+        {isLg && (
+          <button
+            onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+            className="absolute -right-3 top-20 w-6 h-6 rounded-full bg-card border border-border flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-secondary transition-all z-10"
+          >
+            {sidebarCollapsed ? <ChevronRight className="w-3 h-3" /> : <ChevronLeft className="w-3 h-3" />}
+          </button>
+        )}
       </motion.aside>
     </TooltipProvider>
   );

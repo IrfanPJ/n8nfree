@@ -25,6 +25,7 @@ import {
   Sparkles,
   Ruler,
   QrCode,
+  MoreHorizontal,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -735,7 +736,47 @@ function OrderTableRow({ order, index, deletingId, statusUpdating, onView, onEdi
 
       {/* Actions */}
       <td className="px-4 py-3">
-        <div className="flex items-center gap-1 justify-end opacity-0 group-hover:opacity-100 transition-opacity">
+        {/* Mobile: always-visible kebab menu */}
+        <div className="sm:hidden flex justify-end">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon-sm">
+                <MoreHorizontal className="w-4 h-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-48">
+              <DropdownMenuItem onClick={onView}>
+                <Eye className="w-4 h-4 mr-2" /> View Details
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={onEdit}>
+                <Edit2 className="w-4 h-4 mr-2" /> Edit Order
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={onDesign} className="text-[#D4AF37] focus:text-[#D4AF37]">
+                <Sparkles className="w-4 h-4 mr-2" /> Bespoke Design
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={onQR}>
+                <QrCode className="w-4 h-4 mr-2" /> QR Code
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => printOrderSlip(order)}>
+                <Printer className="w-4 h-4 mr-2" /> Print Slip
+              </DropdownMenuItem>
+              {order.customer.phone && (
+                <DropdownMenuItem
+                  onClick={() => openWhatsApp(order.customer.phone, `Hello ${order.customer.name}, your order ${order.orderNumber} (${order.garmentType}) status: *${ORDER_STATUS_CONFIG[order.status]?.label}*. Delivery: ${formatDate(order.deliveryDate)}. — House of Tailors`)}
+                  className="text-green-400 focus:text-green-400"
+                >
+                  <MessageCircle className="w-4 h-4 mr-2" /> WhatsApp
+                </DropdownMenuItem>
+              )}
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={onDelete} className="text-destructive focus:text-destructive">
+                <Trash2 className="w-4 h-4 mr-2" /> Delete
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+        {/* Desktop: hover icon buttons */}
+        <div className="hidden sm:flex items-center gap-1 justify-end opacity-0 group-hover:opacity-100 transition-opacity">
           <Button variant="ghost" size="icon-sm" onClick={onDesign} title="Bespoke Design" className="text-[#D4AF37] hover:text-[#D4AF37]">
             <Sparkles className="w-4 h-4" />
           </Button>

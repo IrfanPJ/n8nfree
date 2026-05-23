@@ -17,10 +17,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { getCustomers } from "@/actions/customers";
+import { getCustomers, createCustomer } from "@/actions/customers";
 import type { OrderWithRelations, Customer } from "@/types";
-import { formatCurrency } from "@/lib/utils";
-import { cn } from "@/lib/utils";
+import { formatCurrency, cn } from "@/lib/utils";
+import { UserPlus, X } from "lucide-react";
 
 interface OrderFormProps {
   order?: OrderWithRelations;
@@ -59,6 +59,11 @@ export function OrderForm({
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [loadingCustomers, setLoadingCustomers] = useState(true);
   const [balanceDue, setBalanceDue] = useState(0);
+  const [showAddClient, setShowAddClient] = useState(false);
+  const [newClientName, setNewClientName] = useState("");
+  const [newClientPhone, setNewClientPhone] = useState("");
+  const [newClientEmail, setNewClientEmail] = useState("");
+  const [savingClient, setSavingClient] = useState(false);
 
   const {
     register,
@@ -116,6 +121,33 @@ export function OrderForm({
     fetchCustomers();
   }, []);
 
+  const handleSaveNewClient = async () => {
+    if (!newClientName.trim()) { toast.error("Name is required"); return; }
+    if (!newClientPhone.trim()) { toast.error("Phone is required"); return; }
+    setSavingClient(true);
+    const result = await createCustomer({
+      name: newClientName.trim(),
+      phone: newClientPhone.trim(),
+      email: newClientEmail.trim() || undefined,
+      gender: "MALE",
+      tags: [],
+      isVIP: false,
+    });
+    if (result.success && result.data) {
+      const c = result.data as Customer;
+      setCustomers((prev) => [c, ...prev]);
+      setValue("customerId", c.id);
+      setShowAddClient(false);
+      setNewClientName("");
+      setNewClientPhone("");
+      setNewClientEmail("");
+      toast.success(`${c.name} added to client book`);
+    } else {
+      toast.error(result.error ?? "Failed to save client");
+    }
+    setSavingClient(false);
+  };
+
   const onSubmit = async (data: OrderFormData) => {
     const result = isEditing
       ? await updateOrder(order.id, data)
@@ -139,7 +171,21 @@ export function OrderForm({
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div className="space-y-1.5 sm:col-span-2">
-            <Label htmlFor="customerId">Customer *</Label>
+            <div className="flex items-center justify-between">
+              <Label htmlFor="customerId">Customer *</Label>
+              <button
+                type="button"
+                onClick={() => setShowAddClient((v) => !v)}
+                className="flex items-center gap-1 text-xs text-[#D4AF37] hover:text-[#D4AF37]/80 transition-colors"
+              >
+                {showAddClient ? (
+                  <><X className="w-3 h-3" /> Cancel</>
+                ) : (
+                  <><UserPlus className="w-3 h-3" /> New Client</>
+                )}
+              </button>
+            </div>
+
             <Controller
               name="customerId"
               control={control}
@@ -172,6 +218,57 @@ export function OrderForm({
               )}
             />
             <FieldError message={errors.customerId?.message} />
+
+            {/* ── Inline new-client form ── */}
+            {showAddClient && (
+              <div className="mt-2 p-4 rounded-lg border border-[#D4AF37]/25 bg-[#D4AF37]/5 space-y-3">
+                <p className="text-xs font-semibold text-[#D4AF37] flex items-center gap-1.5">
+                  <UserPlus className="w-3.5 h-3.5" />
+                  Add New Client
+                </p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <Label className="text-xs">Full Name *</Label>
+                    <Input
+                      placeholder="e.g. Ahmed Al Mansouri"
+                      value={newClientName}
+                      onChange={(e) => setNewClientName(e.target.value)}
+                      className="h-8 text-sm"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">Phone *</Label>
+                    <Input
+                      placeholder="+971 50 123 4567"
+                      value={newClientPhone}
+                      onChange={(e) => setNewClientPhone(e.target.value)}
+                      className="h-8 text-sm"
+                    />
+                  </div>
+                  <div className="space-y-1 sm:col-span-2">
+                    <Label className="text-xs">Email (optional)</Label>
+                    <Input
+                      placeholder="email@example.com"
+                      type="email"
+                      value={newClientEmail}
+                      onChange={(e) => setNewClientEmail(e.target.value)}
+                      className="h-8 text-sm"
+                    />
+                  </div>
+                </div>
+                <Button
+                  type="button"
+                  variant="gold"
+                  size="sm"
+                  onClick={handleSaveNewClient}
+                  loading={savingClient}
+                  className="w-full gap-1.5"
+                >
+                  <UserPlus className="w-3.5 h-3.5" />
+                  Save to Client Book
+                </Button>
+              </div>
+            )}
           </div>
 
           <div className="space-y-1.5">

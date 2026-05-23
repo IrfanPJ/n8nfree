@@ -8,6 +8,6 @@ export default auth;
 export const config = {
   // Protect all routes except static assets, API auth, and public pages
   matcher: [
-    "/((?!_next/static|_next/image|favicon.ico|api/auth).*)",
+    "/((?!_next/static|_next/image|favicon.ico|api/auth|.*\\.(?:png|jpg|jpeg|gif|svg|ico|webp|woff2?|ttf)).*)",
   ],
 };

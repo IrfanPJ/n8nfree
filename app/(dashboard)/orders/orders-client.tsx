@@ -745,13 +745,41 @@ function OrderTableRow({ order, index, deletingId, statusUpdating, onView, onEdi
 /* ─────────────────────────────────────────────
    Compact Measurement Row (inside order detail)
 ───────────────────────────────────────────── */
+function printMeasurement(measurement: Measurement, customerName: string) {
+  const win = window.open("", "_blank", "width=700,height=900");
+  if (!win) return;
+  const u = measurement.unit === "cm" ? "cm" : "in";
+  const sections = [
+    { title: "Upper Body", items: [["Chest", measurement.chest], ["Waist", measurement.waist], ["Hip", measurement.hip], ["Shoulder", measurement.shoulder], ["Neck", measurement.neck], ["Sleeve", measurement.sleeve], ["Armhole", measurement.armhole]] },
+    { title: "Lower Body", items: [["Inseam", measurement.inseam], ["Outseam", measurement.outseam], ["Rise", measurement.rise], ["Thigh", measurement.thigh], ["Ankle", measurement.ankle]] },
+    { title: "Lengths", items: [["Back Length", measurement.backLength], ["Front Length", measurement.frontLength], ["Jacket Length", measurement.jacketLength], ["Shirt Length", measurement.shirtLength]] },
+  ];
+  const html = sections.map(({ title, items }) => {
+    const filled = (items as [string, number | null][]).filter(([, v]) => v !== null);
+    if (!filled.length) return "";
+    return `<div class="section"><h3>${title}</h3><div class="grid">${filled.map(([l, v]) => `<div class="cell"><div class="cl">${l}</div><div class="cv">${v}${u}</div></div>`).join("")}</div></div>`;
+  }).join("");
+  win.document.write(`<!DOCTYPE html><html><head><title>Measurements — ${customerName}</title><style>body{font-family:Arial,sans-serif;margin:0;padding:24px;color:#111}.hdr{text-align:center;border-bottom:2px solid #D4AF37;padding-bottom:16px;margin-bottom:20px}.hdr h1{margin:0;font-size:22px;color:#D4AF37;letter-spacing:2px}.hdr p{margin:4px 0 0;font-size:12px;color:#666}.meta{display:flex;gap:24px;flex-wrap:wrap;margin-bottom:20px;padding:12px 16px;background:#f9f9f9;border-radius:8px;border:1px solid #eee}.mi .ml{font-size:10px;color:#999;text-transform:uppercase;letter-spacing:.5px}.mi .mv{font-size:13px;font-weight:600;margin-top:2px}.section{margin-bottom:18px}.section h3{font-size:10px;text-transform:uppercase;letter-spacing:1px;color:#D4AF37;margin:0 0 8px;border-bottom:1px solid #eee;padding-bottom:4px}.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}.cell{background:#f9f9f9;border:1px solid #eee;padding:8px;border-radius:6px;text-align:center}.cl{font-size:10px;color:#999;text-transform:uppercase}.cv{font-size:15px;font-weight:bold;margin-top:2px}.notes{background:#f9f9f9;border:1px solid #eee;padding:10px;border-radius:6px;font-size:12px}.sig{display:flex;justify-content:space-between;margin-top:48px}.sl{text-align:center;width:40%}.sl .line{border-top:1px solid #ccc;padding-top:6px;font-size:11px;color:#999}@media print{body{padding:10px}}</style></head><body>
+    <div class="hdr"><h1>HOUSE OF TAILORS</h1><p>Measurement Record</p></div>
+    <div class="meta"><div class="mi"><div class="ml">Client</div><div class="mv">${customerName}</div></div><div class="mi"><div class="ml">Label</div><div class="mv">${measurement.label}</div></div><div class="mi"><div class="ml">Unit</div><div class="mv">${measurement.unit}</div></div><div class="mi"><div class="ml">Date</div><div class="mv">${new Date(measurement.takenAt).toLocaleDateString("en-AE")}</div></div>${measurement.takenBy ? `<div class="mi"><div class="ml">By</div><div class="mv">${measurement.takenBy}</div></div>` : ""}</div>
+    ${html}
+    ${measurement.notes ? `<div class="section"><h3>Notes</h3><div class="notes">${measurement.notes}</div></div>` : ""}
+    <div class="sig"><div class="sl"><div class="line">Client Signature</div></div><div class="sl"><div class="line">Tailor / Manager</div></div></div>
+  </body></html>`);
+  win.document.close();
+  win.focus();
+  setTimeout(() => win.print(), 300);
+}
+
 function OrderMeasurementRow({
   measurement,
+  customerName,
   isDeleting,
   onEdit,
   onDelete,
 }: {
   measurement: Measurement;
+  customerName: string;
   isDeleting: boolean;
   onEdit: () => void;
   onDelete: () => void;
@@ -797,7 +825,10 @@ function OrderMeasurementRow({
         )}
       </div>
       <div className="flex items-center gap-1 flex-shrink-0">
-        <Button variant="ghost" size="icon-sm" onClick={onEdit}>
+        <Button variant="ghost" size="icon-sm" onClick={() => printMeasurement(measurement, customerName)} title="Print">
+          <Printer className="w-3.5 h-3.5" />
+        </Button>
+        <Button variant="ghost" size="icon-sm" onClick={onEdit} title="Edit">
           <Edit2 className="w-3.5 h-3.5" />
         </Button>
         <Button
@@ -806,6 +837,7 @@ function OrderMeasurementRow({
           onClick={onDelete}
           disabled={isDeleting}
           className="text-destructive hover:text-destructive"
+          title="Delete"
         >
           <Trash2 className="w-3.5 h-3.5" />
         </Button>
@@ -1136,6 +1168,7 @@ function OrderDetailView({ order }: { order: OrderWithRelations }) {
                 <OrderMeasurementRow
                   key={m.id}
                   measurement={m}
+                  customerName={order.customer.name}
                   isDeleting={deletingId === m.id}
                   onEdit={() => { setEditMeasurement(m); setShowAddForm(false); }}
                   onDelete={() => handleDeleteMeasurement(m.id)}

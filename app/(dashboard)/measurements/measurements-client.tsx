@@ -9,6 +9,8 @@ import {
   Ruler,
   Edit2,
   Trash2,
+  Eye,
+  Printer,
   ChevronDown,
   ChevronUp,
   User,
@@ -36,10 +38,109 @@ interface MeasurementsClientProps {
   customers: Customer[];
 }
 
+function printMeasurement(measurement: Measurement, customerName: string) {
+  const win = window.open("", "_blank", "width=700,height=900");
+  if (!win) return;
+  const u = measurement.unit === "cm" ? "cm" : "in";
+
+  const sections = [
+    {
+      title: "Upper Body",
+      items: [
+        { label: "Chest", v: measurement.chest },
+        { label: "Waist", v: measurement.waist },
+        { label: "Hip", v: measurement.hip },
+        { label: "Shoulder", v: measurement.shoulder },
+        { label: "Neck", v: measurement.neck },
+        { label: "Sleeve", v: measurement.sleeve },
+        { label: "Armhole", v: measurement.armhole },
+      ],
+    },
+    {
+      title: "Lower Body",
+      items: [
+        { label: "Inseam", v: measurement.inseam },
+        { label: "Outseam", v: measurement.outseam },
+        { label: "Rise", v: measurement.rise },
+        { label: "Thigh", v: measurement.thigh },
+        { label: "Ankle", v: measurement.ankle },
+      ],
+    },
+    {
+      title: "Lengths",
+      items: [
+        { label: "Back Length", v: measurement.backLength },
+        { label: "Front Length", v: measurement.frontLength },
+        { label: "Jacket Length", v: measurement.jacketLength },
+        { label: "Shirt Length", v: measurement.shirtLength },
+      ],
+    },
+  ];
+
+  const sectionHtml = sections
+    .map(({ title, items }) => {
+      const filled = items.filter((i) => i.v !== null);
+      if (!filled.length) return "";
+      return `<div class="section">
+        <h3>${title}</h3>
+        <div class="grid">${filled
+          .map(
+            (i) =>
+              `<div class="cell"><div class="cl">${i.label}</div><div class="cv">${i.v}${u}</div></div>`
+          )
+          .join("")}</div></div>`;
+    })
+    .join("");
+
+  win.document.write(`<!DOCTYPE html><html><head>
+    <title>Measurements — ${customerName}</title>
+    <style>
+      body{font-family:Arial,sans-serif;margin:0;padding:24px;color:#111}
+      .hdr{text-align:center;border-bottom:2px solid #D4AF37;padding-bottom:16px;margin-bottom:20px}
+      .hdr h1{margin:0;font-size:22px;color:#D4AF37;letter-spacing:2px}
+      .hdr p{margin:4px 0 0;font-size:12px;color:#666}
+      .meta{display:flex;gap:24px;flex-wrap:wrap;margin-bottom:20px;padding:12px 16px;background:#f9f9f9;border-radius:8px;border:1px solid #eee}
+      .mi .ml{font-size:10px;color:#999;text-transform:uppercase;letter-spacing:.5px}
+      .mi .mv{font-size:13px;font-weight:600;margin-top:2px}
+      .section{margin-bottom:18px}
+      .section h3{font-size:10px;text-transform:uppercase;letter-spacing:1px;color:#D4AF37;margin:0 0 8px;border-bottom:1px solid #eee;padding-bottom:4px}
+      .grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+      .cell{background:#f9f9f9;border:1px solid #eee;padding:8px;border-radius:6px;text-align:center}
+      .cl{font-size:10px;color:#999;text-transform:uppercase}
+      .cv{font-size:15px;font-weight:bold;margin-top:2px}
+      .notes{background:#f9f9f9;border:1px solid #eee;padding:10px;border-radius:6px;font-size:12px}
+      .sig{display:flex;justify-content:space-between;margin-top:48px}
+      .sl{text-align:center;width:40%}
+      .sl .line{border-top:1px solid #ccc;padding-top:6px;font-size:11px;color:#999}
+      @media print{body{padding:10px}}
+    </style>
+  </head><body>
+    <div class="hdr"><h1>HOUSE OF TAILORS</h1><p>Measurement Record</p></div>
+    <div class="meta">
+      <div class="mi"><div class="ml">Client</div><div class="mv">${customerName}</div></div>
+      <div class="mi"><div class="ml">Label</div><div class="mv">${measurement.label}</div></div>
+      <div class="mi"><div class="ml">Unit</div><div class="mv">${measurement.unit}</div></div>
+      <div class="mi"><div class="ml">Date Taken</div><div class="mv">${new Date(measurement.takenAt).toLocaleDateString("en-AE")}</div></div>
+      ${measurement.takenBy ? `<div class="mi"><div class="ml">Measured By</div><div class="mv">${measurement.takenBy}</div></div>` : ""}
+    </div>
+    ${sectionHtml}
+    ${measurement.notes ? `<div class="section"><h3>Notes</h3><div class="notes">${measurement.notes}</div></div>` : ""}
+    <div class="sig">
+      <div class="sl"><div class="line">Client Signature</div></div>
+      <div class="sl"><div class="line">Tailor / Manager</div></div>
+    </div>
+  </body></html>`);
+  win.document.close();
+  win.focus();
+  setTimeout(() => win.print(), 300);
+}
+
 interface MeasurementCardProps {
   measurement: Measurement;
   customers: Customer[];
   onEdit: (m: Measurement) => void;
+  onView: (m: Measurement) => void;
+  onPrint: (m: Measurement) => void;
   onDelete: (id: string) => void;
   isDeleting: boolean;
 }
@@ -69,6 +170,8 @@ function MeasurementCard({
   measurement,
   customers,
   onEdit,
+  onView,
+  onPrint,
   onDelete,
   isDeleting,
 }: MeasurementCardProps) {
@@ -138,11 +241,13 @@ function MeasurementCard({
               </div>
             </div>
             <div className="flex items-center gap-1 flex-shrink-0">
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                onClick={() => onEdit(measurement)}
-              >
+              <Button variant="ghost" size="icon-sm" onClick={() => onView(measurement)} title="View">
+                <Eye className="w-3.5 h-3.5" />
+              </Button>
+              <Button variant="ghost" size="icon-sm" onClick={() => onPrint(measurement)} title="Print">
+                <Printer className="w-3.5 h-3.5" />
+              </Button>
+              <Button variant="ghost" size="icon-sm" onClick={() => onEdit(measurement)} title="Edit">
                 <Edit2 className="w-3.5 h-3.5" />
               </Button>
               <Button
@@ -151,6 +256,7 @@ function MeasurementCard({
                 onClick={() => onDelete(measurement.id)}
                 disabled={isDeleting}
                 className="text-destructive hover:text-destructive"
+                title="Delete"
               >
                 <Trash2 className="w-3.5 h-3.5" />
               </Button>
@@ -242,6 +348,7 @@ export function MeasurementsClient({
   const [search, setSearch] = useState("");
   const [createOpen, setCreateOpen] = useState(false);
   const [editMeasurement, setEditMeasurement] = useState<Measurement | null>(null);
+  const [viewMeasurement, setViewMeasurement] = useState<Measurement | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [filterCustomer, setFilterCustomer] = useState<string>("");
 
@@ -373,6 +480,11 @@ export function MeasurementsClient({
                 key={m.id}
                 measurement={m}
                 customers={customers}
+                onView={setViewMeasurement}
+                onPrint={(m) => {
+                  const c = customers.find((c) => c.id === m.customerId);
+                  printMeasurement(m, c?.name ?? "Customer");
+                }}
                 onEdit={setEditMeasurement}
                 onDelete={handleDelete}
                 isDeleting={deletingId === m.id}
@@ -416,6 +528,143 @@ export function MeasurementsClient({
               onCancel={() => setEditMeasurement(null)}
             />
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* View Dialog */}
+      <Dialog open={!!viewMeasurement} onOpenChange={() => setViewMeasurement(null)}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          {viewMeasurement && (() => {
+            const customer = customers.find((c) => c.id === viewMeasurement.customerId);
+            const u = viewMeasurement.unit === "cm" ? "cm" : "in";
+            const sections = [
+              {
+                title: "Upper Body",
+                fields: [
+                  { label: "Chest", v: viewMeasurement.chest },
+                  { label: "Waist", v: viewMeasurement.waist },
+                  { label: "Hip", v: viewMeasurement.hip },
+                  { label: "Shoulder", v: viewMeasurement.shoulder },
+                  { label: "Neck", v: viewMeasurement.neck },
+                  { label: "Sleeve", v: viewMeasurement.sleeve },
+                  { label: "Armhole", v: viewMeasurement.armhole },
+                ],
+              },
+              {
+                title: "Lower Body",
+                fields: [
+                  { label: "Inseam", v: viewMeasurement.inseam },
+                  { label: "Outseam", v: viewMeasurement.outseam },
+                  { label: "Rise", v: viewMeasurement.rise },
+                  { label: "Thigh", v: viewMeasurement.thigh },
+                  { label: "Ankle", v: viewMeasurement.ankle },
+                ],
+              },
+              {
+                title: "Lengths",
+                fields: [
+                  { label: "Back Length", v: viewMeasurement.backLength },
+                  { label: "Front Length", v: viewMeasurement.frontLength },
+                  { label: "Jacket Length", v: viewMeasurement.jacketLength },
+                  { label: "Shirt Length", v: viewMeasurement.shirtLength },
+                ],
+              },
+            ];
+            return (
+              <div className="space-y-5">
+                <DialogHeader>
+                  <DialogTitle className="flex items-center gap-2">
+                    <Ruler className="w-5 h-5 text-[#D4AF37]" />
+                    {viewMeasurement.label}
+                  </DialogTitle>
+                </DialogHeader>
+
+                {/* Meta row */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 p-3 rounded-lg bg-secondary/30 border border-border/40">
+                  {customer && (
+                    <div>
+                      <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Customer</p>
+                      <p className="text-sm font-semibold mt-0.5">{customer.name}</p>
+                    </div>
+                  )}
+                  <div>
+                    <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Unit</p>
+                    <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-[#D4AF37]/30 text-[#D4AF37] mt-1">
+                      {viewMeasurement.unit}
+                    </Badge>
+                  </div>
+                  <div>
+                    <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Date Taken</p>
+                    <p className="text-sm font-medium mt-0.5">
+                      {format(new Date(viewMeasurement.takenAt), "dd MMM yyyy")}
+                    </p>
+                  </div>
+                  {viewMeasurement.takenBy && (
+                    <div>
+                      <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Measured By</p>
+                      <p className="text-sm font-medium mt-0.5">{viewMeasurement.takenBy}</p>
+                    </div>
+                  )}
+                </div>
+
+                {/* Measurement sections */}
+                {sections.map(({ title, fields }) => {
+                  const filled = fields.filter((f) => f.v !== null);
+                  if (!filled.length) return null;
+                  return (
+                    <div key={title} className="space-y-2">
+                      <div className="flex items-center gap-3">
+                        <div className="h-px flex-1 bg-border/50" />
+                        <h3 className="text-xs font-semibold text-[#D4AF37] uppercase tracking-widest">{title}</h3>
+                        <div className="h-px flex-1 bg-border/50" />
+                      </div>
+                      <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+                        {filled.map((f) => (
+                          <div key={f.label} className="text-center p-3 rounded-lg bg-secondary/30 border border-border/30">
+                            <p className="text-[10px] text-muted-foreground uppercase tracking-wide">{f.label}</p>
+                            <p className="text-lg font-bold mt-0.5">
+                              {f.v}
+                              <span className="text-xs text-muted-foreground font-normal ml-0.5">{u}</span>
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
+
+                {/* Notes */}
+                {viewMeasurement.notes && (
+                  <div className="p-3 rounded-lg bg-secondary/20 border border-border/30">
+                    <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1">Notes</p>
+                    <p className="text-sm leading-relaxed">{viewMeasurement.notes}</p>
+                  </div>
+                )}
+
+                {/* Actions */}
+                <div className="flex gap-2 pt-1">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => printMeasurement(viewMeasurement, customer?.name ?? "Customer")}
+                    className="gap-1.5"
+                  >
+                    <Printer className="w-3.5 h-3.5" />
+                    Print
+                  </Button>
+                  <Button
+                    variant="gold"
+                    size="sm"
+                    onClick={() => { setViewMeasurement(null); setEditMeasurement(viewMeasurement); }}
+                    className="gap-1.5"
+                  >
+                    <Edit2 className="w-3.5 h-3.5" />
+                    Edit
+                  </Button>
+                </div>
+              </div>
+            );
+          })()}
         </DialogContent>
       </Dialog>
     </div>

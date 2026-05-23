@@ -18,14 +18,18 @@ export const orderSchema = z.object({
 
 export const orderStatusUpdateSchema = z.object({
   status: z.enum([
-    "PENDING",
-    "MEASURING",
+    "MEASUREMENT",
+    "FABRIC_ORDERING",
+    "FABRIC_COLLECTED",
     "CUTTING",
-    "STITCHING",
+    "SEMI_STITCH",
     "TRIAL",
-    "READY",
+    "FINAL_STITCH",
+    "READY_FOR_DELIVERY",
     "DELIVERED",
-    "CANCELLED",
+    "PENDING_ALTERATION",
+    "READY_FINAL_DELIVERY",
+    "ORDER_CLOSED",
   ]),
   notes: z.string().optional(),
 });

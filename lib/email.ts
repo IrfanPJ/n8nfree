@@ -49,14 +49,18 @@ export async function sendOrderStatusUpdate(opts: {
   if (!resend) return;
 
   const statusLabels: Record<string, string> = {
-    PENDING: "Pending",
-    MEASURING: "Measuring",
+    MEASUREMENT: "Measurement",
+    FABRIC_ORDERING: "Fabric Ordering",
+    FABRIC_COLLECTED: "Fabric Collected",
     CUTTING: "Cutting",
-    STITCHING: "Stitching",
+    SEMI_STITCH: "Semi Stitch",
     TRIAL: "Ready for Trial",
-    READY: "Ready for Pickup",
+    FINAL_STITCH: "Final Stitch",
+    READY_FOR_DELIVERY: "Ready for Pickup",
     DELIVERED: "Delivered",
-    CANCELLED: "Cancelled",
+    PENDING_ALTERATION: "Pending Alteration",
+    READY_FINAL_DELIVERY: "Ready for Final Delivery",
+    ORDER_CLOSED: "Order Closed",
   };
 
   const label = statusLabels[opts.status] ?? opts.status;

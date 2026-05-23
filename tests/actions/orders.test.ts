@@ -39,7 +39,7 @@ const fakeOrder = {
   id: "ord-1",
   orderNumber: "ORD-2026-0001",
   ...validOrder,
-  status: "PENDING",
+  status: "MEASUREMENT",
   statusHistory: [],
   customer: { id: "cust-1", name: "Ali", email: null },
   assignedTo: null,
@@ -90,7 +90,7 @@ describe("updateOrderStatus", () => {
   });
 
   it("accepts all valid status values", async () => {
-    const statuses = ["PENDING", "MEASURING", "CUTTING", "STITCHING", "TRIAL", "READY", "DELIVERED", "CANCELLED"];
+    const statuses = ["MEASUREMENT", "FABRIC_ORDERING", "FABRIC_COLLECTED", "CUTTING", "SEMI_STITCH", "TRIAL", "FINAL_STITCH", "READY_FOR_DELIVERY", "DELIVERED", "PENDING_ALTERATION", "READY_FINAL_DELIVERY", "ORDER_CLOSED"];
     for (const status of statuses) {
       const b = makeBuilder({ singleResult: { data: { ...fakeOrder, status }, error: null } });
       vi.mocked(supabase.from).mockReturnValue(b as any);

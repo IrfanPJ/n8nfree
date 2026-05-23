@@ -37,7 +37,7 @@ export async function POST(request: NextRequest) {
   ] = await Promise.all([
     supabase.from("Order").select("*", { count: "exact", head: true }).eq("isActive", true),
     supabase.from("Customer").select("*", { count: "exact", head: true }).eq("isActive", true),
-    supabase.from("Order").select("*", { count: "exact", head: true }).eq("isActive", true).in("status", ["PENDING", "MEASURING", "CUTTING", "STITCHING", "TRIAL"]),
+    supabase.from("Order").select("*", { count: "exact", head: true }).eq("isActive", true).not("status", "in", '("DELIVERED","ORDER_CLOSED")'),
     supabase.from("Invoice").select("paidAmount").eq("isActive", true).eq("status", "PAID"),
   ]);
 

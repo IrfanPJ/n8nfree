@@ -76,7 +76,7 @@ export async function getDashboardStats(): Promise<DashboardStats> {
     pendingFollowUpsCount, overdueFollowUpsCount,
   ] = await Promise.all([
     countWhere("Order", { isActive: true }),
-    supabase.from("Order").select("*", { count: "exact", head: true }).eq("isActive", true).in("status", ["PENDING", "MEASURING", "CUTTING", "STITCHING", "TRIAL"]).then(r => r.count ?? 0),
+    supabase.from("Order").select("*", { count: "exact", head: true }).eq("isActive", true).not("status", "in", '("DELIVERED","ORDER_CLOSED")').then(r => r.count ?? 0),
     countWhere("Order", { isActive: true, status: "DELIVERED" }),
     countWhere("Customer", { isActive: true }),
     countRange("Customer", { isActive: true }, "createdAt", curStart, curEnd),
@@ -86,7 +86,7 @@ export async function getDashboardStats(): Promise<DashboardStats> {
     countRange("Order", { isActive: true }, "createdAt", curStart, curEnd),
     countRange("Order", { isActive: true }, "createdAt", lastStart, lastEnd),
     supabase.from("Appointment").select("*", { count: "exact", head: true }).eq("isActive", true).gte("startTime", todayStart.toISOString()).lte("startTime", todayEnd.toISOString()).then(r => r.count ?? 0),
-    supabase.from("Order").select("*", { count: "exact", head: true }).eq("isActive", true).eq("status", "READY").gte("deliveryDate", now.toISOString()).lte("deliveryDate", weekOut.toISOString()).then(r => r.count ?? 0),
+    supabase.from("Order").select("*", { count: "exact", head: true }).eq("isActive", true).eq("status", "READY_FOR_DELIVERY").gte("deliveryDate", now.toISOString()).lte("deliveryDate", weekOut.toISOString()).then(r => r.count ?? 0),
     countWhere("Invoice", { isActive: true, status: "OVERDUE" }),
     supabase.from("Invoice").select("paidAmount").eq("isActive", true).eq("status", "PAID").then(r => r.data?.reduce((s, i) => s + (i.paidAmount ?? 0), 0) ?? 0),
     // POS
@@ -161,15 +161,30 @@ export async function getOrderStatusData(): Promise<OrderStatusData[]> {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
 
-  const statuses = ["PENDING", "MEASURING", "CUTTING", "STITCHING", "TRIAL", "READY", "DELIVERED", "CANCELLED"] as const;
-  const colors = ["#fbbf24", "#60a5fa", "#f97316", "#a78bfa", "#22d3ee", "#4ade80", "#34d399", "#f87171"];
+  const statuses = [
+    "MEASUREMENT", "FABRIC_ORDERING", "FABRIC_COLLECTED", "CUTTING",
+    "SEMI_STITCH", "TRIAL", "FINAL_STITCH", "READY_FOR_DELIVERY",
+    "DELIVERED", "PENDING_ALTERATION", "READY_FINAL_DELIVERY", "ORDER_CLOSED",
+  ] as const;
+  const colors = [
+    "#60a5fa", "#f97316", "#fbbf24", "#facc15",
+    "#a78bfa", "#22d3ee", "#818cf8", "#4ade80",
+    "#34d399", "#fb7185", "#2dd4bf", "#9ca3af",
+  ];
 
   const counts = await Promise.all(
     statuses.map((s) => countWhere("Order", { isActive: true, status: s }))
   );
 
+  const labels: Record<string, string> = {
+    MEASUREMENT: "Measurement", FABRIC_ORDERING: "Fabric Ordering", FABRIC_COLLECTED: "Fabric Collected",
+    CUTTING: "Cutting", SEMI_STITCH: "Semi Stitch", TRIAL: "Trial",
+    FINAL_STITCH: "Final Stitch", READY_FOR_DELIVERY: "Ready for Delivery",
+    DELIVERED: "Delivered", PENDING_ALTERATION: "Pending Alteration",
+    READY_FINAL_DELIVERY: "Ready Final Delivery", ORDER_CLOSED: "Order Closed",
+  };
   return statuses.map((status, i) => ({
-    status: status.charAt(0) + status.slice(1).toLowerCase(),
+    status: labels[status] ?? status,
     count: counts[i],
     color: colors[i],
   }));
@@ -186,7 +201,7 @@ export async function getUrgentOrders() {
     .from("Order")
     .select("id, orderNumber, garmentType, deliveryDate, status, customer:Customer!customerId(name, phone)")
     .eq("isActive", true)
-    .not("status", "in", '("DELIVERED","CANCELLED")')
+    .not("status", "in", '("DELIVERED","ORDER_CLOSED")')
     .lte("deliveryDate", sevenDaysOut.toISOString())
     .order("deliveryDate", { ascending: true });
 
@@ -210,7 +225,7 @@ export async function getWorkshopCapacity() {
     .from("Order")
     .select("*", { count: "exact", head: true })
     .eq("isActive", true)
-    .not("status", "in", '("DELIVERED","CANCELLED")');
+    .not("status", "in", '("DELIVERED","ORDER_CLOSED")');
 
   const current = count ?? 0;
   return { current, max: MAX_SLOTS, percentage: Math.round((current / MAX_SLOTS) * 100) };
@@ -224,7 +239,7 @@ export async function getNextDelivery() {
     .from("Order")
     .select("id, orderNumber, garmentType, deliveryDate, customer:Customer!customerId(name)")
     .eq("isActive", true)
-    .not("status", "in", '("DELIVERED","CANCELLED")')
+    .not("status", "in", '("DELIVERED","ORDER_CLOSED")')
     .gte("deliveryDate", new Date().toISOString())
     .order("deliveryDate", { ascending: true })
     .limit(1);
@@ -280,7 +295,7 @@ export async function getReadyOrders() {
     .from("Order")
     .select("id, orderNumber, garmentType, deliveryDate, customer:Customer!customerId(name, phone)")
     .eq("isActive", true)
-    .eq("status", "READY")
+    .eq("status", "READY_FOR_DELIVERY")
     .order("deliveryDate", { ascending: true })
     .limit(10);
 

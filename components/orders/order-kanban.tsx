@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import {
   Calendar, User2, AlertCircle, Clock, DollarSign,
   Package, MessageCircle, Sparkles, GripVertical,
+  Ruler, ShoppingCart, Layers, Scissors, Shirt, Wrench, Gift, CheckCheck, RefreshCw,
 } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
@@ -28,31 +29,40 @@ type StatusKey = keyof typeof ORDER_STATUS_CONFIG;
 const statusConfig = (s: OrderStatus) => ORDER_STATUS_CONFIG[s as StatusKey];
 
 const KANBAN_COLUMNS: OrderStatus[] = [
-  "PENDING", "MEASURING", "CUTTING", "STITCHING",
-  "TRIAL", "READY", "DELIVERED", "CANCELLED",
+  "MEASUREMENT", "FABRIC_ORDERING", "FABRIC_COLLECTED", "CUTTING",
+  "SEMI_STITCH", "TRIAL", "FINAL_STITCH", "READY_FOR_DELIVERY",
+  "DELIVERED", "PENDING_ALTERATION", "READY_FINAL_DELIVERY", "ORDER_CLOSED",
 ];
 
 const STATUS_ICONS: Record<OrderStatus, React.ReactNode> = {
-  PENDING: <Clock className="w-3.5 h-3.5" />,
-  MEASURING: <Package className="w-3.5 h-3.5" />,
-  CUTTING: <Package className="w-3.5 h-3.5" />,
-  STITCHING: <Package className="w-3.5 h-3.5" />,
-  TRIAL: <User2 className="w-3.5 h-3.5" />,
-  READY: <Package className="w-3.5 h-3.5" />,
-  DELIVERED: <Package className="w-3.5 h-3.5" />,
-  CANCELLED: <AlertCircle className="w-3.5 h-3.5" />,
+  MEASUREMENT:          <Ruler className="w-3.5 h-3.5" />,
+  FABRIC_ORDERING:      <ShoppingCart className="w-3.5 h-3.5" />,
+  FABRIC_COLLECTED:     <Layers className="w-3.5 h-3.5" />,
+  CUTTING:              <Scissors className="w-3.5 h-3.5" />,
+  SEMI_STITCH:          <Package className="w-3.5 h-3.5" />,
+  TRIAL:                <Shirt className="w-3.5 h-3.5" />,
+  FINAL_STITCH:         <RefreshCw className="w-3.5 h-3.5" />,
+  READY_FOR_DELIVERY:   <CheckCheck className="w-3.5 h-3.5" />,
+  DELIVERED:            <Package className="w-3.5 h-3.5" />,
+  PENDING_ALTERATION:   <Wrench className="w-3.5 h-3.5" />,
+  READY_FINAL_DELIVERY: <Gift className="w-3.5 h-3.5" />,
+  ORDER_CLOSED:         <AlertCircle className="w-3.5 h-3.5" />,
 };
 
 function getValidTransitions(currentStatus: OrderStatus): OrderStatus[] {
   const flow: Record<OrderStatus, OrderStatus[]> = {
-    PENDING: ["MEASURING", "CUTTING", "CANCELLED"],
-    MEASURING: ["CUTTING", "PENDING", "CANCELLED"],
-    CUTTING: ["STITCHING", "MEASURING", "CANCELLED"],
-    STITCHING: ["TRIAL", "CUTTING", "CANCELLED"],
-    TRIAL: ["READY", "STITCHING", "CANCELLED"],
-    READY: ["DELIVERED", "TRIAL", "CANCELLED"],
-    DELIVERED: ["READY"],
-    CANCELLED: ["PENDING"],
+    MEASUREMENT:          ["FABRIC_ORDERING", "ORDER_CLOSED"],
+    FABRIC_ORDERING:      ["FABRIC_COLLECTED", "MEASUREMENT"],
+    FABRIC_COLLECTED:     ["CUTTING", "FABRIC_ORDERING"],
+    CUTTING:              ["SEMI_STITCH", "FABRIC_COLLECTED"],
+    SEMI_STITCH:          ["TRIAL", "CUTTING"],
+    TRIAL:                ["FINAL_STITCH", "SEMI_STITCH", "PENDING_ALTERATION"],
+    FINAL_STITCH:         ["READY_FOR_DELIVERY", "TRIAL"],
+    READY_FOR_DELIVERY:   ["DELIVERED", "FINAL_STITCH"],
+    DELIVERED:            ["PENDING_ALTERATION", "READY_FOR_DELIVERY"],
+    PENDING_ALTERATION:   ["SEMI_STITCH", "READY_FINAL_DELIVERY"],
+    READY_FINAL_DELIVERY: ["ORDER_CLOSED", "PENDING_ALTERATION"],
+    ORDER_CLOSED:         [],
   };
   return flow[currentStatus] ?? [];
 }
@@ -136,7 +146,7 @@ function OrderKanbanCard({
   const isOverdue =
     order.deliveryDate &&
     new Date(order.deliveryDate) < new Date() &&
-    !["DELIVERED", "CANCELLED"].includes(order.status);
+    !["DELIVERED", "ORDER_CLOSED"].includes(order.status);
   const balanceDue = order.totalAmount - order.advanceAmount;
 
   return (
@@ -332,8 +342,9 @@ export function OrderKanban({
 
   const ordersByStatus = React.useMemo(() => {
     const map: Record<OrderStatus, OrderWithRelations[]> = {
-      PENDING: [], MEASURING: [], CUTTING: [], STITCHING: [],
-      TRIAL: [], READY: [], DELIVERED: [], CANCELLED: [],
+      MEASUREMENT: [], FABRIC_ORDERING: [], FABRIC_COLLECTED: [], CUTTING: [],
+      SEMI_STITCH: [], TRIAL: [], FINAL_STITCH: [], READY_FOR_DELIVERY: [],
+      DELIVERED: [], PENDING_ALTERATION: [], READY_FINAL_DELIVERY: [], ORDER_CLOSED: [],
     };
     for (const o of orders) if (map[o.status]) map[o.status].push(o);
     return map;
@@ -369,7 +380,7 @@ export function OrderKanban({
   const startDrag = (id: string) => { dragRef.current = id; setDraggedOrderId(id); };
   const endDrag = () => { dragRef.current = null; setDraggedOrderId(null); };
 
-  const totalActive = orders.filter((o) => !["DELIVERED", "CANCELLED"].includes(o.status)).length;
+  const totalActive = orders.filter((o) => !["DELIVERED", "ORDER_CLOSED"].includes(o.status)).length;
 
   return (
     <div className="space-y-4">

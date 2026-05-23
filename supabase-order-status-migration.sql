@@ -1,0 +1,35 @@
+-- Migrate Order statuses from old 8-value set to new 12-value set
+-- Run in Supabase SQL Editor
+
+-- Step 1: Map old statuses to new ones on the Order table
+UPDATE "Order"
+SET status = CASE status
+  WHEN 'PENDING'    THEN 'MEASUREMENT'
+  WHEN 'MEASURING'  THEN 'MEASUREMENT'
+  WHEN 'CUTTING'    THEN 'CUTTING'
+  WHEN 'STITCHING'  THEN 'SEMI_STITCH'
+  WHEN 'TRIAL'      THEN 'TRIAL'
+  WHEN 'READY'      THEN 'READY_FOR_DELIVERY'
+  WHEN 'DELIVERED'  THEN 'DELIVERED'
+  WHEN 'CANCELLED'  THEN 'ORDER_CLOSED'
+  ELSE status
+END
+WHERE status IN ('PENDING','MEASURING','CUTTING','STITCHING','TRIAL','READY','DELIVERED','CANCELLED');
+
+-- Step 2: Map old statuses in OrderHistory table
+UPDATE "OrderHistory"
+SET status = CASE status
+  WHEN 'PENDING'    THEN 'MEASUREMENT'
+  WHEN 'MEASURING'  THEN 'MEASUREMENT'
+  WHEN 'CUTTING'    THEN 'CUTTING'
+  WHEN 'STITCHING'  THEN 'SEMI_STITCH'
+  WHEN 'TRIAL'      THEN 'TRIAL'
+  WHEN 'READY'      THEN 'READY_FOR_DELIVERY'
+  WHEN 'DELIVERED'  THEN 'DELIVERED'
+  WHEN 'CANCELLED'  THEN 'ORDER_CLOSED'
+  ELSE status
+END
+WHERE status IN ('PENDING','MEASURING','CUTTING','STITCHING','TRIAL','READY','DELIVERED','CANCELLED');
+
+-- Verify: show current status distribution
+SELECT status, COUNT(*) FROM "Order" GROUP BY status ORDER BY status;

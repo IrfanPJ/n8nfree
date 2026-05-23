@@ -6,15 +6,20 @@ import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
   Plus, Edit2, Trash2, Phone, Mail, DollarSign,
-  TrendingUp, X, GripVertical, Target, Star
+  TrendingUp, X, GripVertical, Target, Star,
+  List, Calendar, ChevronLeft, ChevronRight,
 } from "lucide-react";
 import { toast } from "sonner";
+import {
+  format, startOfMonth, endOfMonth, startOfWeek, endOfWeek,
+  eachDayOfInterval, isSameDay, isToday, isSameMonth,
+  addMonths, subMonths, addWeeks, subWeeks, addDays, subDays,
+} from "date-fns";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
@@ -32,6 +37,8 @@ interface LeadsClientProps {
   initialLeads: Lead[];
 }
 
+type ViewMode = "kanban" | "month" | "week" | "day";
+
 const STAGE_CONFIG: Record<LeadStage, { color: string; bg: string; border: string; dot: string }> = {
   ENQUIRY:    { color: "text-blue-400",   bg: "bg-blue-400/10",   border: "border-blue-400/30",   dot: "bg-blue-400" },
   INTERESTED: { color: "text-purple-400", bg: "bg-purple-400/10", border: "border-purple-400/30", dot: "bg-purple-400" },
@@ -39,6 +46,8 @@ const STAGE_CONFIG: Record<LeadStage, { color: string; bg: string; border: strin
   CLOSED_WON: { color: "text-green-400",  bg: "bg-green-400/10",  border: "border-green-400/30",  dot: "bg-green-400" },
   CLOSED_LOST:{ color: "text-red-400",    bg: "bg-red-400/10",    border: "border-red-400/30",    dot: "bg-red-400" },
 };
+
+const DAY_HEADERS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
 function LeadCard({
   lead,
@@ -213,6 +222,10 @@ export function LeadsClient({ initialLeads }: LeadsClientProps) {
   const [defaultStage, setDefaultStage] = useState<LeadStage>("ENQUIRY");
   const [dragId, setDragId] = useState<string | null>(null);
   const [dragOver, setDragOver] = useState<LeadStage | null>(null);
+  const [viewMode, setViewMode] = useState<ViewMode>("kanban");
+  const [currentMonth, setCurrentMonth] = useState(() => startOfMonth(new Date()));
+  const [currentWeekStart, setCurrentWeekStart] = useState(() => startOfWeek(new Date(), { weekStartsOn: 1 }));
+  const [selectedDay, setSelectedDay] = useState(() => new Date());
 
   const byStage = useMemo(() => {
     const map: Record<LeadStage, Lead[]> = {
@@ -231,6 +244,39 @@ export function LeadsClient({ initialLeads }: LeadsClientProps) {
     () => leads.filter((l) => !["CLOSED_WON", "CLOSED_LOST"].includes(l.stage)).reduce((s, l) => s + l.value, 0),
     [leads]
   );
+
+  const calendarDays = useMemo(() => {
+    const monthStart = startOfMonth(currentMonth);
+    const monthEnd = endOfMonth(currentMonth);
+    const calStart = startOfWeek(monthStart, { weekStartsOn: 1 });
+    const calEnd = endOfWeek(monthEnd, { weekStartsOn: 1 });
+    return eachDayOfInterval({ start: calStart, end: calEnd });
+  }, [currentMonth]);
+
+  const weekDays = useMemo(
+    () => eachDayOfInterval({ start: currentWeekStart, end: addDays(currentWeekStart, 6) }),
+    [currentWeekStart]
+  );
+
+  const getLeadsForDay = (day: Date) =>
+    leads.filter((l) => isSameDay(new Date(l.createdAt), day));
+
+  const navigate = (dir: -1 | 1) => {
+    if (viewMode === "month") {
+      setCurrentMonth((d) => dir === 1 ? addMonths(d, 1) : subMonths(d, 1));
+    } else if (viewMode === "week") {
+      setCurrentWeekStart((d) => dir === 1 ? addWeeks(d, 1) : subWeeks(d, 1));
+    } else if (viewMode === "day") {
+      setSelectedDay((d) => dir === 1 ? addDays(d, 1) : subDays(d, 1));
+    }
+  };
+
+  const periodLabel = () => {
+    if (viewMode === "month") return format(currentMonth, "MMMM yyyy");
+    if (viewMode === "week") return `${format(currentWeekStart, "dd MMM")} – ${format(addDays(currentWeekStart, 6), "dd MMM yyyy")}`;
+    if (viewMode === "day") return format(selectedDay, "EEEE, dd MMMM yyyy");
+    return "";
+  };
 
   const handleDragStart = (e: React.DragEvent, id: string) => {
     setDragId(id);
@@ -275,20 +321,46 @@ export function LeadsClient({ initialLeads }: LeadsClientProps) {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h1 className="text-2xl font-bold">Sales Pipeline</h1>
           <p className="text-sm text-muted-foreground mt-0.5">
             {leads.length} leads · Pipeline: AED {pipelineValue.toLocaleString("en-AE")} · Won: AED {totalValue.toLocaleString("en-AE")}
           </p>
         </div>
-        <Button variant="gold" onClick={() => { setEditLead(null); setDefaultStage("ENQUIRY"); setModalOpen(true); }}>
-          <Plus className="w-4 h-4 mr-2" />
-          Add Lead
-        </Button>
+        <div className="flex items-center gap-2">
+          {/* View toggle */}
+          <div className="flex items-center gap-1 bg-secondary/50 rounded-lg p-1">
+            {(["kanban", "month", "week", "day"] as ViewMode[]).map((v) => (
+              <Button
+                key={v}
+                variant="ghost"
+                size="sm"
+                className={cn("h-7 px-3 text-xs capitalize", viewMode === v && "bg-background shadow-sm text-foreground")}
+                onClick={() => setViewMode(v)}
+              >
+                {v === "kanban" ? <List className="w-3.5 h-3.5" /> : v === "month" ? <Calendar className="w-3.5 h-3.5" /> : null}
+                <span className={v === "kanban" || v === "month" ? "ml-1" : ""}>{v}</span>
+              </Button>
+            ))}
+          </div>
+          <Button variant="gold" onClick={() => { setEditLead(null); setDefaultStage("ENQUIRY"); setModalOpen(true); }}>
+            <Plus className="w-4 h-4 mr-2" />
+            Add Lead
+          </Button>
+        </div>
       </div>
 
-      {/* Pipeline summary */}
+      {/* Calendar nav */}
+      {viewMode !== "kanban" && (
+        <div className="flex items-center justify-between">
+          <Button variant="outline" size="icon-sm" onClick={() => navigate(-1)}><ChevronLeft className="w-4 h-4" /></Button>
+          <p className="text-sm font-medium">{periodLabel()}</p>
+          <Button variant="outline" size="icon-sm" onClick={() => navigate(1)}><ChevronRight className="w-4 h-4" /></Button>
+        </div>
+      )}
+
+      {/* Pipeline summary (always visible) */}
       <div className="grid grid-cols-5 gap-3">
         {LEAD_STAGES.map((stage) => {
           const cfg = STAGE_CONFIG[stage];
@@ -306,66 +378,222 @@ export function LeadsClient({ initialLeads }: LeadsClientProps) {
         })}
       </div>
 
-      {/* Kanban Board */}
-      <div className="flex gap-4 overflow-x-auto pb-4">
-        {LEAD_STAGES.map((stage) => {
-          const cfg = STAGE_CONFIG[stage];
-          const stageLeads = byStage[stage];
-          const isDragTarget = dragOver === stage;
-
-          return (
-            <div
-              key={stage}
-              className={cn(
-                "flex-shrink-0 w-72 rounded-xl border transition-all",
-                isDragTarget ? "border-primary/50 bg-primary/5 scale-[1.01]" : "border-border/50 bg-secondary/20"
-              )}
-              onDragOver={(e) => { e.preventDefault(); setDragOver(stage); }}
-              onDragLeave={() => setDragOver(null)}
-              onDrop={() => handleDrop(stage)}
-            >
-              {/* Column header */}
-              <div className={cn("flex items-center justify-between px-4 py-3 border-b", "border-border/40")}>
-                <div className="flex items-center gap-2">
-                  <span className={cn("w-2 h-2 rounded-full", cfg.dot)} />
-                  <span className="text-sm font-semibold">{LEAD_STAGE_LABELS[stage]}</span>
-                  <span className={cn("text-xs px-1.5 py-0.5 rounded-full font-medium", cfg.bg, cfg.color)}>
-                    {stageLeads.length}
-                  </span>
-                </div>
-                <Button
-                  variant="ghost"
-                  size="icon-sm"
-                  className="h-6 w-6"
-                  onClick={() => { setDefaultStage(stage); setEditLead(null); setModalOpen(true); }}
+      {/* Month view */}
+      {viewMode === "month" && (
+        <div className="border border-border rounded-xl overflow-hidden">
+          <div className="grid grid-cols-7 border-b border-border bg-secondary/30">
+            {DAY_HEADERS.map((d) => (
+              <div key={d} className="text-center text-xs font-medium text-muted-foreground py-2">{d}</div>
+            ))}
+          </div>
+          <div className="grid grid-cols-7">
+            {calendarDays.map((day) => {
+              const dayLeads = getLeadsForDay(day);
+              const inMonth = isSameMonth(day, currentMonth);
+              return (
+                <div
+                  key={day.toISOString()}
+                  className={cn(
+                    "min-h-[90px] border-b border-r border-border p-1.5 transition-colors cursor-pointer hover:bg-secondary/30",
+                    !inMonth && "bg-secondary/20",
+                    isToday(day) && "bg-[#D4AF37]/5"
+                  )}
+                  onClick={() => { setSelectedDay(day); setViewMode("day"); }}
                 >
-                  <Plus className="w-3.5 h-3.5" />
-                </Button>
-              </div>
-
-              {/* Cards */}
-              <div className="p-2 space-y-2 min-h-[300px]">
-                <AnimatePresence>
-                  {stageLeads.map((lead) => (
-                    <LeadCard
-                      key={lead.id}
-                      lead={lead}
-                      onEdit={(l) => { setEditLead(l); setModalOpen(true); }}
-                      onDelete={handleDelete}
-                      onDragStart={handleDragStart}
-                    />
-                  ))}
-                </AnimatePresence>
-                {stageLeads.length === 0 && !isDragTarget && (
-                  <div className="flex items-center justify-center h-20 text-xs text-muted-foreground/40">
-                    Drop leads here
+                  <div className={cn(
+                    "text-xs font-medium w-6 h-6 flex items-center justify-center rounded-full mb-1",
+                    isToday(day) ? "bg-[#D4AF37] text-black" : inMonth ? "text-foreground" : "text-muted-foreground/40"
+                  )}>
+                    {format(day, "d")}
                   </div>
-                )}
+                  <div className="space-y-0.5">
+                    {dayLeads.slice(0, 3).map((l) => {
+                      const cfg = STAGE_CONFIG[l.stage];
+                      return (
+                        <div
+                          key={l.id}
+                          className={cn("flex items-center gap-1 text-[10px] px-1 py-0.5 rounded truncate cursor-pointer hover:opacity-80", cfg.bg, cfg.color)}
+                          onClick={(e) => { e.stopPropagation(); setEditLead(l); setModalOpen(true); }}
+                        >
+                          <span className={cn("w-1.5 h-1.5 rounded-full flex-shrink-0", cfg.dot)} />
+                          <span className="truncate">{l.name}</span>
+                        </div>
+                      );
+                    })}
+                    {dayLeads.length > 3 && (
+                      <p className="text-[10px] text-muted-foreground pl-1">+{dayLeads.length - 3} more</p>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Week view */}
+      {viewMode === "week" && (
+        <div className="border border-border rounded-xl overflow-hidden">
+          <div className="grid grid-cols-7 border-b border-border bg-secondary/30">
+            {weekDays.map((day) => (
+              <div
+                key={day.toISOString()}
+                className={cn("text-center py-2 cursor-pointer hover:bg-secondary/50 transition-colors", isToday(day) && "bg-[#D4AF37]/10")}
+                onClick={() => { setSelectedDay(day); setViewMode("day"); }}
+              >
+                <p className="text-xs text-muted-foreground">{format(day, "EEE")}</p>
+                <p className={cn("text-sm font-semibold mt-0.5", isToday(day) && "text-[#D4AF37]")}>{format(day, "d")}</p>
               </div>
-            </div>
-          );
-        })}
-      </div>
+            ))}
+          </div>
+          <div className="grid grid-cols-7 divide-x divide-border min-h-[300px]">
+            {weekDays.map((day) => {
+              const dayLeads = getLeadsForDay(day);
+              return (
+                <div key={day.toISOString()} className={cn("p-2 space-y-1", isToday(day) && "bg-[#D4AF37]/5")}>
+                  {dayLeads.length === 0 ? (
+                    <p className="text-[10px] text-muted-foreground/30 text-center mt-4">—</p>
+                  ) : (
+                    dayLeads.map((l) => {
+                      const cfg = STAGE_CONFIG[l.stage];
+                      return (
+                        <div
+                          key={l.id}
+                          className={cn("text-[10px] px-1.5 py-1 rounded truncate cursor-pointer hover:opacity-80", cfg.bg, cfg.color)}
+                          onClick={() => { setEditLead(l); setModalOpen(true); }}
+                        >
+                          <div className="flex items-center gap-1">
+                            <span className={cn("w-1.5 h-1.5 rounded-full flex-shrink-0", cfg.dot)} />
+                            <span className="truncate font-medium">{l.name}</span>
+                          </div>
+                          <p className="text-muted-foreground/70 truncate pl-2.5">{LEAD_STAGE_LABELS[l.stage]}</p>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Day view */}
+      {viewMode === "day" && (
+        <div className="space-y-3">
+          <div className={cn("text-center py-2 rounded-lg border border-border bg-secondary/20", isToday(selectedDay) && "border-[#D4AF37]/30 bg-[#D4AF37]/5")}>
+            <p className="text-xs text-muted-foreground">{format(selectedDay, "EEEE")}</p>
+            <p className="text-2xl font-bold">{format(selectedDay, "d")}</p>
+            <p className="text-xs text-muted-foreground">{format(selectedDay, "MMMM yyyy")}</p>
+          </div>
+          {(() => {
+            const dayLeads = getLeadsForDay(selectedDay);
+            return dayLeads.length === 0 ? (
+              <div className="text-center py-12">
+                <Target className="w-10 h-10 text-muted-foreground/20 mx-auto mb-3" />
+                <p className="text-sm text-muted-foreground">No leads added this day</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {dayLeads.map((l) => {
+                  const cfg = STAGE_CONFIG[l.stage];
+                  return (
+                    <Card key={l.id} className={cn("border group hover:shadow-md transition-all", cfg.border)}>
+                      <CardContent className="p-4">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 mb-1">
+                              <span className={cn("w-2 h-2 rounded-full", cfg.dot)} />
+                              <p className="font-medium text-sm truncate">{l.name}</p>
+                              <span className={cn("text-[10px] px-1.5 py-0.5 rounded-full font-medium", cfg.bg, cfg.color)}>
+                                {LEAD_STAGE_LABELS[l.stage]}
+                              </span>
+                            </div>
+                            {l.interest && <p className="text-xs text-muted-foreground truncate">{l.interest}</p>}
+                            <div className="flex items-center gap-3 mt-2 text-xs text-muted-foreground">
+                              {l.phone && <span className="flex items-center gap-1"><Phone className="w-3 h-3" />{l.phone}</span>}
+                              {l.value > 0 && <span className="flex items-center gap-1 text-[#D4AF37]"><DollarSign className="w-3 h-3" />AED {l.value.toLocaleString("en-AE")}</span>}
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <Button variant="ghost" size="icon-sm" className="h-7 w-7" onClick={() => { setEditLead(l); setModalOpen(true); }}>
+                              <Edit2 className="w-3.5 h-3.5" />
+                            </Button>
+                            <Button variant="ghost" size="icon-sm" className="h-7 w-7 text-destructive hover:text-destructive" onClick={() => handleDelete(l.id)}>
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </Button>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  );
+                })}
+              </div>
+            );
+          })()}
+        </div>
+      )}
+
+      {/* Kanban board */}
+      {viewMode === "kanban" && (
+        <div className="flex gap-4 overflow-x-auto pb-4">
+          {LEAD_STAGES.map((stage) => {
+            const cfg = STAGE_CONFIG[stage];
+            const stageLeads = byStage[stage];
+            const isDragTarget = dragOver === stage;
+
+            return (
+              <div
+                key={stage}
+                className={cn(
+                  "flex-shrink-0 w-72 rounded-xl border transition-all",
+                  isDragTarget ? "border-primary/50 bg-primary/5 scale-[1.01]" : "border-border/50 bg-secondary/20"
+                )}
+                onDragOver={(e) => { e.preventDefault(); setDragOver(stage); }}
+                onDragLeave={() => setDragOver(null)}
+                onDrop={() => handleDrop(stage)}
+              >
+                <div className={cn("flex items-center justify-between px-4 py-3 border-b border-border/40")}>
+                  <div className="flex items-center gap-2">
+                    <span className={cn("w-2 h-2 rounded-full", cfg.dot)} />
+                    <span className="text-sm font-semibold">{LEAD_STAGE_LABELS[stage]}</span>
+                    <span className={cn("text-xs px-1.5 py-0.5 rounded-full font-medium", cfg.bg, cfg.color)}>
+                      {stageLeads.length}
+                    </span>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    className="h-6 w-6"
+                    onClick={() => { setDefaultStage(stage); setEditLead(null); setModalOpen(true); }}
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                  </Button>
+                </div>
+
+                <div className="p-2 space-y-2 min-h-[300px]">
+                  <AnimatePresence>
+                    {stageLeads.map((lead) => (
+                      <LeadCard
+                        key={lead.id}
+                        lead={lead}
+                        onEdit={(l) => { setEditLead(l); setModalOpen(true); }}
+                        onDelete={handleDelete}
+                        onDragStart={handleDragStart}
+                      />
+                    ))}
+                  </AnimatePresence>
+                  {stageLeads.length === 0 && !isDragTarget && (
+                    <div className="flex items-center justify-center h-20 text-xs text-muted-foreground/40">
+                      Drop leads here
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
 
       {/* Modal */}
       <Dialog open={modalOpen} onOpenChange={(o) => { setModalOpen(o); if (!o) setEditLead(null); }}>

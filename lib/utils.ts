@@ -80,14 +80,18 @@ export function debounce<T extends (...args: any[]) => any>(
 }
 
 export const ORDER_STATUS_CONFIG = {
-  PENDING: { label: "Pending", color: "text-yellow-400", bg: "bg-yellow-400/10", border: "border-yellow-400/20" },
-  MEASURING: { label: "Measuring", color: "text-blue-400", bg: "bg-blue-400/10", border: "border-blue-400/20" },
-  CUTTING: { label: "Cutting", color: "text-orange-400", bg: "bg-orange-400/10", border: "border-orange-400/20" },
-  STITCHING: { label: "Stitching", color: "text-purple-400", bg: "bg-purple-400/10", border: "border-purple-400/20" },
-  TRIAL: { label: "Trial", color: "text-cyan-400", bg: "bg-cyan-400/10", border: "border-cyan-400/20" },
-  READY: { label: "Ready", color: "text-green-400", bg: "bg-green-400/10", border: "border-green-400/20" },
-  DELIVERED: { label: "Delivered", color: "text-emerald-400", bg: "bg-emerald-400/10", border: "border-emerald-400/20" },
-  CANCELLED: { label: "Cancelled", color: "text-red-400", bg: "bg-red-400/10", border: "border-red-400/20" },
+  MEASUREMENT:        { label: "Measurement",        color: "text-blue-400",    bg: "bg-blue-400/10",    border: "border-blue-400/20" },
+  FABRIC_ORDERING:    { label: "Fabric Ordering",    color: "text-orange-400",  bg: "bg-orange-400/10",  border: "border-orange-400/20" },
+  FABRIC_COLLECTED:   { label: "Fabric Collected",   color: "text-amber-400",   bg: "bg-amber-400/10",   border: "border-amber-400/20" },
+  CUTTING:            { label: "Cutting",             color: "text-yellow-400",  bg: "bg-yellow-400/10",  border: "border-yellow-400/20" },
+  SEMI_STITCH:        { label: "Semi Stitch",         color: "text-purple-400",  bg: "bg-purple-400/10",  border: "border-purple-400/20" },
+  TRIAL:              { label: "Trial",               color: "text-cyan-400",    bg: "bg-cyan-400/10",    border: "border-cyan-400/20" },
+  FINAL_STITCH:       { label: "Final Stitch",        color: "text-indigo-400",  bg: "bg-indigo-400/10",  border: "border-indigo-400/20" },
+  READY_FOR_DELIVERY: { label: "Ready for Delivery",  color: "text-green-400",   bg: "bg-green-400/10",   border: "border-green-400/20" },
+  DELIVERED:          { label: "Delivered",           color: "text-emerald-400", bg: "bg-emerald-400/10", border: "border-emerald-400/20" },
+  PENDING_ALTERATION: { label: "Pending Alteration",  color: "text-rose-400",    bg: "bg-rose-400/10",    border: "border-rose-400/20" },
+  READY_FINAL_DELIVERY:{ label: "Ready Final Delivery",color: "text-teal-400",   bg: "bg-teal-400/10",    border: "border-teal-400/20" },
+  ORDER_CLOSED:       { label: "Order Closed",        color: "text-gray-400",    bg: "bg-gray-400/10",    border: "border-gray-400/20" },
 } as const;
 
 export const INVOICE_STATUS_CONFIG = {

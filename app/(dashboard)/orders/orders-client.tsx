@@ -68,9 +68,11 @@ function printOrderSlip(order: OrderWithRelations) {
   const win = window.open("", "_blank", "width=700,height=900");
   if (!win) return;
   const statusMap: Record<string, string> = {
-    PENDING: "Pending", MEASURING: "Measuring", CUTTING: "Cutting",
-    STITCHING: "Stitching", TRIAL: "Trial", READY: "Ready",
-    DELIVERED: "Delivered", CANCELLED: "Cancelled",
+    MEASUREMENT: "Measurement", FABRIC_ORDERING: "Fabric Ordering", FABRIC_COLLECTED: "Fabric Collected",
+    CUTTING: "Cutting", SEMI_STITCH: "Semi Stitch", TRIAL: "Trial",
+    FINAL_STITCH: "Final Stitch", READY_FOR_DELIVERY: "Ready for Delivery",
+    DELIVERED: "Delivered", PENDING_ALTERATION: "Pending Alteration",
+    READY_FINAL_DELIVERY: "Ready Final Delivery", ORDER_CLOSED: "Order Closed",
   };
   win.document.write(`<!DOCTYPE html><html><head>
     <title>Order Slip — ${order.orderNumber}</title>
@@ -159,14 +161,18 @@ type StatusKey = keyof typeof ORDER_STATUS_CONFIG;
 const statusConfig = (s: OrderStatus) => ORDER_STATUS_CONFIG[s as StatusKey];
 
 const ORDER_STATUSES: OrderStatus[] = [
-  "PENDING",
-  "MEASURING",
+  "MEASUREMENT",
+  "FABRIC_ORDERING",
+  "FABRIC_COLLECTED",
   "CUTTING",
-  "STITCHING",
+  "SEMI_STITCH",
   "TRIAL",
-  "READY",
+  "FINAL_STITCH",
+  "READY_FOR_DELIVERY",
   "DELIVERED",
-  "CANCELLED",
+  "PENDING_ALTERATION",
+  "READY_FINAL_DELIVERY",
+  "ORDER_CLOSED",
 ];
 
 const PRIORITIES = ["LOW", "NORMAL", "HIGH", "URGENT"] as const;
@@ -617,7 +623,7 @@ function OrderTableRow({ order, index, deletingId, statusUpdating, onView, onEdi
   const isOverdue =
     order.deliveryDate &&
     new Date(order.deliveryDate) < new Date() &&
-    !["DELIVERED", "CANCELLED"].includes(order.status);
+    !["DELIVERED", "ORDER_CLOSED"].includes(order.status);
   const balanceDue = order.totalAmount - order.advanceAmount;
 
   return (

@@ -10,14 +10,18 @@ interface OrderStatusBadgeProps {
 }
 
 const STATUS_ICONS: Record<OrderStatus, string> = {
-  PENDING: "⏳",
-  MEASURING: "📏",
-  CUTTING: "✂️",
-  STITCHING: "🧵",
-  TRIAL: "👔",
-  READY: "✅",
-  DELIVERED: "📦",
-  CANCELLED: "✕",
+  MEASUREMENT:         "📏",
+  FABRIC_ORDERING:     "🛒",
+  FABRIC_COLLECTED:    "🧶",
+  CUTTING:             "✂️",
+  SEMI_STITCH:         "🪡",
+  TRIAL:               "👔",
+  FINAL_STITCH:        "🧵",
+  READY_FOR_DELIVERY:  "✅",
+  DELIVERED:           "📦",
+  PENDING_ALTERATION:  "🔧",
+  READY_FINAL_DELIVERY:"🎁",
+  ORDER_CLOSED:        "✓",
 };
 
 export function OrderStatusBadge({

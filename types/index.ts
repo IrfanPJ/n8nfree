@@ -11,8 +11,18 @@ export type StaffPosition =
   | "LEAD_MANAGEMENT_STAFF";
 export type Gender = "MALE" | "FEMALE" | "OTHER";
 export type OrderStatus =
-  | "PENDING" | "MEASURING" | "CUTTING" | "STITCHING"
-  | "TRIAL" | "READY" | "DELIVERED" | "CANCELLED";
+  | "MEASUREMENT"
+  | "FABRIC_ORDERING"
+  | "FABRIC_COLLECTED"
+  | "CUTTING"
+  | "SEMI_STITCH"
+  | "TRIAL"
+  | "FINAL_STITCH"
+  | "READY_FOR_DELIVERY"
+  | "DELIVERED"
+  | "PENDING_ALTERATION"
+  | "READY_FINAL_DELIVERY"
+  | "ORDER_CLOSED";
 export type OrderPriority = "LOW" | "NORMAL" | "HIGH" | "URGENT";
 export type AppointmentStatus =
   | "SCHEDULED" | "CONFIRMED" | "IN_PROGRESS" | "COMPLETED" | "CANCELLED" | "NO_SHOW";

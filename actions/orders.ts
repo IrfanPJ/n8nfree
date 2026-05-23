@@ -129,7 +129,7 @@ export async function createOrder(data: unknown): Promise<ApiResponse<OrderWithR
       designNotes: parsed.data.designNotes ?? null,
       notes: parsed.data.notes ?? null,
       assignedToId: parsed.data.assignedToId || null,
-      status: "PENDING",
+      status: "MEASUREMENT",
       createdAt: now,
       updatedAt: now,
     });
@@ -139,7 +139,7 @@ export async function createOrder(data: unknown): Promise<ApiResponse<OrderWithR
     await supabase.from("OrderHistory").insert({
       id: historyId,
       orderId,
-      status: "PENDING",
+      status: "MEASUREMENT",
       notes: "Order created",
       changedBy: session.user.id,
       changedAt: now,
@@ -371,7 +371,7 @@ export async function getOrdersForKanban(): Promise<OrderWithRelations[]> {
     .from("Order")
     .select(ORDER_SELECT)
     .eq("isActive", true)
-    .not("status", "in", '("DELIVERED","CANCELLED")')
+    .not("status", "in", '("DELIVERED","ORDER_CLOSED")')
     .order("deliveryDate", { ascending: true })
     .limit(200);
 

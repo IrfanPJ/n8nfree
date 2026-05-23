@@ -5,473 +5,680 @@ import { X, Printer, Save, Sparkles, Check } from "lucide-react";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
-// ── Types ─────────────────────────────────────────────────────
-type LapelStyle = "notch" | "peak" | "shawl";
-type FitStyle = "slim" | "regular" | "classic";
-type VentStyle = "no-vent" | "single-vent" | "double-vent";
-type ButtonCount = 1 | 2 | 3;
-type PocketStyle = "jetted" | "flap" | "patch";
-type SleeveButtons = 1 | 2 | 3 | 4;
-type ButtonMaterial = "horn" | "pearl" | "gold" | "black";
-type CollarType = "cutaway" | "spread" | "button-down";
-type LiningColor = "navy" | "burgundy" | "gold" | "black" | "grey" | "ivory";
-type TieAccessory = "tie" | "bow-tie" | "plastron" | "open-collar";
+// ── Types ──────────────────────────────────────────────────────
 
-export interface SuitDesign {
-  lapel: LapelStyle;
-  fit: FitStyle;
-  vent: VentStyle;
-  buttons: ButtonCount;
-  pocket: PocketStyle;
-  sleeveButtons: SleeveButtons;
-  buttonMaterial: ButtonMaterial;
-  collar: CollarType;
-  lining: LiningColor;
-  workingButtonholes: boolean;
-  ticketPocket: boolean;
-  surgeonsCuff: boolean;
-  fullSilkLining: boolean;
-  personalMonogram: boolean;
-  monogramText: string;
-  tie: TieAccessory;
+interface JacketDesign {
+  sizePattern: string;
+  buttonsCode: string;
+  jacketType: string;
+  noOfButtons: string;
+  frontPockets: string;
+  lapel: string;
+  lapelPinHole: string;
+  backVent: string;
+  insideFashion: string;
+  insidePockets: string;
+  extraPocket: string;
+  sleeveButtons: string;
+  pickStitch: string;
+  others: string;
+  comments: string;
 }
 
-const DEFAULT_DESIGN: SuitDesign = {
-  lapel: "notch",
-  fit: "slim",
-  vent: "double-vent",
-  buttons: 2,
-  pocket: "jetted",
-  sleeveButtons: 4,
-  buttonMaterial: "horn",
-  collar: "spread",
-  lining: "burgundy",
-  workingButtonholes: true,
-  ticketPocket: false,
-  surgeonsCuff: true,
-  fullSilkLining: true,
-  personalMonogram: false,
-  monogramText: "",
-  tie: "tie",
-};
-
-const LINING_COLORS: Record<LiningColor, string> = {
-  navy: "#1e3a5f",
-  burgundy: "#722F37",
-  gold: "#D4AF37",
-  black: "#1a1a1a",
-  grey: "#6B7280",
-  ivory: "#F5F5DC",
-};
-
-const BUTTON_COLORS: Record<ButtonMaterial, string> = {
-  horn: "#8B7355",
-  pearl: "#F0EAD6",
-  gold: "#D4AF37",
-  black: "#2a2a2a",
-};
-
-export function buildSpecText(d: SuitDesign): string {
-  const parts = [
-    `Lapel: ${d.lapel}`,
-    `Fit: ${d.fit} · ${d.vent.replace("-", " ")}`,
-    `${d.buttons}btn · ${d.fit} fit · ${d.vent.replace("-", " ")}`,
-    `Pockets: ${d.pocket}`,
-    `${d.sleeveButtons} sleeve btn · ${d.pocket} pocket`,
-    `Buttons: ${d.buttonMaterial}`,
-    `Collar: ${d.collar}`,
-    `Lining: ${d.lining}`,
-    d.workingButtonholes ? "Working buttonholes" : "",
-    d.ticketPocket ? "Ticket pocket" : "",
-    d.surgeonsCuff ? "Surgeon's cuff" : "",
-    d.fullSilkLining ? "Silk lining" : "",
-    d.personalMonogram && d.monogramText ? `Monogram: ${d.monogramText}` : "",
-    `Tie: ${d.tie.replace("-", " ")}`,
-  ];
-  return parts.filter(Boolean).join(" · ");
+interface ShirtDesign {
+  sizePattern: string;
+  buttonsCode: string;
+  shirtFit: string;
+  collarStyle: string;
+  frontPockets: string;
+  frontPlacket: string;
+  backDart: string;
+  cuffStyle: string;
+  nameEmbroidery: string;
+  embroideryPosition: string;
+  cuffSize: string;
+  collarPointSize: string;
+  collarStandSize: string;
+  collarSize: string;
+  comments: string;
 }
 
-// ── Suit SVG Preview ──────────────────────────────────────────
-function SuitPreview({ design }: { design: SuitDesign }) {
-  const liningHex = LINING_COLORS[design.lining];
-  const buttonHex = BUTTON_COLORS[design.buttonMaterial];
-  const btnCount = design.buttons;
+interface TrouserDesign {
+  sizePattern: string;
+  buttonsCode: string;
+  fit: string;
+  frontPleats: string;
+  backPockets: string;
+  backPocketsType: string;
+  insideLining: string;
+  loops: string;
+  sideAdjuster: string;
+  frontPocket: string;
+  bottomStyle: string;
+  buttonHook: string;
+  coinPocket: string;
+  waistSize: string;
+  fullLength: string;
+  comments: string;
+}
 
-  return (
-    <div className="relative flex items-center justify-center w-full h-full">
-      <svg viewBox="0 0 220 300" className="w-48 h-64" xmlns="http://www.w3.org/2000/svg">
-        {/* Jacket body */}
-        <path d="M30 80 L20 300 L200 300 L190 80 L155 60 L110 120 L65 60 Z" fill="#1a1a1a" stroke="#333" strokeWidth="1" />
-        {/* Left lapel */}
-        {design.lapel === "notch" && (
-          <path d="M110 120 L65 60 L80 80 L100 130 Z" fill="#2a2a2a" stroke="#444" strokeWidth="0.5" />
-        )}
-        {design.lapel === "peak" && (
-          <path d="M110 120 L65 60 L55 90 L100 130 Z" fill="#2a2a2a" stroke="#444" strokeWidth="0.5" />
-        )}
-        {design.lapel === "shawl" && (
-          <path d="M110 120 Q85 85 65 60 Q80 100 100 130 Z" fill="#2a2a2a" stroke="#444" strokeWidth="0.5" />
-        )}
-        {/* Right lapel */}
-        {design.lapel === "notch" && (
-          <path d="M110 120 L155 60 L140 80 L120 130 Z" fill="#2a2a2a" stroke="#444" strokeWidth="0.5" />
-        )}
-        {design.lapel === "peak" && (
-          <path d="M110 120 L155 60 L165 90 L120 130 Z" fill="#2a2a2a" stroke="#444" strokeWidth="0.5" />
-        )}
-        {design.lapel === "shawl" && (
-          <path d="M110 120 Q135 85 155 60 Q140 100 120 130 Z" fill="#2a2a2a" stroke="#444" strokeWidth="0.5" />
-        )}
-        {/* Shirt / tie area */}
-        <rect x="100" y="100" width="20" height="120" rx="2" fill="#f5f5f5" opacity="0.9" />
-        {/* Tie */}
-        {design.tie === "tie" && (
-          <polygon points="110,110 105,130 108,200 110,210 112,200 115,130" fill="#8B0000" opacity="0.85" />
-        )}
-        {design.tie === "bow-tie" && (
-          <g transform="translate(110,120)">
-            <polygon points="-12,-4 -4,0 -12,4" fill="#8B0000" opacity="0.85" />
-            <polygon points="12,-4 4,0 12,4" fill="#8B0000" opacity="0.85" />
-            <circle cx="0" cy="0" r="4" fill="#8B0000" opacity="0.85" />
-          </g>
-        )}
-        {/* Buttons */}
-        {Array.from({ length: btnCount }).map((_, i) => {
-          const y = 155 + i * 20;
-          return (
-            <circle
-              key={i}
-              cx="110"
-              cy={y}
-              r="5"
-              fill={buttonHex}
-              stroke="#111"
-              strokeWidth="0.5"
-              opacity="0.9"
-            />
-          );
-        })}
-        {/* Chest pocket */}
-        <rect x="130" y="120" width="18" height="4" rx="1" fill={liningHex} opacity="0.7" />
-        {/* Pocket (jetted/flap/patch) */}
-        {design.pocket === "jetted" && (
-          <>
-            <rect x="60" y="185" width="28" height="3" rx="1" fill="#333" stroke="#555" strokeWidth="0.5" />
-            <rect x="135" y="185" width="28" height="3" rx="1" fill="#333" stroke="#555" strokeWidth="0.5" />
-          </>
-        )}
-        {design.pocket === "flap" && (
-          <>
-            <rect x="58" y="183" width="30" height="9" rx="2" fill="#252525" stroke="#444" strokeWidth="0.5" />
-            <rect x="133" y="183" width="30" height="9" rx="2" fill="#252525" stroke="#444" strokeWidth="0.5" />
-          </>
-        )}
-        {design.pocket === "patch" && (
-          <>
-            <rect x="58" y="178" width="30" height="20" rx="3" fill="#252525" stroke="#444" strokeWidth="0.5" />
-            <rect x="133" y="178" width="30" height="20" rx="3" fill="#252525" stroke="#444" strokeWidth="0.5" />
-          </>
-        )}
-        {/* Sleeve buttons */}
-        {Array.from({ length: design.sleeveButtons }).map((_, i) => (
-          <circle key={`sl-${i}`} cx={32 + i * 6} cy={250} r="2.5" fill={buttonHex} stroke="#111" strokeWidth="0.3" opacity="0.8" />
-        ))}
-        {Array.from({ length: design.sleeveButtons }).map((_, i) => (
-          <circle key={`sr-${i}`} cx={170 + i * 6} cy={250} r="2.5" fill={buttonHex} stroke="#111" strokeWidth="0.3" opacity="0.8" />
-        ))}
-        {/* Lining color strip at hem */}
-        <rect x="22" y="290" width="176" height="8" rx="0" fill={liningHex} opacity="0.6" />
-      </svg>
+export interface GarmentDesign {
+  jacket: JacketDesign;
+  shirt: ShirtDesign;
+  trouser: TrouserDesign;
+}
 
-      {/* Lining swatch */}
-      <div
-        className="absolute bottom-3 right-3 w-8 h-8 rounded-full border-2 border-white/20 shadow-lg"
-        style={{ backgroundColor: liningHex }}
-        title={`Lining: ${design.lining}`}
-      />
+// ── Defaults ───────────────────────────────────────────────────
+
+const DEFAULT_JACKET: JacketDesign = {
+  sizePattern: "", buttonsCode: "", jacketType: "", noOfButtons: "",
+  frontPockets: "", lapel: "", lapelPinHole: "", backVent: "",
+  insideFashion: "", insidePockets: "", extraPocket: "", sleeveButtons: "",
+  pickStitch: "", others: "", comments: "",
+};
+
+const DEFAULT_SHIRT: ShirtDesign = {
+  sizePattern: "", buttonsCode: "", shirtFit: "", collarStyle: "",
+  frontPockets: "", frontPlacket: "", backDart: "", cuffStyle: "",
+  nameEmbroidery: "", embroideryPosition: "", cuffSize: "",
+  collarPointSize: "", collarStandSize: "", collarSize: "", comments: "",
+};
+
+const DEFAULT_TROUSER: TrouserDesign = {
+  sizePattern: "", buttonsCode: "", fit: "", frontPleats: "",
+  backPockets: "", backPocketsType: "", insideLining: "", loops: "",
+  sideAdjuster: "", frontPocket: "", bottomStyle: "", buttonHook: "",
+  coinPocket: "", waistSize: "", fullLength: "", comments: "",
+};
+
+// ── buildSpecText ──────────────────────────────────────────────
+
+export function buildSpecText(d: GarmentDesign): string {
+  const j = d.jacket;
+  const s = d.shirt;
+  const t = d.trouser;
+  const parts: string[] = [];
+
+  if (j.jacketType) parts.push(`[Jacket] ${j.jacketType}`);
+  if (j.lapel) parts.push(`Lapel: ${j.lapel}`);
+  if (j.noOfButtons) parts.push(`${j.noOfButtons} btn`);
+  if (j.backVent) parts.push(j.backVent);
+  if (j.sleeveButtons) parts.push(`Sleeve: ${j.sleeveButtons}`);
+  if (j.frontPockets) parts.push(`Pkt: ${j.frontPockets}`);
+  if (j.insidePockets) parts.push(`Inside: ${j.insidePockets}`);
+  if (j.pickStitch) parts.push(`Pick: ${j.pickStitch}`);
+  if (j.comments) parts.push(`Note: ${j.comments}`);
+
+  if (s.shirtFit) parts.push(`[Shirt] ${s.shirtFit}`);
+  if (s.collarStyle) parts.push(`Collar: ${s.collarStyle}`);
+  if (s.cuffStyle) parts.push(`Cuff: ${s.cuffStyle}`);
+  if (s.frontPlacket) parts.push(s.frontPlacket);
+  if (s.backDart) parts.push(`Back: ${s.backDart}`);
+  if (s.nameEmbroidery === "yes") parts.push(`Embroidery: ${s.embroideryPosition || "yes"}`);
+  if (s.collarSize) parts.push(`Collar size: ${s.collarSize}`);
+
+  if (t.fit) parts.push(`[Trouser] ${t.fit}`);
+  if (t.frontPleats) parts.push(t.frontPleats);
+  if (t.insideLining) parts.push(t.insideLining);
+  if (t.bottomStyle) parts.push(t.bottomStyle);
+  if (t.waistSize) parts.push(`W: ${t.waistSize}`);
+  if (t.fullLength) parts.push(`L: ${t.fullLength}`);
+
+  return parts.join(" · ");
+}
+
+// ── Print ──────────────────────────────────────────────────────
+
+function printSpec(design: GarmentDesign, orderNumber?: string) {
+  const win = window.open("", "_blank", "width=900,height=1100");
+  if (!win) return;
+  const j = design.jacket;
+  const s = design.shirt;
+  const t = design.trouser;
+
+  const row = (label: string, value: string) =>
+    value ? `<div class="row"><span class="lbl">${label}</span><span class="val">${value}</span></div>` : "";
+
+  const section = (title: string, rows: string) =>
+    `<div class="section"><div class="sec-title">${title}</div>${rows}</div>`;
+
+  win.document.write(`<!DOCTYPE html><html><head>
+    <title>Style Details${orderNumber ? ` — ${orderNumber}` : ""}</title>
+    <style>
+      body{font-family:Arial,sans-serif;margin:0;padding:24px;color:#111;font-size:12px}
+      .hdr{text-align:center;border-bottom:2px solid #D4AF37;padding-bottom:12px;margin-bottom:20px}
+      .hdr h1{margin:0;font-size:20px;color:#D4AF37;letter-spacing:2px}
+      .hdr p{margin:4px 0 0;font-size:11px;color:#666}
+      .garment-title{font-size:14px;font-weight:bold;color:#D4AF37;border-bottom:1px solid #D4AF37;padding-bottom:6px;margin:24px 0 12px;text-transform:uppercase;letter-spacing:1px}
+      .grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:4px;margin-bottom:8px}
+      .section{margin-bottom:12px}
+      .sec-title{font-size:10px;text-transform:uppercase;letter-spacing:.8px;color:#999;font-weight:bold;margin-bottom:4px}
+      .row{display:flex;justify-content:space-between;padding:3px 0;border-bottom:1px dotted #eee;font-size:12px}
+      .lbl{color:#666}.val{font-weight:600}
+      .comments{background:#f9f9f9;border:1px solid #eee;padding:8px;border-radius:4px;font-size:11px;margin-top:8px}
+      @media print{body{padding:10px}}
+    </style>
+  </head><body>
+    <div class="hdr"><h1>HOUSE OF TAILORS</h1><p>Garment Style Details${orderNumber ? ` · ${orderNumber}` : ""}</p></div>
+
+    <div class="garment-title">Jacket Style Details</div>
+    <div class="grid">
+      ${section("Size Pattern", row("", j.sizePattern))}
+      ${section("Buttons Code", row("", j.buttonsCode))}
     </div>
-  );
+    ${section("Jacket Type", row("Type", j.jacketType))}
+    ${section("No. of Buttons", row("", j.noOfButtons))}
+    ${section("Front Pockets", row("", j.frontPockets))}
+    ${section("Lapel", row("", j.lapel))}
+    ${section("Lapel Pin Hole", row("", j.lapelPinHole))}
+    ${section("Back Vent", row("", j.backVent))}
+    ${section("Inside Fashion", row("", j.insideFashion))}
+    ${section("Inside Pockets", row("", j.insidePockets))}
+    ${section("Extra Pocket", row("", j.extraPocket))}
+    ${section("Sleeve Buttons", row("", j.sleeveButtons))}
+    ${section("Pick Stitch", row("", j.pickStitch))}
+    ${j.others ? section("Others", row("", j.others)) : ""}
+    ${j.comments ? `<div class="sec-title">Comments</div><div class="comments">${j.comments}</div>` : ""}
+
+    <div class="garment-title">Shirt Style Details</div>
+    ${section("Size Pattern", row("", s.sizePattern))}
+    ${section("Shirt Fit", row("", s.shirtFit))}
+    ${section("Collar Style", row("", s.collarStyle))}
+    ${section("Front Pockets", row("", s.frontPockets))}
+    ${section("Front Placket", row("", s.frontPlacket))}
+    ${section("Back Dart", row("", s.backDart))}
+    ${section("Cuff Style", row("", s.cuffStyle))}
+    ${section("Name Embroidery", row("", s.nameEmbroidery + (s.embroideryPosition ? ` (${s.embroideryPosition})` : "")))}
+    ${section("Cuff Size", row("", s.cuffSize))}
+    ${s.collarPointSize ? section("Collar Point Size", row("", s.collarPointSize)) : ""}
+    ${s.collarStandSize ? section("Collar Stand Size", row("", s.collarStandSize)) : ""}
+    ${s.collarSize ? section("Collar Size", row("", s.collarSize)) : ""}
+    ${s.comments ? `<div class="sec-title">Comments</div><div class="comments">${s.comments}</div>` : ""}
+
+    <div class="garment-title">Trouser Style Details</div>
+    ${section("Size Pattern", row("", t.sizePattern))}
+    ${section("Fit", row("", t.fit))}
+    ${section("Front Pleats", row("", t.frontPleats))}
+    ${section("Back Pockets", row("Count", t.backPockets) + row("Type", t.backPocketsType))}
+    ${section("Inside Lining", row("", t.insideLining))}
+    ${section("Loops", row("", t.loops))}
+    ${section("Side Adjuster", row("", t.sideAdjuster))}
+    ${section("Front Pocket", row("", t.frontPocket))}
+    ${section("Bottom Style", row("", t.bottomStyle))}
+    ${section("Button / Hook", row("", t.buttonHook))}
+    ${section("Coin Pocket", row("", t.coinPocket))}
+    ${t.waistSize ? section("Waist Size", row("", t.waistSize)) : ""}
+    ${t.fullLength ? section("Full Length", row("", t.fullLength)) : ""}
+    ${t.comments ? `<div class="sec-title">Comments</div><div class="comments">${t.comments}</div>` : ""}
+  </body></html>`);
+  win.document.close();
+  setTimeout(() => win.print(), 400);
 }
 
-// ── Option Card ───────────────────────────────────────────────
-function OptionCard({
-  label, selected, color, onClick,
-}: { label: string; selected: boolean; color?: string; onClick: () => void }) {
+// ── OptionChip ─────────────────────────────────────────────────
+
+function OptionChip({ label, selected, onClick }: { label: string; selected: boolean; onClick: () => void }) {
   return (
     <button
       type="button"
       onClick={onClick}
       className={cn(
-        "relative flex flex-col items-center gap-1.5 p-2.5 rounded-xl border text-center transition-all",
+        "relative px-3 py-2 rounded-lg border text-xs font-medium text-center transition-all leading-tight",
         selected
           ? "border-[#D4AF37] bg-[#D4AF37]/10 text-[#D4AF37]"
           : "border-border/50 bg-secondary/30 text-muted-foreground hover:border-border hover:text-foreground"
       )}
     >
-      {color && (
-        <div
-          className="w-8 h-8 rounded-full border border-white/20 shadow"
-          style={{ backgroundColor: color }}
-        />
-      )}
-      {!color && (
-        <div className={cn("w-8 h-8 rounded-lg flex items-center justify-center text-base",
-          selected ? "bg-[#D4AF37]/20" : "bg-secondary"
-        )}>
-          {selected ? <Check className="w-4 h-4" /> : null}
-        </div>
-      )}
-      <span className="text-[10px] font-medium leading-none">{label}</span>
       {selected && (
-        <div className="absolute top-1.5 right-1.5 w-3 h-3 rounded-full bg-[#D4AF37] flex items-center justify-center">
-          <Check className="w-2 h-2 text-black" />
-        </div>
+        <span className="absolute top-1 right-1 w-2.5 h-2.5 rounded-full bg-[#D4AF37] flex items-center justify-center">
+          <Check className="w-1.5 h-1.5 text-black" />
+        </span>
       )}
+      {label}
     </button>
   );
 }
 
-function SectionTitle({ children }: { children: React.ReactNode }) {
+function SecLabel({ children }: { children: React.ReactNode }) {
   return (
-    <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-2 mt-4 first:mt-0">
+    <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-1.5 mt-4 first:mt-0">
       {children}
     </p>
   );
 }
 
-// ── Main Component ────────────────────────────────────────────
+function OptionGroup({
+  label, options, value, onChange,
+}: { label: string; options: string[]; value: string; onChange: (v: string) => void }) {
+  return (
+    <div>
+      <SecLabel>{label}</SecLabel>
+      <div className="flex flex-wrap gap-2">
+        {options.map((o) => (
+          <OptionChip key={o} label={o} selected={value === o} onClick={() => onChange(value === o ? "" : o)} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ── Jacket SVG Preview ─────────────────────────────────────────
+
+function JacketPreview({ j }: { j: JacketDesign }) {
+  const btnCount = j.noOfButtons === "6" ? 6 : j.noOfButtons === "3" ? 3 : j.noOfButtons === "1" ? 1 : 2;
+  const isDouble = j.jacketType === "Double Breasted";
+
+  return (
+    <div className="flex items-center justify-center w-full h-full">
+      <svg viewBox="0 0 220 300" className="w-40 h-56" xmlns="http://www.w3.org/2000/svg">
+        <path d="M30 80 L20 300 L200 300 L190 80 L155 60 L110 120 L65 60 Z" fill="#1a1a1a" stroke="#333" strokeWidth="1" />
+        {/* Lapel */}
+        {(j.lapel === "Notch" || !j.lapel) && <>
+          <path d="M110 120 L65 60 L80 80 L100 130 Z" fill="#2a2a2a" stroke="#444" strokeWidth="0.5" />
+          <path d="M110 120 L155 60 L140 80 L120 130 Z" fill="#2a2a2a" stroke="#444" strokeWidth="0.5" />
+        </>}
+        {j.lapel === "Peak" && <>
+          <path d="M110 120 L65 60 L55 90 L100 130 Z" fill="#2a2a2a" stroke="#444" strokeWidth="0.5" />
+          <path d="M110 120 L155 60 L165 90 L120 130 Z" fill="#2a2a2a" stroke="#444" strokeWidth="0.5" />
+        </>}
+        {j.lapel === "Shawl" && <>
+          <path d="M110 120 Q85 85 65 60 Q80 100 100 130 Z" fill="#2a2a2a" stroke="#444" strokeWidth="0.5" />
+          <path d="M110 120 Q135 85 155 60 Q140 100 120 130 Z" fill="#2a2a2a" stroke="#444" strokeWidth="0.5" />
+        </>}
+        {/* Shirt strip */}
+        <rect x="100" y="100" width="20" height="120" rx="2" fill="#f5f5f5" opacity="0.9" />
+        {/* Front buttons */}
+        {Array.from({ length: Math.min(btnCount, 6) }).map((_, i) => (
+          <circle key={i} cx={isDouble ? 104 + (i % 2) * 12 : 110} cy={150 + Math.floor(i / (isDouble ? 2 : 1)) * 22}
+            r="4.5" fill="#D4AF37" stroke="#111" strokeWidth="0.5" opacity="0.85" />
+        ))}
+        {/* Pocket flap */}
+        <rect x="58" y="183" width="30" height="8" rx="2" fill="#252525" stroke="#444" strokeWidth="0.5" />
+        <rect x="133" y="183" width="30" height="8" rx="2" fill="#252525" stroke="#444" strokeWidth="0.5" />
+        {/* Breast pocket */}
+        <rect x="130" y="120" width="18" height="4" rx="1" fill="#D4AF37" opacity="0.5" />
+        {/* Sleeve buttons */}
+        {Array.from({ length: Math.min(Number(j.sleeveButtons?.replace(" Buttons","").replace(" Button","")) || 4, 5) }).map((_, i) => (
+          <circle key={`sl-${i}`} cx={32 + i * 6} cy={250} r="2.5" fill="#D4AF37" stroke="#111" strokeWidth="0.3" opacity="0.7" />
+        ))}
+        {/* Back vent indicator */}
+        {j.backVent === "Center Vent" && <line x1="110" y1="260" x2="110" y2="300" stroke="#555" strokeWidth="1.5" />}
+        {j.backVent === "Side Vent" && <>
+          <line x1="50" y1="260" x2="50" y2="300" stroke="#555" strokeWidth="1.5" />
+          <line x1="170" y1="260" x2="170" y2="300" stroke="#555" strokeWidth="1.5" />
+        </>}
+      </svg>
+    </div>
+  );
+}
+
+// ── Garment Summary Panel ──────────────────────────────────────
+
+function SummaryItem({ label, value }: { label: string; value: string }) {
+  if (!value) return null;
+  return (
+    <div className="flex items-start gap-1.5">
+      <span className="text-[10px] text-white/40 min-w-0 whitespace-nowrap">{label}</span>
+      <span className="text-[11px] text-white/80 font-medium leading-tight">{value}</span>
+    </div>
+  );
+}
+
+// ── Main Component ─────────────────────────────────────────────
+
 interface BespokeDesignerProps {
   open: boolean;
   onClose: () => void;
   orderId?: string;
   orderNumber?: string;
-  onSave?: (design: SuitDesign, specText: string) => Promise<void>;
+  onSave?: (design: GarmentDesign, specText: string) => Promise<void>;
 }
 
 export function BespokeDesigner({ open, onClose, orderId, orderNumber, onSave }: BespokeDesignerProps) {
-  const [design, setDesign] = useState<SuitDesign>(DEFAULT_DESIGN);
+  const [activeTab, setActiveTab] = useState<"jacket" | "shirt" | "trouser">("jacket");
+  const [jacket, setJacket] = useState<JacketDesign>(DEFAULT_JACKET);
+  const [shirt, setShirt] = useState<ShirtDesign>(DEFAULT_SHIRT);
+  const [trouser, setTrouser] = useState<TrouserDesign>(DEFAULT_TROUSER);
   const [saving, setSaving] = useState(false);
 
-  const set = <K extends keyof SuitDesign>(key: K, val: SuitDesign[K]) =>
-    setDesign((d) => ({ ...d, [key]: val }));
+  const setJ = <K extends keyof JacketDesign>(k: K, v: JacketDesign[K]) => setJacket((d) => ({ ...d, [k]: v }));
+  const setS = <K extends keyof ShirtDesign>(k: K, v: ShirtDesign[K]) => setShirt((d) => ({ ...d, [k]: v }));
+  const setT = <K extends keyof TrouserDesign>(k: K, v: TrouserDesign[K]) => setTrouser((d) => ({ ...d, [k]: v }));
+
+  const design: GarmentDesign = { jacket, shirt, trouser };
 
   const handleSave = async () => {
     if (!onSave) return;
     setSaving(true);
     try {
       await onSave(design, buildSpecText(design));
-      toast.success("Design saved to order");
+      toast.success("Style details saved to order");
       onClose();
     } catch {
-      toast.error("Failed to save design");
+      toast.error("Failed to save");
     } finally {
       setSaving(false);
     }
   };
 
-  const handlePrint = () => {
-    const win = window.open("", "_blank", "width=700,height=900");
-    if (!win) return;
-    const specLines = [
-      `Lapel: ${design.lapel}`,
-      `Fit: ${design.fit} | Vent: ${design.vent.replace(/-/g, " ")}`,
-      `Front Buttons: ${design.buttons}`,
-      `Pocket Style: ${design.pocket}`,
-      `Sleeve Buttons: ${design.sleeveButtons}`,
-      `Button Material: ${design.buttonMaterial}`,
-      `Collar: ${design.collar}`,
-      `Lining: ${design.lining}`,
-      `Working Buttonholes: ${design.workingButtonholes ? "Yes" : "No"}`,
-      `Ticket Pocket: ${design.ticketPocket ? "Yes" : "No"}`,
-      `Surgeon's Cuff: ${design.surgeonsCuff ? "Yes" : "No"}`,
-      `Full Silk Lining: ${design.fullSilkLining ? "Yes" : "No"}`,
-      `Personal Monogram: ${design.personalMonogram ? design.monogramText || "Yes" : "No"}`,
-      `Tie / Accessory: ${design.tie.replace(/-/g, " ")}`,
-    ];
-    win.document.write(`<!DOCTYPE html><html><head>
-      <title>Bespoke Spec Sheet${orderNumber ? ` — ${orderNumber}` : ""}</title>
-      <style>
-        body { font-family: 'Georgia', serif; margin: 40px; color: #111; }
-        h1 { font-size: 28px; letter-spacing: 4px; color: #D4AF37; border-bottom: 2px solid #D4AF37; padding-bottom: 12px; }
-        h2 { font-size: 13px; text-transform: uppercase; letter-spacing: 2px; color: #666; margin: 24px 0 8px; }
-        .spec-line { display: flex; justify-content: space-between; font-size: 14px; padding: 6px 0; border-bottom: 1px solid #eee; }
-        .label { color: #888; }
-        .value { font-weight: 600; text-transform: capitalize; }
-        .lining-swatch { display: inline-block; width: 14px; height: 14px; border-radius: 50%; border: 1px solid #ccc; vertical-align: middle; margin-right: 6px; background: ${LINING_COLORS[design.lining]}; }
-      </style>
-    </head><body>
-      <h1>HOUSE OF TAILORS</h1>
-      <h2>Bespoke Suit Specification Sheet${orderNumber ? ` · ${orderNumber}` : ""}</h2>
-      ${specLines.map(l => {
-        const [k, v] = l.split(": ");
-        return `<div class="spec-line"><span class="label">${k}</span><span class="value">${k === "Lining" ? `<span class="lining-swatch"></span>${v}` : v}</span></div>`;
-      }).join("")}
-    </body></html>`);
-    win.document.close();
-    setTimeout(() => win.print(), 400);
-  };
+  const SIZE_PATTERN = ["Create New", "Use Existing", "Use Sample", "Not Required"];
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
       <DialogContent className="max-w-5xl h-[90vh] p-0 gap-0 overflow-hidden">
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-border bg-card flex-shrink-0">
+        <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-card flex-shrink-0">
           <div className="flex items-center gap-2">
             <Sparkles className="w-4 h-4 text-[#D4AF37]" />
-            <DialogTitle className="font-bold text-sm tracking-wide">Bespoke Suit Designer</DialogTitle>
-            {orderNumber && <span className="text-xs text-muted-foreground ml-1">· {orderNumber}</span>}
+            <DialogTitle className="font-bold text-sm tracking-wide">Garment Style Details</DialogTitle>
+            {orderNumber && <span className="text-xs text-muted-foreground">· {orderNumber}</span>}
           </div>
           <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" onClick={handlePrint} className="gap-1.5 text-xs">
-              <Printer className="w-3.5 h-3.5" /> Spec Sheet
+            <Button variant="outline" size="sm" onClick={() => printSpec(design, orderNumber)} className="gap-1.5 text-xs">
+              <Printer className="w-3.5 h-3.5" /> Print
             </Button>
             {onSave && (
               <Button variant="gold" size="sm" onClick={handleSave} loading={saving} className="gap-1.5 text-xs">
                 <Save className="w-3.5 h-3.5" /> Save to Order
               </Button>
             )}
-            <button type="button" onClick={onClose} className="ml-1 text-muted-foreground hover:text-foreground transition-colors">
+            <button type="button" onClick={onClose} className="ml-1 text-muted-foreground hover:text-foreground">
               <X className="w-4 h-4" />
             </button>
           </div>
         </div>
 
+        {/* Tabs */}
+        <div className="flex border-b border-border bg-card flex-shrink-0">
+          {(["jacket", "shirt", "trouser"] as const).map((tab) => (
+            <button
+              key={tab}
+              onClick={() => setActiveTab(tab)}
+              className={cn(
+                "px-6 py-2.5 text-sm font-medium capitalize border-b-2 -mb-px transition-colors",
+                activeTab === tab
+                  ? "border-[#D4AF37] text-[#D4AF37]"
+                  : "border-transparent text-muted-foreground hover:text-foreground"
+              )}
+            >
+              {tab}
+            </button>
+          ))}
+        </div>
+
         <div className="flex flex-1 overflow-hidden">
-          {/* Left — Live Preview */}
-          <div className="w-72 flex-shrink-0 bg-[#0d0d0d] flex flex-col overflow-hidden">
-            <div className="flex-1 flex items-center justify-center p-4">
-              <SuitPreview design={design} />
+          {/* Left — Preview / Summary */}
+          <div className="w-56 flex-shrink-0 bg-[#0d0d0d] flex flex-col overflow-hidden">
+            <div className="flex-1 flex items-center justify-center">
+              {activeTab === "jacket" && <JacketPreview j={jacket} />}
+              {activeTab === "shirt" && (
+                <div className="p-4 text-center">
+                  <div className="w-16 h-20 mx-auto mb-3 rounded-lg bg-white/5 border border-white/10 flex items-center justify-center">
+                    <span className="text-2xl">👔</span>
+                  </div>
+                </div>
+              )}
+              {activeTab === "trouser" && (
+                <div className="p-4 text-center">
+                  <div className="w-16 h-20 mx-auto mb-3 rounded-lg bg-white/5 border border-white/10 flex items-center justify-center">
+                    <span className="text-2xl">👖</span>
+                  </div>
+                </div>
+              )}
             </div>
-            {/* Spec summary */}
-            <div className="p-4 border-t border-white/10 space-y-1">
-              <p className="text-[10px] text-[#D4AF37] font-bold uppercase tracking-widest mb-2">Live Preview</p>
-              <p className="text-[11px] text-white/70 capitalize">{design.lapel} lapel · {design.fit} fit · {design.vent.replace(/-/g, " ")}</p>
-              <p className="text-[11px] text-white/70 capitalize">{design.buttons}btn · {design.pocket} pocket</p>
-              <p className="text-[11px] text-white/70 capitalize">{design.sleeveButtons} sleeve btn · {design.buttonMaterial} buttons</p>
-              <p className="text-[11px] text-white/70 capitalize">{design.collar} collar</p>
-              <div className="flex items-center gap-1.5 mt-1">
-                <div className="w-3 h-3 rounded-full border border-white/20" style={{ backgroundColor: LINING_COLORS[design.lining] }} />
-                <span className="text-[11px] text-white/70 capitalize">{design.lining} lining</span>
-              </div>
-              <div className="flex flex-wrap gap-1 mt-1">
-                {design.workingButtonholes && <span className="text-[9px] bg-white/10 text-white/60 px-1.5 py-0.5 rounded">Buttonholes</span>}
-                {design.surgeonsCuff && <span className="text-[9px] bg-white/10 text-white/60 px-1.5 py-0.5 rounded">Surgeon's cuff</span>}
-                {design.fullSilkLining && <span className="text-[9px] bg-white/10 text-white/60 px-1.5 py-0.5 rounded">Silk lining</span>}
-                {design.personalMonogram && <span className="text-[9px] bg-[#D4AF37]/20 text-[#D4AF37] px-1.5 py-0.5 rounded">{design.monogramText || "Monogram"}</span>}
-              </div>
+            {/* Summary */}
+            <div className="p-3 border-t border-white/10 space-y-1.5 overflow-y-auto">
+              <p className="text-[10px] text-[#D4AF37] font-bold uppercase tracking-widest mb-2">
+                {activeTab === "jacket" ? "Jacket" : activeTab === "shirt" ? "Shirt" : "Trouser"} Details
+              </p>
+              {activeTab === "jacket" && <>
+                <SummaryItem label="Type" value={jacket.jacketType} />
+                <SummaryItem label="Buttons" value={jacket.noOfButtons} />
+                <SummaryItem label="Lapel" value={jacket.lapel} />
+                <SummaryItem label="Vent" value={jacket.backVent} />
+                <SummaryItem label="Pockets" value={jacket.frontPockets} />
+                <SummaryItem label="Inside" value={jacket.insidePockets} />
+                <SummaryItem label="Sleeve" value={jacket.sleeveButtons} />
+                <SummaryItem label="Pick" value={jacket.pickStitch} />
+              </>}
+              {activeTab === "shirt" && <>
+                <SummaryItem label="Fit" value={shirt.shirtFit} />
+                <SummaryItem label="Collar" value={shirt.collarStyle} />
+                <SummaryItem label="Pocket" value={shirt.frontPockets} />
+                <SummaryItem label="Placket" value={shirt.frontPlacket} />
+                <SummaryItem label="Back" value={shirt.backDart} />
+                <SummaryItem label="Cuff" value={shirt.cuffStyle} />
+                <SummaryItem label="Embroidery" value={shirt.nameEmbroidery} />
+                <SummaryItem label="Collar Size" value={shirt.collarSize} />
+              </>}
+              {activeTab === "trouser" && <>
+                <SummaryItem label="Fit" value={trouser.fit} />
+                <SummaryItem label="Pleats" value={trouser.frontPleats} />
+                <SummaryItem label="Back Pkt" value={trouser.backPockets} />
+                <SummaryItem label="Lining" value={trouser.insideLining} />
+                <SummaryItem label="Loops" value={trouser.loops} />
+                <SummaryItem label="Adjuster" value={trouser.sideAdjuster} />
+                <SummaryItem label="Bottom" value={trouser.bottomStyle} />
+                <SummaryItem label="Waist" value={trouser.waistSize} />
+                <SummaryItem label="Length" value={trouser.fullLength} />
+              </>}
             </div>
           </div>
 
           {/* Right — Options */}
           <div className="flex-1 overflow-y-auto p-5">
-            {/* SUIT STYLE */}
-            <SectionTitle>Suit Style</SectionTitle>
-            <div className="grid grid-cols-3 gap-2 mb-1">
-              {(["notch", "peak", "shawl"] as LapelStyle[]).map((l) => (
-                <OptionCard key={l} label={`${l} lapel`} selected={design.lapel === l} onClick={() => set("lapel", l)} />
-              ))}
-            </div>
-            <div className="grid grid-cols-3 gap-2 mb-1">
-              {(["slim", "regular", "classic"] as FitStyle[]).map((f) => (
-                <OptionCard key={f} label={`${f} fit`} selected={design.fit === f} onClick={() => set("fit", f)} />
-              ))}
-            </div>
-            <div className="grid grid-cols-3 gap-2">
-              {(["no-vent", "single-vent", "double-vent"] as VentStyle[]).map((v) => (
-                <OptionCard key={v} label={v.replace(/-/g, " ")} selected={design.vent === v} onClick={() => set("vent", v)} />
-              ))}
-            </div>
 
-            {/* FRONT */}
-            <SectionTitle>Front Buttons</SectionTitle>
-            <div className="grid grid-cols-3 gap-2">
-              {([1, 2, 3] as ButtonCount[]).map((n) => (
-                <OptionCard key={n} label={`${n} Button`} selected={design.buttons === n} onClick={() => set("buttons", n)} />
-              ))}
-            </div>
+            {/* ── JACKET TAB ─────────────────────────────── */}
+            {activeTab === "jacket" && (
+              <div className="space-y-0">
+                <div className="grid grid-cols-2 gap-4 mb-2">
+                  <div>
+                    <SecLabel>Size Pattern</SecLabel>
+                    <div className="flex flex-wrap gap-1.5">
+                      {SIZE_PATTERN.map((o) => (
+                        <OptionChip key={o} label={o} selected={jacket.sizePattern === o} onClick={() => setJ("sizePattern", jacket.sizePattern === o ? "" : o)} />
+                      ))}
+                    </div>
+                  </div>
+                  <div>
+                    <SecLabel>Buttons Code</SecLabel>
+                    <Input placeholder="Code" value={jacket.buttonsCode} onChange={(e) => setJ("buttonsCode", e.target.value)} className="h-8 text-sm" />
+                  </div>
+                </div>
 
-            <SectionTitle>Pocket Style</SectionTitle>
-            <div className="grid grid-cols-3 gap-2">
-              {(["jetted", "flap", "patch"] as PocketStyle[]).map((p) => (
-                <OptionCard key={p} label={p} selected={design.pocket === p} onClick={() => set("pocket", p)} />
-              ))}
-            </div>
+                <OptionGroup label="Jacket Type" options={["Single Breasted", "Double Breasted", "Band Gala", "Bundy"]}
+                  value={jacket.jacketType} onChange={(v) => setJ("jacketType", v)} />
 
-            {/* SLEEVE BUTTONS */}
-            <SectionTitle>Sleeve Buttons</SectionTitle>
-            <div className="grid grid-cols-4 gap-2">
-              {([1, 2, 3, 4] as SleeveButtons[]).map((n) => (
-                <OptionCard key={n} label={`${n} Button${n > 1 ? "s" : ""}`} selected={design.sleeveButtons === n} onClick={() => set("sleeveButtons", n)} />
-              ))}
-            </div>
+                <OptionGroup label="No. of Buttons" options={["1 Button", "2 Buttons", "3 Buttons", "6 Buttons"]}
+                  value={jacket.noOfButtons} onChange={(v) => setJ("noOfButtons", v)} />
 
-            {/* BUTTON MATERIAL */}
-            <SectionTitle>Button Material</SectionTitle>
-            <div className="grid grid-cols-4 gap-2">
-              {(["horn", "pearl", "gold", "black"] as ButtonMaterial[]).map((m) => (
-                <OptionCard key={m} label={m === "pearl" ? "Mother of Pearl" : m} selected={design.buttonMaterial === m} color={BUTTON_COLORS[m]} onClick={() => set("buttonMaterial", m)} />
-              ))}
-            </div>
+                <OptionGroup label="Front Pockets" options={["Straight", "Slanting", "With Ticket"]}
+                  value={jacket.frontPockets} onChange={(v) => setJ("frontPockets", v)} />
 
-            {/* SHIRT COLLAR */}
-            <SectionTitle>Shirt Collar</SectionTitle>
-            <div className="grid grid-cols-3 gap-2">
-              {(["cutaway", "spread", "button-down"] as CollarType[]).map((c) => (
-                <OptionCard key={c} label={c.replace(/-/g, " ")} selected={design.collar === c} onClick={() => set("collar", c)} />
-              ))}
-            </div>
+                <OptionGroup label="Lapel" options={["Notch", "Peak", "Shawl"]}
+                  value={jacket.lapel} onChange={(v) => setJ("lapel", v)} />
 
-            {/* LINING COLOUR */}
-            <SectionTitle>Lining Colour</SectionTitle>
-            <div className="grid grid-cols-6 gap-2">
-              {(Object.entries(LINING_COLORS) as [LiningColor, string][]).map(([name, hex]) => (
-                <OptionCard key={name} label={name} selected={design.lining === name} color={hex} onClick={() => set("lining", name)} />
-              ))}
-            </div>
+                <OptionGroup label="Lapel Pin Hole" options={["Show", "With Hole", "None"]}
+                  value={jacket.lapelPinHole} onChange={(v) => setJ("lapelPinHole", v)} />
 
-            {/* TIE / ACCESSORY */}
-            <SectionTitle>Tie / Accessory</SectionTitle>
-            <div className="grid grid-cols-4 gap-2">
-              {(["tie", "bow-tie", "plastron", "open-collar"] as TieAccessory[]).map((t) => (
-                <OptionCard key={t} label={t.replace(/-/g, " ")} selected={design.tie === t} onClick={() => set("tie", t)} />
-              ))}
-            </div>
+                <OptionGroup label="Back Vent Open" options={["Side Vent", "Center Vent", "No Vent"]}
+                  value={jacket.backVent} onChange={(v) => setJ("backVent", v)} />
 
-            {/* EXTRAS */}
-            <SectionTitle>Extras</SectionTitle>
-            <div className="space-y-2">
-              {(
-                [
-                  { key: "workingButtonholes" as const, label: "Working buttonholes" },
-                  { key: "ticketPocket" as const, label: "Ticket pocket" },
-                  { key: "surgeonsCuff" as const, label: "Surgeon's cuff" },
-                  { key: "fullSilkLining" as const, label: "Full silk lining" },
-                  { key: "personalMonogram" as const, label: "Personal monogram" },
-                ]
-              ).map(({ key, label }) => (
-                <label key={key} className="flex items-center gap-3 p-3 rounded-xl border border-border/50 bg-secondary/20 cursor-pointer hover:border-border transition-colors">
-                  <input
-                    type="checkbox"
-                    checked={design[key] as boolean}
-                    onChange={(e) => set(key, e.target.checked as any)}
-                    className="w-4 h-4 accent-[#D4AF37]"
-                  />
-                  <span className="text-sm">{label}</span>
-                </label>
-              ))}
-              {design.personalMonogram && (
-                <Input
-                  placeholder="Enter monogram initials (e.g. AKS)"
-                  value={design.monogramText}
-                  onChange={(e) => set("monogramText", e.target.value)}
-                  className="h-9 text-sm mt-1"
-                  maxLength={4}
-                />
-              )}
-            </div>
+                <OptionGroup label="Inside Fashion" options={["Straight", "Takurdwara", "Piping"]}
+                  value={jacket.insideFashion} onChange={(v) => setJ("insideFashion", v)} />
+
+                <OptionGroup label="Inside Pockets" options={["2 Pocket", "3 Pockets", "4 Pockets", "No Pocket"]}
+                  value={jacket.insidePockets} onChange={(v) => setJ("insidePockets", v)} />
+
+                <OptionGroup label="Extra Pocket" options={["Pen Pocket", "Passport", "None"]}
+                  value={jacket.extraPocket} onChange={(v) => setJ("extraPocket", v)} />
+
+                <OptionGroup label="Sleeve Buttons" options={["3 Buttons", "4 Buttons", "5 Buttons"]}
+                  value={jacket.sleeveButtons} onChange={(v) => setJ("sleeveButtons", v)} />
+
+                <OptionGroup label="Pick Stitch" options={["Full Pick Lapel", "Lapel Pick", "None"]}
+                  value={jacket.pickStitch} onChange={(v) => setJ("pickStitch", v)} />
+
+                <div>
+                  <SecLabel>Others</SecLabel>
+                  <Input placeholder="Any other styling detail..." value={jacket.others} onChange={(e) => setJ("others", e.target.value)} className="h-8 text-sm" />
+                </div>
+                <div>
+                  <SecLabel>More Comments</SecLabel>
+                  <Textarea placeholder="Additional comments or special instructions..." rows={3} value={jacket.comments} onChange={(e) => setJ("comments", e.target.value)} className="text-sm resize-none" />
+                </div>
+              </div>
+            )}
+
+            {/* ── SHIRT TAB ──────────────────────────────── */}
+            {activeTab === "shirt" && (
+              <div className="space-y-0">
+                <div className="grid grid-cols-2 gap-4 mb-2">
+                  <div>
+                    <SecLabel>Size Pattern</SecLabel>
+                    <div className="flex flex-wrap gap-1.5">
+                      {SIZE_PATTERN.map((o) => (
+                        <OptionChip key={o} label={o} selected={shirt.sizePattern === o} onClick={() => setS("sizePattern", shirt.sizePattern === o ? "" : o)} />
+                      ))}
+                    </div>
+                  </div>
+                  <div>
+                    <SecLabel>Buttons Code</SecLabel>
+                    <Input placeholder="Code" value={shirt.buttonsCode} onChange={(e) => setS("buttonsCode", e.target.value)} className="h-8 text-sm" />
+                  </div>
+                </div>
+
+                <OptionGroup label="Shirt Fit" options={["Comfort", "Slim"]}
+                  value={shirt.shirtFit} onChange={(v) => setS("shirtFit", v)} />
+
+                <OptionGroup label="Collar Style" options={["Regular", "Semi Cut Way", "Full Cut Way", "Tux Wing"]}
+                  value={shirt.collarStyle} onChange={(v) => setS("collarStyle", v)} />
+
+                <OptionGroup label="Front Pockets" options={["Single", "Double", "No Pocket"]}
+                  value={shirt.frontPockets} onChange={(v) => setS("frontPockets", v)} />
+
+                <OptionGroup label="Front Placket" options={["With Placket", "Invisible Buttons", "No Placket", "Tux Pleats"]}
+                  value={shirt.frontPlacket} onChange={(v) => setS("frontPlacket", v)} />
+
+                <OptionGroup label="Back Dart" options={["Dart", "Center Box", "Side Pleats", "None"]}
+                  value={shirt.backDart} onChange={(v) => setS("backDart", v)} />
+
+                <OptionGroup label="Cuff Style" options={["One Button", "Two Button", "French Cuff"]}
+                  value={shirt.cuffStyle} onChange={(v) => setS("cuffStyle", v)} />
+
+                <div>
+                  <SecLabel>Name Embroidery</SecLabel>
+                  <div className="flex flex-wrap gap-2">
+                    {["Yes", "No"].map((o) => (
+                      <OptionChip key={o} label={o} selected={shirt.nameEmbroidery === o} onClick={() => setS("nameEmbroidery", shirt.nameEmbroidery === o ? "" : o)} />
+                    ))}
+                    {shirt.nameEmbroidery === "Yes" && (
+                      <>
+                        <OptionChip label="Left" selected={shirt.embroideryPosition === "Left"} onClick={() => setS("embroideryPosition", shirt.embroideryPosition === "Left" ? "" : "Left")} />
+                        <OptionChip label="Right" selected={shirt.embroideryPosition === "Right"} onClick={() => setS("embroideryPosition", shirt.embroideryPosition === "Right" ? "" : "Right")} />
+                      </>
+                    )}
+                  </div>
+                </div>
+
+                <OptionGroup label="Cuff Size" options={["Left", "Right", "Regular"]}
+                  value={shirt.cuffSize} onChange={(v) => setS("cuffSize", v)} />
+
+                <div className="grid grid-cols-3 gap-3">
+                  <div>
+                    <SecLabel>Collar Point Size</SecLabel>
+                    <Input placeholder="Size" value={shirt.collarPointSize} onChange={(e) => setS("collarPointSize", e.target.value)} className="h-8 text-sm" />
+                  </div>
+                  <div>
+                    <SecLabel>Collar Stand Size</SecLabel>
+                    <Input placeholder="Size" value={shirt.collarStandSize} onChange={(e) => setS("collarStandSize", e.target.value)} className="h-8 text-sm" />
+                  </div>
+                  <div>
+                    <SecLabel>Collar Size</SecLabel>
+                    <Input placeholder="Size" value={shirt.collarSize} onChange={(e) => setS("collarSize", e.target.value)} className="h-8 text-sm" />
+                  </div>
+                </div>
+
+                <div>
+                  <SecLabel>More Comments</SecLabel>
+                  <Textarea placeholder="Additional comments or special instructions..." rows={3} value={shirt.comments} onChange={(e) => setS("comments", e.target.value)} className="text-sm resize-none" />
+                </div>
+              </div>
+            )}
+
+            {/* ── TROUSER TAB ────────────────────────────── */}
+            {activeTab === "trouser" && (
+              <div className="space-y-0">
+                <div className="grid grid-cols-2 gap-4 mb-2">
+                  <div>
+                    <SecLabel>Size Pattern</SecLabel>
+                    <div className="flex flex-wrap gap-1.5">
+                      {SIZE_PATTERN.map((o) => (
+                        <OptionChip key={o} label={o} selected={trouser.sizePattern === o} onClick={() => setT("sizePattern", trouser.sizePattern === o ? "" : o)} />
+                      ))}
+                    </div>
+                  </div>
+                  <div>
+                    <SecLabel>Buttons Code</SecLabel>
+                    <Input placeholder="Code" value={trouser.buttonsCode} onChange={(e) => setT("buttonsCode", e.target.value)} className="h-8 text-sm" />
+                  </div>
+                </div>
+
+                <OptionGroup label="Fit" options={["Comfort", "Slim", "Straight", "Loose Fit"]}
+                  value={trouser.fit} onChange={(v) => setT("fit", v)} />
+
+                <OptionGroup label="Front Pleats" options={["1 Pleat", "2 Pleats", "No Pleats", "Front Darts"]}
+                  value={trouser.frontPleats} onChange={(v) => setT("frontPleats", v)} />
+
+                <div className="grid grid-cols-2 gap-4">
+                  <OptionGroup label="Back Pockets (Count)" options={["1 Pocket", "2 Pockets", "No Pockets"]}
+                    value={trouser.backPockets} onChange={(v) => setT("backPockets", v)} />
+                  <OptionGroup label="Back Pockets (Type)" options={["Pocket Flap", "Button Loop", "Kaaj"]}
+                    value={trouser.backPocketsType} onChange={(v) => setT("backPocketsType", v)} />
+                </div>
+
+                <OptionGroup label="Inside Lining" options={["Half Lining", "Full Lining", "No Lining"]}
+                  value={trouser.insideLining} onChange={(v) => setT("insideLining", v)} />
+
+                <OptionGroup label="Loops" options={["8 Loops", "6 Loops", "No Loops"]}
+                  value={trouser.loops} onChange={(v) => setT("loops", v)} />
+
+                <OptionGroup label="Side Adjuster" options={["Yes", "No", "Back Elastic", "Side Invisible Elastic"]}
+                  value={trouser.sideAdjuster} onChange={(v) => setT("sideAdjuster", v)} />
+
+                <OptionGroup label="Front Pocket" options={["Cross", "Straight", "Jeans Style", "No Pockets"]}
+                  value={trouser.frontPocket} onChange={(v) => setT("frontPocket", v)} />
+
+                <OptionGroup label="Bottom Style" options={["Cuff Fold", "Normal Hemming", "Fold & Stitch"]}
+                  value={trouser.bottomStyle} onChange={(v) => setT("bottomStyle", v)} />
+
+                <OptionGroup label="Button / Hook" options={["Long Belt", "Hook", "Button", "Double Button 2\" Belt"]}
+                  value={trouser.buttonHook} onChange={(v) => setT("buttonHook", v)} />
+
+                <OptionGroup label="Coin Pocket" options={["Inside Belt", "Inside Right Pocket", "None"]}
+                  value={trouser.coinPocket} onChange={(v) => setT("coinPocket", v)} />
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <SecLabel>Waist Size</SecLabel>
+                    <Input placeholder="e.g. 34" value={trouser.waistSize} onChange={(e) => setT("waistSize", e.target.value)} className="h-8 text-sm" />
+                  </div>
+                  <div>
+                    <SecLabel>Full Length</SecLabel>
+                    <Input placeholder="e.g. 42" value={trouser.fullLength} onChange={(e) => setT("fullLength", e.target.value)} className="h-8 text-sm" />
+                  </div>
+                </div>
+
+                <div>
+                  <SecLabel>More Comments</SecLabel>
+                  <Textarea placeholder="Additional comments or special instructions..." rows={3} value={trouser.comments} onChange={(e) => setT("comments", e.target.value)} className="text-sm resize-none" />
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </DialogContent>

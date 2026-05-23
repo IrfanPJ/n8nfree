@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useState } from "react";
 import QRCode from "qrcode";
 import { QrCode, Printer, Download } from "lucide-react";
 import {
@@ -28,19 +28,17 @@ export function OrderQRDialog({
   customerName,
   garmentType,
 }: OrderQRDialogProps) {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
   const [dataUrl, setDataUrl] = useState<string>("");
 
   useEffect(() => {
-    if (!open || !canvasRef.current) return;
-    QRCode.toCanvas(canvasRef.current, orderId, {
-      width: 220,
-      margin: 2,
-      color: { dark: "#000000", light: "#ffffff" },
-    }).catch(console.error);
+    if (!open || !orderId) {
+      setDataUrl("");
+      return;
+    }
     QRCode.toDataURL(orderId, {
-      width: 400,
+      width: 256,
       margin: 2,
+      errorCorrectionLevel: "M",
       color: { dark: "#000000", light: "#ffffff" },
     })
       .then(setDataUrl)
@@ -102,9 +100,19 @@ export function OrderQRDialog({
         </DialogHeader>
 
         <div className="flex flex-col items-center space-y-5 py-2">
-          {/* QR canvas */}
-          <div className="p-4 rounded-xl border border-border bg-white shadow-sm">
-            <canvas ref={canvasRef} />
+          {/* QR image */}
+          <div className="p-4 rounded-xl border border-border bg-white shadow-sm flex items-center justify-center min-h-[192px]">
+            {dataUrl ? (
+              <img
+                src={dataUrl}
+                alt={`QR Code for ${orderNumber}`}
+                width={160}
+                height={160}
+                className="block"
+              />
+            ) : (
+              <div className="w-8 h-8 border-2 border-[#D4AF37] border-t-transparent rounded-full animate-spin" />
+            )}
           </div>
 
           {/* Order info */}

@@ -6,6 +6,7 @@ import { supabase } from "@/lib/supabase";
 import { auth } from "@/lib/auth";
 import { invoiceSchema, recordPaymentSchema } from "@/validators/invoice";
 import { generateInvoiceNumber } from "@/lib/utils";
+import * as Sentry from "@sentry/nextjs";
 import type { ApiResponse, InvoiceWithRelations, InvoiceStatus } from "@/types";
 
 export interface GetInvoicesParams {
@@ -127,10 +128,11 @@ export async function createInvoice(data: unknown): Promise<ApiResponse<InvoiceW
       description: `Invoice ${invoiceNumber} created`,
     });
 
-    const { data: invoice } = await supabase.from("Invoice").select(INVOICE_SELECT).eq("id", invoiceId).single();
+    const { data: invoice } = await supabase.from("Invoice").select(INVOICE_SELECT).eq("id", invoiceId).maybeSingle();
     revalidatePath("/invoices");
     return { success: true, data: invoice as InvoiceWithRelations, message: "Invoice created successfully" };
   } catch (error) {
+    Sentry.captureException(error);
     console.error("Create invoice error:", error);
     return { success: false, error: "Failed to create invoice" };
   }
@@ -181,11 +183,12 @@ export async function updateInvoice(id: string, data: unknown): Promise<ApiRespo
       );
     }
 
-    const { data: invoice } = await supabase.from("Invoice").select(INVOICE_SELECT).eq("id", id).single();
+    const { data: invoice } = await supabase.from("Invoice").select(INVOICE_SELECT).eq("id", id).maybeSingle();
     revalidatePath("/invoices");
     revalidatePath(`/invoices/${id}`);
     return { success: true, data: invoice as InvoiceWithRelations, message: "Invoice updated" };
   } catch (error) {
+    Sentry.captureException(error);
     console.error("Update invoice error:", error);
     return { success: false, error: "Failed to update invoice" };
   }
@@ -194,6 +197,9 @@ export async function updateInvoice(id: string, data: unknown): Promise<ApiRespo
 export async function recordPayment(invoiceId: string, data: unknown): Promise<ApiResponse<InvoiceWithRelations>> {
   const session = await auth();
   if (!session?.user) return { success: false, error: "Unauthorized" };
+  if (!["ADMIN", "MANAGER"].includes(session.user.role)) {
+    return { success: false, error: "Insufficient permissions to record payments" };
+  }
 
   const parsed = recordPaymentSchema.safeParse(data);
   if (!parsed.success) {
@@ -201,7 +207,12 @@ export async function recordPayment(invoiceId: string, data: unknown): Promise<A
   }
 
   try {
-    const { data: existing } = await supabase.from("Invoice").select("*").eq("id", invoiceId).single();
+    const { data: existing, error: fetchError } = await supabase
+      .from("Invoice")
+      .select("*")
+      .eq("id", invoiceId)
+      .maybeSingle();
+    if (fetchError) throw fetchError;
     if (!existing) return { success: false, error: "Invoice not found" };
 
     const newPaid = existing.paidAmount + parsed.data.amount;
@@ -235,11 +246,12 @@ export async function recordPayment(invoiceId: string, data: unknown): Promise<A
       description: `Payment of AED ${parsed.data.amount} recorded on invoice ${existing.invoiceNumber}`,
     });
 
-    const { data: invoice } = await supabase.from("Invoice").select(INVOICE_SELECT).eq("id", invoiceId).single();
+    const { data: invoice } = await supabase.from("Invoice").select(INVOICE_SELECT).eq("id", invoiceId).maybeSingle();
     revalidatePath("/invoices");
     revalidatePath(`/invoices/${invoiceId}`);
     return { success: true, data: invoice as InvoiceWithRelations, message: "Payment recorded" };
   } catch (error) {
+    Sentry.captureException(error);
     console.error("Record payment error:", error);
     return { success: false, error: "Failed to record payment" };
   }

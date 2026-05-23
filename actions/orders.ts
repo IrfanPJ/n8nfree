@@ -149,7 +149,7 @@ export async function createOrder(data: unknown): Promise<ApiResponse<OrderWithR
       .from("Customer")
       .select("name")
       .eq("id", parsed.data.customerId)
-      .single();
+      .maybeSingle();
 
     await supabase.from("ActivityLog").insert({
       id: randomUUID(),
@@ -166,7 +166,7 @@ export async function createOrder(data: unknown): Promise<ApiResponse<OrderWithR
       .from("Order")
       .select(ORDER_SELECT)
       .eq("id", orderId)
-      .single();
+      .maybeSingle();
 
     revalidatePath("/orders");
     return {
@@ -212,7 +212,7 @@ export async function updateOrder(id: string, data: unknown): Promise<ApiRespons
 
     if (error) throw error;
 
-    const { data: order } = await supabase.from("Order").select(ORDER_SELECT).eq("id", id).single();
+    const { data: order } = await supabase.from("Order").select(ORDER_SELECT).eq("id", id).maybeSingle();
 
     await supabase.from("ActivityLog").insert({
       id: randomUUID(),
@@ -267,7 +267,7 @@ export async function updateOrderStatus(
       changedAt: now,
     });
 
-    const { data: order } = await supabase.from("Order").select(ORDER_SELECT).eq("id", id).single();
+    const { data: order } = await supabase.from("Order").select(ORDER_SELECT).eq("id", id).maybeSingle();
 
     await supabase.from("ActivityLog").insert({
       id: randomUUID(),
@@ -319,7 +319,7 @@ export async function deleteOrder(id: string): Promise<ApiResponse<void>> {
       .from("Order")
       .select("orderNumber, customerId")
       .eq("id", id)
-      .single();
+      .maybeSingle();
 
     await supabase.from("Order").update({ isActive: false, updatedAt: new Date().toISOString() }).eq("id", id);
 
@@ -345,8 +345,22 @@ export async function deleteOrder(id: string): Promise<ApiResponse<void>> {
 export async function updateOrderDesign(id: string, specText: string): Promise<void> {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
-  await supabase.from("Order").update({ designNotes: specText, updatedAt: new Date().toISOString() }).eq("id", id);
+
+  const trimmed = specText?.trim() ?? "";
+  if (trimmed.length > 5000) throw new Error("Design notes exceed maximum length of 5000 characters");
+
+  const { error } = await supabase
+    .from("Order")
+    .update({ designNotes: trimmed, updatedAt: new Date().toISOString() })
+    .eq("id", id);
+
+  if (error) {
+    Sentry.captureException(error);
+    throw new Error("Failed to update order design");
+  }
+
   revalidatePath("/orders");
+  revalidatePath(`/orders/${id}`);
 }
 
 export async function getOrdersForKanban(): Promise<OrderWithRelations[]> {
@@ -358,7 +372,8 @@ export async function getOrdersForKanban(): Promise<OrderWithRelations[]> {
     .select(ORDER_SELECT)
     .eq("isActive", true)
     .not("status", "in", '("DELIVERED","CANCELLED")')
-    .order("deliveryDate", { ascending: true });
+    .order("deliveryDate", { ascending: true })
+    .limit(200);
 
   return (data ?? []).map((o: any) => ({
     ...o,

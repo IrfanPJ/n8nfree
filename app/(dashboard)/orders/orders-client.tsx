@@ -24,6 +24,7 @@ import {
   MessageCircle,
   Sparkles,
   Ruler,
+  QrCode,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -53,6 +54,7 @@ import { OrderForm } from "@/components/orders/order-form";
 import { OrderStatusBadge, PriorityBadge } from "@/components/orders/order-status-badge";
 import { OrderKanban } from "@/components/orders/order-kanban";
 import { BespokeDesigner } from "@/components/orders/bespoke-designer";
+import { OrderQRDialog } from "@/components/orders/order-qr-dialog";
 import { deleteOrder, updateOrderStatus, updateOrderDesign } from "@/actions/orders";
 import type { OrderWithRelations, PaginatedResult, OrderStatus, Measurement } from "@/types";
 import {
@@ -200,6 +202,7 @@ export function OrdersClient({
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [statusUpdating, setStatusUpdating] = useState<string | null>(null);
   const [designOrder, setDesignOrder] = useState<OrderWithRelations | null>(null);
+  const [qrOrder, setQrOrder] = useState<OrderWithRelations | null>(null);
 
   const debouncedSearch = useCallback(
     debounce((...args: unknown[]) => {
@@ -470,6 +473,7 @@ export function OrdersClient({
                         onEdit={() => setEditOrder(order)}
                         onDelete={() => handleDelete(order)}
                         onDesign={() => setDesignOrder(order)}
+                        onQR={() => setQrOrder(order)}
                         onStatusUpdate={(status) => handleStatusUpdate(order, status)}
                       />
                     ))}
@@ -588,6 +592,16 @@ export function OrdersClient({
         }}
       />
 
+      {/* QR Code Dialog */}
+      <OrderQRDialog
+        open={!!qrOrder}
+        onClose={() => setQrOrder(null)}
+        orderId={qrOrder?.id ?? ""}
+        orderNumber={qrOrder?.orderNumber ?? ""}
+        customerName={qrOrder?.customer?.name ?? ""}
+        garmentType={qrOrder?.garmentType ?? ""}
+      />
+
       {/* View Detail Dialog */}
       <Dialog open={!!viewOrder} onOpenChange={() => setViewOrder(null)}>
         <DialogContent className="max-w-2xl max-h-[92vh] overflow-y-auto">
@@ -601,7 +615,7 @@ export function OrdersClient({
               )}
             </DialogTitle>
           </DialogHeader>
-          {viewOrder && <OrderDetailView order={viewOrder} />}
+          {viewOrder && <OrderDetailView order={viewOrder} onShowQR={() => { setViewOrder(null); setQrOrder(viewOrder); }} />}
         </DialogContent>
       </Dialog>
     </div>
@@ -620,10 +634,11 @@ interface OrderRowProps {
   onEdit: () => void;
   onDelete: () => void;
   onDesign: () => void;
+  onQR: () => void;
   onStatusUpdate: (status: OrderStatus) => void;
 }
 
-function OrderTableRow({ order, index, deletingId, statusUpdating, onView, onEdit, onDelete, onDesign, onStatusUpdate }: OrderRowProps) {
+function OrderTableRow({ order, index, deletingId, statusUpdating, onView, onEdit, onDelete, onDesign, onQR, onStatusUpdate }: OrderRowProps) {
   const isOverdue =
     order.deliveryDate &&
     new Date(order.deliveryDate) < new Date() &&
@@ -730,6 +745,7 @@ function OrderTableRow({ order, index, deletingId, statusUpdating, onView, onEdi
               <MessageCircle className="w-4 h-4" />
             </Button>
           )}
+          <Button variant="ghost" size="icon-sm" onClick={onQR} title="QR Code"><QrCode className="w-4 h-4" /></Button>
           <Button variant="ghost" size="icon-sm" onClick={() => printOrderSlip(order)}><Printer className="w-4 h-4" /></Button>
           <Button variant="ghost" size="icon-sm" onClick={onView}><Eye className="w-4 h-4" /></Button>
           <Button variant="ghost" size="icon-sm" onClick={onEdit}><Edit2 className="w-4 h-4" /></Button>
@@ -849,7 +865,7 @@ function OrderMeasurementRow({
 /* ─────────────────────────────────────────────
    Order Detail View (inside Dialog)
 ───────────────────────────────────────────── */
-function OrderDetailView({ order }: { order: OrderWithRelations }) {
+function OrderDetailView({ order, onShowQR }: { order: OrderWithRelations; onShowQR: () => void }) {
   const [activeTab, setActiveTab] = useState<"details" | "measurements">("details");
   const [measurements, setMeasurements] = useState<Measurement[] | null>(null);
   const [loadingMeasurements, setLoadingMeasurements] = useState(false);
@@ -950,6 +966,10 @@ function OrderDetailView({ order }: { order: OrderWithRelations }) {
               <Button variant="outline" size="sm" onClick={() => printOrderSlip(order)}>
                 <Printer className="w-3.5 h-3.5 mr-1.5" />
                 Print Slip
+              </Button>
+              <Button variant="outline" size="sm" onClick={onShowQR}>
+                <QrCode className="w-3.5 h-3.5 mr-1.5" />
+                QR Code
               </Button>
             </div>
           </div>

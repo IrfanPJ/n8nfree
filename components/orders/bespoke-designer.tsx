@@ -2,7 +2,7 @@
 
 import React, { useState } from "react";
 import { X, Printer, Save, Sparkles, Check } from "lucide-react";
-import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
@@ -321,7 +321,7 @@ export function BespokeDesigner({ open, onClose, orderId, orderNumber, onSave }:
         <div className="flex items-center justify-between px-6 py-4 border-b border-border bg-card flex-shrink-0">
           <div className="flex items-center gap-2">
             <Sparkles className="w-4 h-4 text-[#D4AF37]" />
-            <span className="font-bold text-sm tracking-wide">Bespoke Suit Designer</span>
+            <DialogTitle className="font-bold text-sm tracking-wide">Bespoke Suit Designer</DialogTitle>
             {orderNumber && <span className="text-xs text-muted-foreground ml-1">· {orderNumber}</span>}
           </div>
           <div className="flex items-center gap-2">

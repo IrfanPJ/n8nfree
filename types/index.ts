@@ -330,11 +330,25 @@ export type CustomerWithRelations = Customer & {
   };
 };
 
+export type OrderItem = {
+  id: string;
+  orderId: string;
+  garmentType: string;
+  quantity: number;
+  unitPrice: number;
+  assignedToId: string | null;
+  assignedTo?: Pick<User, "id" | "name" | "role"> | null;
+  notes: string | null;
+  sortOrder: number;
+  createdAt: string;
+};
+
 export type OrderWithRelations = Order & {
   customer: Customer;
   assignedTo?: User | null;
   invoice?: Invoice | null;
   statusHistory: OrderHistory[];
+  items: OrderItem[];
 };
 
 export type AppointmentWithRelations = Appointment & {

@@ -1,8 +1,18 @@
 import { z } from "zod";
 
+export const orderItemInputSchema = z.object({
+  id: z.string().optional(),
+  garmentType: z.string().min(1, "Garment type is required"),
+  quantity: z.coerce.number().int().min(1, "Minimum 1").default(1),
+  unitPrice: z.coerce.number().min(0, "Price must be non-negative").default(0),
+  assignedToId: z.string().optional().transform((v) => v || undefined),
+  notes: z.string().optional(),
+  sortOrder: z.coerce.number().int().optional(),
+});
+
 export const orderSchema = z.object({
   customerId: z.string().min(1, "Customer is required"),
-  garmentType: z.string().min(1, "Garment type is required").max(100),
+  items: z.array(orderItemInputSchema).min(1, "At least one garment item is required"),
   fabricName: z.string().optional(),
   fabricColor: z.string().optional(),
   fabricQuantity: z.coerce.number().positive().optional(),
@@ -13,7 +23,7 @@ export const orderSchema = z.object({
   priority: z.enum(["LOW", "NORMAL", "HIGH", "URGENT"]),
   designNotes: z.string().optional(),
   notes: z.string().optional(),
-  assignedToId: z.string().optional().transform(v => v || undefined),
+  assignedToId: z.string().optional().transform((v) => v || undefined),
 });
 
 export const orderStatusUpdateSchema = z.object({
@@ -35,4 +45,5 @@ export const orderStatusUpdateSchema = z.object({
 });
 
 export type OrderFormData = z.infer<typeof orderSchema>;
+export type OrderItemInput = z.infer<typeof orderItemInputSchema>;
 export type OrderStatusUpdateData = z.infer<typeof orderStatusUpdateSchema>;

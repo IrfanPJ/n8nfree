@@ -1,103 +1,75 @@
-# Claude Code Changelog
+# Claude Changes Log
 
-## 2026-05-23
-
-### 12:21 — Full code-review, debug, and security-review pass; fix all high-priority issues
-
-#### lib/supabase.ts
-
-- **File:** `lib/supabase.ts`
-- **Function/Section:** Module initialisation
-- **Type:** `bugfix`
-- **Summary:** Added explicit env-var validation at startup so a missing `NEXT_PUBLIC_SUPABASE_URL` or `SUPABASE_SERVICE_ROLE_KEY` throws a descriptive error instead of a cryptic runtime crash.
-- **Detail:** Replaced `!` non-null assertions with real guards. Server now fails fast with a clear message rather than silently producing `undefined` clients.
+Tracks all significant changes made by Claude across sessions.
 
 ---
 
-#### lib/auth.ts
+## Session — 2026-05-26 (current, uncommitted)
 
-- **File:** `lib/auth.ts`
-- **Function/Section:** `loginSchema`
-- **Type:** `bugfix`
-- **Summary:** Raised login password minimum from 1 to 8 characters to match the signup schema and prevent brute-force against trivially short passwords.
+### Multi-Garment Line Items + Per-Item Tailor Assignment
 
----
+**Goal:** Allow each order to contain multiple garment items, each assignable to a different tailor.
 
-#### actions/finance.ts
+#### Files changed
 
-- **File:** `actions/finance.ts`
-- **Function/Section:** `getFinanceStats()`, `getMonthlyFinance()`, `getTopClientsByRevenue()`
-- **Type:** `bugfix`
-- **Summary:** Wrapped all three exported functions in try-catch with Sentry exception capture; previously any DB failure caused an unhandled rejection and a blank finance page.
-- **Detail:** Added `import * as Sentry from "@sentry/nextjs"` and individual try-catch blocks. Each catch returns a safe zero-value fallback so the finance page degrades gracefully instead of crashing.
+| File | What changed |
+|------|-------------|
+| `supabase/migrations/20260526_add_order_items.sql` | New `OrderItem` table — run manually in Supabase Dashboard SQL editor |
+| `types/index.ts` | Added `OrderItem` type; updated `OrderWithRelations` to include `items: OrderItem[]` |
+| `validators/order.ts` | Added `orderItemInputSchema`; replaced single `garmentType` field with `items` array (min 1) in `orderSchema` |
+| `actions/users.ts` | Added `getAssignableStaff()` — any authenticated user can call it (not ADMIN-only) |
+| `actions/orders.ts` | `ORDER_SELECT` joins `OrderItem`; `createOrder` and `updateOrder` insert/replace item rows and derive `garmentType` from items |
+| `components/orders/order-form.tsx` | Full rewrite — `useFieldArray` for dynamic item cards, per-item tailor dropdown, qty x unitPrice auto-calculates total, overall responsible tailor at order level |
+| `app/(dashboard)/orders/orders-client.tsx` | Detail view shows items list with per-item tailor; table row shows item count badge; print slip includes garment items table |
 
----
-
-#### actions/invoices.ts — Sentry coverage
-
-- **File:** `actions/invoices.ts`
-- **Function/Section:** `createInvoice()`, `updateInvoice()`, `recordPayment()`
-- **Type:** `bugfix`
-- **Summary:** Added `Sentry.captureException(error)` to all three catch blocks that previously only called `console.error`, so production errors are now tracked in error monitoring.
+#### SQL migration note
+The first version used `UUID` types for `id`/`orderId`/`assignedToId` which failed because `Order.id` and `User.id` are `TEXT`. Fixed to use `TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text`.
 
 ---
 
-#### actions/invoices.ts — recordPayment role guard
+## Session — 2026-05-22 (committed)
 
-- **File:** `actions/invoices.ts`
-- **Function/Section:** `recordPayment()`
-- **Type:** `bugfix` (security)
-- **Summary:** Added ADMIN/MANAGER role check before recording a payment; previously any authenticated user (including STAFF) could record false payments and manipulate financial records.
+### Mobile-Responsive Layout
 
----
+**Commits:** `75832ba`, `582ac16`
 
-#### actions/invoices.ts — .single() → .maybeSingle()
+| File | What changed |
+|------|-------------|
+| `app/(dashboard)/dashboard-layout-client.tsx` | Mobile drawer sidebar state, `MobileBottomNav` (5 tabs), bottom padding for nav clearance |
+| `components/layout/sidebar.tsx` | Mobile drawer with Framer Motion animate, backdrop overlay, X close button, auto-close on route change |
+| `components/layout/topbar.tsx` | Hamburger calls mobile toggle, hides branch selector on small screens |
+| `app/(dashboard)/orders/orders-client.tsx` | Mobile kebab dropdown (always visible) replaces hover-only action buttons |
 
-- **File:** `actions/invoices.ts`
-- **Function/Section:** `recordPayment()`, `createInvoice()`, `updateInvoice()`
-- **Type:** `bugfix`
-- **Summary:** Changed three `.single()` post-write fetch calls to `.maybeSingle()`. `.single()` throws when the row is missing; `.maybeSingle()` returns null safely so the null-guard below it actually works.
+### Bespoke Designer — PDF-Exact Styling Options
 
----
+**Commits:** `c475230`, `1677dc7`
 
-#### actions/orders.ts — .single() → .maybeSingle()
+| File | What changed |
+|------|-------------|
+| `components/orders/bespoke-designer.tsx` | Full rewrite — three-tab UI (Jacket/Shirt/Trouser), all options from the PDF styling sheet, `OptionChip` layout, live SVG preview, print spec |
 
-- **File:** `actions/orders.ts`
-- **Function/Section:** `createOrder()`, `updateOrder()`, `updateOrderStatus()`, `deleteOrder()`
-- **Type:** `bugfix`
-- **Summary:** Replaced five `.single()` calls (customer lookup + post-mutation fetches) with `.maybeSingle()` to prevent unhandled throws when a referenced record is absent.
+**Fix:** `"Full Pick Lapel"` corrected to `"Full Pick"` (two distinct PDF options were incorrectly combined).
 
----
+### Inline New Client Creation
 
-#### actions/orders.ts — updateOrderDesign improvements
+**Commit:** `ebe5c3d`
 
-- **File:** `actions/orders.ts`
-- **Function/Section:** `updateOrderDesign()`
-- **Type:** `edit` (security + bugfix)
-- **Summary:** Added input length validation (max 5000 chars), error handling with Sentry capture, and `revalidatePath` for the order detail page — previously only `/orders` was revalidated so the detail view showed stale design notes.
+| File | What changed |
+|------|-------------|
+| `components/orders/order-form.tsx` | "New Client" toggle inlines a mini form (name, phone, email) that creates the customer and auto-selects them |
 
 ---
 
-#### actions/orders.ts — getOrdersForKanban limit
+## Earlier sessions (committed)
 
-- **File:** `actions/orders.ts`
-- **Function/Section:** `getOrdersForKanban()`
-- **Type:** `bugfix`
-- **Summary:** Added `.limit(200)` to the unbounded Kanban query that previously fetched every active non-delivered order, which could load thousands of rows into memory.
-
----
-
-#### hooks/use-realtime-notifications.ts
-
-- **File:** `hooks/use-realtime-notifications.ts`
-- **Function/Section:** `useRealtimeNotifications()`
-- **Type:** `bugfix`
-- **Summary:** Fixed two issues: (1) stored `addNotification` in a ref so it is not in the effect dependency array — the Zustand selector was recreated every render, causing the subscription to tear down and re-open on every render cycle; (2) added `channel.unsubscribe()` before `removeChannel` to ensure the server-side Realtime subscription is also closed on unmount.
-
----
-
-### 12:00 — Create comprehensive project README
-
-- **File:** `README.md`
-- **Type:** `create`
-- **Summary:** Wrote full project documentation covering every folder, file, server action, component, hook, store, type, validator, config file, database schema, key workflows, and environment variables.
+| Commit | Summary |
+|--------|---------|
+| `b9474bb` | Fix QR code not rendering in dialog — switched from canvas ref to `QRCode.toDataURL()` + `<img>` |
+| `f96202c` | Add QR code generation per order |
+| `9a2ec58` | Add view and print to measurements |
+| `20bb3ac` | Fix Radix dialog accessibility warnings |
+| `c834b5e` | Add Measurements tab to order detail dialog |
+| `1b61b29` | Consolidated `supabase-all.sql` |
+| `ab4c739` | 12-stage order workflow + calendar views for follow-ups & leads |
+| `86248de` | Security fixes, bug fixes, project docs |
+| `3cf7633` | Staff positions and team management (ADMIN only) |

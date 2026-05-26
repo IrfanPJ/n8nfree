@@ -121,13 +121,23 @@ function printOrderSlip(order: OrderWithRelations) {
 
     <div class="section">
       <h3>Order Details</h3>
-      <div class="row"><span class="label">Garment</span><span class="value">${order.garmentType}</span></div>
       <div class="row"><span class="label">Status</span><span class="value highlight">${statusMap[order.status] ?? order.status}</span></div>
       <div class="row"><span class="label">Order Date</span><span class="value">${new Date(order.orderDate).toLocaleDateString("en-AE")}</span></div>
       <div class="row"><span class="label">Delivery Date</span><span class="value highlight">${new Date(order.deliveryDate).toLocaleDateString("en-AE")}</span></div>
       ${order.trialDate ? `<div class="row"><span class="label">Trial Date</span><span class="value">${new Date(order.trialDate).toLocaleDateString("en-AE")}</span></div>` : ""}
-      ${order.assignedTo ? `<div class="row"><span class="label">Tailor</span><span class="value">${order.assignedTo.name}</span></div>` : ""}
+      ${order.assignedTo ? `<div class="row"><span class="label">Overall Tailor</span><span class="value">${order.assignedTo.name}</span></div>` : ""}
     </div>
+
+    ${order.items && order.items.length > 0 ? `<div class="section">
+      <h3>Garment Items</h3>
+      <table style="width:100%;border-collapse:collapse;font-size:12px">
+        <thead><tr style="border-bottom:1px solid #eee"><th style="text-align:left;padding:4px 6px;color:#999;font-weight:normal">Garment</th><th style="text-align:center;padding:4px 6px;color:#999;font-weight:normal">Qty</th><th style="text-align:right;padding:4px 6px;color:#999;font-weight:normal">Price</th><th style="text-align:left;padding:4px 6px;color:#999;font-weight:normal">Tailor</th></tr></thead>
+        <tbody>${order.items.map((item) => `<tr style="border-bottom:1px solid #f5f5f5"><td style="padding:5px 6px;font-weight:600">${item.garmentType}</td><td style="padding:5px 6px;text-align:center">${item.quantity}</td><td style="padding:5px 6px;text-align:right">AED ${(item.unitPrice * item.quantity).toLocaleString("en-AE")}</td><td style="padding:5px 6px;color:#666">${(item as any).assignedTo?.name ?? "—"}</td></tr>`).join("")}</tbody>
+      </table>
+    </div>` : `<div class="section">
+      <h3>Garment</h3>
+      <div class="row"><span class="label">Type</span><span class="value">${order.garmentType}</span></div>
+    </div>`}
 
     ${order.fabricName ? `<div class="section">
       <h3>Fabric</h3>
@@ -685,6 +695,9 @@ function OrderTableRow({ order, index, deletingId, statusUpdating, onView, onEdi
       {/* Garment */}
       <td className="px-3 py-3 hidden md:table-cell">
         <p className="text-sm">{order.garmentType}</p>
+        {order.items && order.items.length > 1 && (
+          <p className="text-[10px] text-muted-foreground mt-0.5">{order.items.length} items</p>
+        )}
         {order.fabricName && <p className="text-xs text-muted-foreground">{order.fabricName}</p>}
         {order.designNotes && (
           <p className="text-[10px] text-[#D4AF37]/70 mt-0.5 truncate max-w-[180px]" title={order.designNotes}>
@@ -1040,32 +1053,64 @@ function OrderDetailView({ order, onShowQR }: { order: OrderWithRelations; onSho
             <p className="text-xs font-semibold text-[#D4AF37] uppercase tracking-wide">
               Garment Details
             </p>
-            <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
-              <div>
-                <span className="text-xs text-muted-foreground">Type</span>
-                <p className="font-medium">{order.garmentType}</p>
+
+            {/* Items list */}
+            {order.items && order.items.length > 0 ? (
+              <div className="space-y-1.5">
+                {order.items.map((item, i) => (
+                  <div key={item.id ?? i} className="flex items-center justify-between text-sm py-1.5 border-b border-border/40 last:border-0">
+                    <div className="flex-1 min-w-0">
+                      <span className="font-medium">{item.garmentType}</span>
+                      {item.quantity > 1 && (
+                        <span className="ml-1.5 text-xs text-muted-foreground">×{item.quantity}</span>
+                      )}
+                      {item.assignedTo && (
+                        <p className="text-[11px] text-muted-foreground mt-0.5 flex items-center gap-1">
+                          <User2 className="w-3 h-3" />{item.assignedTo.name}
+                        </p>
+                      )}
+                      {item.notes && (
+                        <p className="text-[10px] text-muted-foreground/70 mt-0.5 italic truncate">{item.notes}</p>
+                      )}
+                    </div>
+                    {item.unitPrice > 0 && (
+                      <span className="text-sm font-medium ml-3 flex-shrink-0">
+                        {formatCurrency(item.unitPrice * item.quantity)}
+                      </span>
+                    )}
+                  </div>
+                ))}
               </div>
-              {order.fabricName && (
-                <div>
-                  <span className="text-xs text-muted-foreground">Fabric</span>
-                  <p className="font-medium">{order.fabricName}</p>
-                </div>
-              )}
-              {order.fabricColor && (
-                <div>
-                  <span className="text-xs text-muted-foreground">Color</span>
-                  <p className="font-medium">{order.fabricColor}</p>
-                </div>
-              )}
-              {order.fabricQuantity && (
-                <div>
-                  <span className="text-xs text-muted-foreground">Quantity</span>
-                  <p className="font-medium">{order.fabricQuantity} meters</p>
-                </div>
-              )}
-            </div>
+            ) : (
+              <div className="text-sm font-medium">{order.garmentType}</div>
+            )}
+
+            {/* Fabric info */}
+            {(order.fabricName || order.fabricColor || order.fabricQuantity) && (
+              <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm pt-1 border-t border-border/40">
+                {order.fabricName && (
+                  <div>
+                    <span className="text-xs text-muted-foreground">Fabric</span>
+                    <p className="font-medium">{order.fabricName}</p>
+                  </div>
+                )}
+                {order.fabricColor && (
+                  <div>
+                    <span className="text-xs text-muted-foreground">Color</span>
+                    <p className="font-medium">{order.fabricColor}</p>
+                  </div>
+                )}
+                {order.fabricQuantity && (
+                  <div>
+                    <span className="text-xs text-muted-foreground">Quantity</span>
+                    <p className="font-medium">{order.fabricQuantity} meters</p>
+                  </div>
+                )}
+              </div>
+            )}
+
             {order.designNotes && (
-              <div>
+              <div className="pt-1 border-t border-border/40">
                 <span className="text-xs text-muted-foreground">Design Notes</span>
                 <p className="text-sm mt-0.5 leading-relaxed">{order.designNotes}</p>
               </div>

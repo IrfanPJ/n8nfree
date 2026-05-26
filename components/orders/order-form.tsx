@@ -1,11 +1,12 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { useForm, Controller } from "react-hook-form";
+import { useForm, Controller, useFieldArray } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
 import { orderSchema, type OrderFormData } from "@/validators/order";
 import { createOrder, updateOrder } from "@/actions/orders";
+import { getAssignableStaff } from "@/actions/users";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -20,7 +21,7 @@ import {
 import { getCustomers, createCustomer } from "@/actions/customers";
 import type { OrderWithRelations, Customer } from "@/types";
 import { formatCurrency, cn } from "@/lib/utils";
-import { UserPlus, X } from "lucide-react";
+import { UserPlus, X, Plus, Trash2 } from "lucide-react";
 
 interface OrderFormProps {
   order?: OrderWithRelations;
@@ -44,6 +45,8 @@ const GARMENT_TYPES = [
   "Other",
 ];
 
+type StaffMember = { id: string; name: string; role: string; position: string | null; isActive: boolean };
+
 function FieldError({ message }: { message?: string }) {
   if (!message) return null;
   return <p className="text-xs text-destructive mt-1">{message}</p>;
@@ -58,12 +61,25 @@ export function OrderForm({
   const isEditing = !!order;
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [loadingCustomers, setLoadingCustomers] = useState(true);
+  const [staff, setStaff] = useState<StaffMember[]>([]);
   const [balanceDue, setBalanceDue] = useState(0);
   const [showAddClient, setShowAddClient] = useState(false);
   const [newClientName, setNewClientName] = useState("");
   const [newClientPhone, setNewClientPhone] = useState("");
   const [newClientEmail, setNewClientEmail] = useState("");
   const [savingClient, setSavingClient] = useState(false);
+
+  const defaultItems = order?.items?.length
+    ? order.items.map((item) => ({
+        id: item.id,
+        garmentType: item.garmentType,
+        quantity: item.quantity,
+        unitPrice: item.unitPrice,
+        assignedToId: item.assignedToId ?? "",
+        notes: item.notes ?? "",
+        sortOrder: item.sortOrder,
+      }))
+    : [{ garmentType: "", quantity: 1, unitPrice: 0, assignedToId: "", notes: "", sortOrder: 0 }];
 
   const {
     register,
@@ -76,7 +92,7 @@ export function OrderForm({
     resolver: zodResolver(orderSchema) as any, // eslint-disable-line
     defaultValues: {
       customerId: order?.customerId ?? defaultCustomerId ?? "",
-      garmentType: order?.garmentType ?? "",
+      items: defaultItems,
       fabricName: order?.fabricName ?? "",
       fabricColor: order?.fabricColor ?? "",
       fabricQuantity:
@@ -98,8 +114,19 @@ export function OrderForm({
     },
   });
 
+  const { fields, append, remove } = useFieldArray({ control, name: "items" });
+
+  const watchedItems = watch("items");
   const totalAmount = watch("totalAmount");
   const advanceAmount = watch("advanceAmount");
+
+  // Auto-calculate total from items
+  useEffect(() => {
+    const sum = (watchedItems ?? []).reduce((acc, item) => {
+      return acc + (Number(item.quantity) || 0) * (Number(item.unitPrice) || 0);
+    }, 0);
+    if (sum > 0) setValue("totalAmount", sum);
+  }, [JSON.stringify(watchedItems?.map((i) => ({ q: i.quantity, p: i.unitPrice })))]); // eslint-disable-line
 
   useEffect(() => {
     const total = Number(totalAmount) || 0;
@@ -108,17 +135,21 @@ export function OrderForm({
   }, [totalAmount, advanceAmount]);
 
   useEffect(() => {
-    async function fetchCustomers() {
+    async function fetchData() {
       try {
-        const result = await getCustomers({ pageSize: 200 });
-        setCustomers(result.data);
+        const [customersResult, staffResult] = await Promise.all([
+          getCustomers({ pageSize: 200 }),
+          getAssignableStaff(),
+        ]);
+        setCustomers(customersResult.data);
+        if (staffResult.success) setStaff(staffResult.data);
       } catch {
-        toast.error("Failed to load customers");
+        toast.error("Failed to load form data");
       } finally {
         setLoadingCustomers(false);
       }
     }
-    fetchCustomers();
+    fetchData();
   }, []);
 
   const handleSaveNewClient = async () => {
@@ -161,141 +192,119 @@ export function OrderForm({
     }
   };
 
+  const tailorOptions = staff.filter((s) =>
+    ["MASTER", "TAILOR"].includes(s.position ?? "") || s.role !== "STAFF"
+  );
+
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
-      {/* Customer & Garment */}
+      {/* Customer */}
       <div className="space-y-4">
         <h3 className="text-sm font-semibold text-[#D4AF37] uppercase tracking-wider">
           Order Details
         </h3>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div className="space-y-1.5 sm:col-span-2">
-            <div className="flex items-center justify-between">
-              <Label htmlFor="customerId">Customer *</Label>
-              <button
-                type="button"
-                onClick={() => setShowAddClient((v) => !v)}
-                className="flex items-center gap-1 text-xs text-[#D4AF37] hover:text-[#D4AF37]/80 transition-colors"
+        <div className="space-y-1.5">
+          <div className="flex items-center justify-between">
+            <Label htmlFor="customerId">Customer *</Label>
+            <button
+              type="button"
+              onClick={() => setShowAddClient((v) => !v)}
+              className="flex items-center gap-1 text-xs text-[#D4AF37] hover:text-[#D4AF37]/80 transition-colors"
+            >
+              {showAddClient ? (
+                <><X className="w-3 h-3" /> Cancel</>
+              ) : (
+                <><UserPlus className="w-3 h-3" /> New Client</>
+              )}
+            </button>
+          </div>
+
+          <Controller
+            name="customerId"
+            control={control}
+            render={({ field }) => (
+              <Select
+                value={field.value}
+                onValueChange={field.onChange}
+                disabled={loadingCustomers}
               >
-                {showAddClient ? (
-                  <><X className="w-3 h-3" /> Cancel</>
-                ) : (
-                  <><UserPlus className="w-3 h-3" /> New Client</>
-                )}
-              </button>
-            </div>
-
-            <Controller
-              name="customerId"
-              control={control}
-              render={({ field }) => (
-                <Select
-                  value={field.value}
-                  onValueChange={field.onChange}
-                  disabled={loadingCustomers}
+                <SelectTrigger
+                  className={cn(errors.customerId ? "border-destructive" : "")}
                 >
-                  <SelectTrigger
-                    className={cn(errors.customerId ? "border-destructive" : "")}
-                  >
-                    <SelectValue
-                      placeholder={
-                        loadingCustomers ? "Loading customers..." : "Select a customer"
-                      }
-                    />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {customers.map((c) => (
-                      <SelectItem key={c.id} value={c.id}>
-                        <span className="font-medium">{c.name}</span>
-                        <span className="ml-2 text-muted-foreground text-xs">
-                          {c.phone}
-                        </span>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              )}
-            />
-            <FieldError message={errors.customerId?.message} />
-
-            {/* ── Inline new-client form ── */}
-            {showAddClient && (
-              <div className="mt-2 p-4 rounded-lg border border-[#D4AF37]/25 bg-[#D4AF37]/5 space-y-3">
-                <p className="text-xs font-semibold text-[#D4AF37] flex items-center gap-1.5">
-                  <UserPlus className="w-3.5 h-3.5" />
-                  Add New Client
-                </p>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div className="space-y-1">
-                    <Label className="text-xs">Full Name *</Label>
-                    <Input
-                      placeholder="e.g. Ahmed Al Mansouri"
-                      value={newClientName}
-                      onChange={(e) => setNewClientName(e.target.value)}
-                      className="h-8 text-sm"
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <Label className="text-xs">Phone *</Label>
-                    <Input
-                      placeholder="+971 50 123 4567"
-                      value={newClientPhone}
-                      onChange={(e) => setNewClientPhone(e.target.value)}
-                      className="h-8 text-sm"
-                    />
-                  </div>
-                  <div className="space-y-1 sm:col-span-2">
-                    <Label className="text-xs">Email (optional)</Label>
-                    <Input
-                      placeholder="email@example.com"
-                      type="email"
-                      value={newClientEmail}
-                      onChange={(e) => setNewClientEmail(e.target.value)}
-                      className="h-8 text-sm"
-                    />
-                  </div>
-                </div>
-                <Button
-                  type="button"
-                  variant="gold"
-                  size="sm"
-                  onClick={handleSaveNewClient}
-                  loading={savingClient}
-                  className="w-full gap-1.5"
-                >
-                  <UserPlus className="w-3.5 h-3.5" />
-                  Save to Client Book
-                </Button>
-              </div>
+                  <SelectValue
+                    placeholder={
+                      loadingCustomers ? "Loading customers..." : "Select a customer"
+                    }
+                  />
+                </SelectTrigger>
+                <SelectContent>
+                  {customers.map((c) => (
+                    <SelectItem key={c.id} value={c.id}>
+                      <span className="font-medium">{c.name}</span>
+                      <span className="ml-2 text-muted-foreground text-xs">
+                        {c.phone}
+                      </span>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             )}
-          </div>
+          />
+          <FieldError message={errors.customerId?.message} />
 
-          <div className="space-y-1.5">
-            <Label htmlFor="garmentType">Garment Type *</Label>
-            <Controller
-              name="garmentType"
-              control={control}
-              render={({ field }) => (
-                <Select value={field.value} onValueChange={field.onChange}>
-                  <SelectTrigger
-                    className={cn(errors.garmentType ? "border-destructive" : "")}
-                  >
-                    <SelectValue placeholder="Select garment type" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {GARMENT_TYPES.map((g) => (
-                      <SelectItem key={g} value={g}>
-                        {g}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              )}
-            />
-            <FieldError message={errors.garmentType?.message} />
-          </div>
+          {showAddClient && (
+            <div className="mt-2 p-4 rounded-lg border border-[#D4AF37]/25 bg-[#D4AF37]/5 space-y-3">
+              <p className="text-xs font-semibold text-[#D4AF37] flex items-center gap-1.5">
+                <UserPlus className="w-3.5 h-3.5" />
+                Add New Client
+              </p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <Label className="text-xs">Full Name *</Label>
+                  <Input
+                    placeholder="e.g. Ahmed Al Mansouri"
+                    value={newClientName}
+                    onChange={(e) => setNewClientName(e.target.value)}
+                    className="h-8 text-sm"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">Phone *</Label>
+                  <Input
+                    placeholder="+971 50 123 4567"
+                    value={newClientPhone}
+                    onChange={(e) => setNewClientPhone(e.target.value)}
+                    className="h-8 text-sm"
+                  />
+                </div>
+                <div className="space-y-1 sm:col-span-2">
+                  <Label className="text-xs">Email (optional)</Label>
+                  <Input
+                    placeholder="email@example.com"
+                    type="email"
+                    value={newClientEmail}
+                    onChange={(e) => setNewClientEmail(e.target.value)}
+                    className="h-8 text-sm"
+                  />
+                </div>
+              </div>
+              <Button
+                type="button"
+                variant="gold"
+                size="sm"
+                onClick={handleSaveNewClient}
+                loading={savingClient}
+                className="w-full gap-1.5"
+              >
+                <UserPlus className="w-3.5 h-3.5" />
+                Save to Client Book
+              </Button>
+            </div>
+          )}
+        </div>
 
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div className="space-y-1.5">
             <Label htmlFor="priority">Priority</Label>
             <Controller
@@ -316,6 +325,174 @@ export function OrderForm({
               )}
             />
           </div>
+
+          <div className="space-y-1.5">
+            <Label>Responsible Tailor</Label>
+            <Controller
+              name="assignedToId"
+              control={control}
+              render={({ field }) => (
+                <Select
+                  value={field.value || "__none__"}
+                  onValueChange={(v) => field.onChange(v === "__none__" ? "" : v)}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Assign overall tailor" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">— Unassigned —</SelectItem>
+                    {staff.map((s) => (
+                      <SelectItem key={s.id} value={s.id}>
+                        {s.name}
+                        {s.position && (
+                          <span className="ml-1.5 text-xs text-muted-foreground">
+                            ({s.position.replace(/_/g, " ")})
+                          </span>
+                        )}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* Garment Items */}
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <h3 className="text-sm font-semibold text-[#D4AF37] uppercase tracking-wider">
+            Garment Items
+          </h3>
+          <button
+            type="button"
+            onClick={() =>
+              append({ garmentType: "", quantity: 1, unitPrice: 0, assignedToId: "", notes: "", sortOrder: fields.length })
+            }
+            className="flex items-center gap-1 text-xs text-[#D4AF37] hover:text-[#D4AF37]/80 transition-colors"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            Add Item
+          </button>
+        </div>
+        {(errors.items as any)?.message && (
+          <p className="text-xs text-destructive">{(errors.items as any).message}</p>
+        )}
+
+        <div className="space-y-3">
+          {fields.map((field, index) => (
+            <div
+              key={field.id}
+              className="rounded-lg border border-border bg-secondary/10 p-4 space-y-3"
+            >
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                  Item {index + 1}
+                </span>
+                {fields.length > 1 && (
+                  <button
+                    type="button"
+                    onClick={() => remove(index)}
+                    className="text-muted-foreground hover:text-destructive transition-colors"
+                    aria-label="Remove item"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Garment Type *</Label>
+                  <Controller
+                    name={`items.${index}.garmentType`}
+                    control={control}
+                    render={({ field: f }) => (
+                      <Select value={f.value} onValueChange={f.onChange}>
+                        <SelectTrigger
+                          className={cn(
+                            "h-9 text-sm",
+                            errors.items?.[index]?.garmentType ? "border-destructive" : ""
+                          )}
+                        >
+                          <SelectValue placeholder="Select type" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {GARMENT_TYPES.map((g) => (
+                            <SelectItem key={g} value={g}>
+                              {g}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )}
+                  />
+                  <FieldError message={errors.items?.[index]?.garmentType?.message} />
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Tailor</Label>
+                  <Controller
+                    name={`items.${index}.assignedToId`}
+                    control={control}
+                    render={({ field: f }) => (
+                      <Select
+                        value={f.value || "__none__"}
+                        onValueChange={(v) => f.onChange(v === "__none__" ? "" : v)}
+                      >
+                        <SelectTrigger className="h-9 text-sm">
+                          <SelectValue placeholder="Assign tailor" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="__none__">— Unassigned —</SelectItem>
+                          {tailorOptions.map((s) => (
+                            <SelectItem key={s.id} value={s.id}>
+                              {s.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )}
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Quantity</Label>
+                  <Input
+                    type="number"
+                    min="1"
+                    step="1"
+                    className="h-9 text-sm"
+                    {...register(`items.${index}.quantity`, { valueAsNumber: true })}
+                  />
+                  <FieldError message={errors.items?.[index]?.quantity?.message} />
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Unit Price (AED)</Label>
+                  <Input
+                    type="number"
+                    min="0"
+                    step="1"
+                    placeholder="0"
+                    className="h-9 text-sm"
+                    {...register(`items.${index}.unitPrice`, { valueAsNumber: true })}
+                  />
+                  <FieldError message={errors.items?.[index]?.unitPrice?.message} />
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label className="text-xs">Item Notes</Label>
+                <Input
+                  placeholder="Specific instructions for this garment..."
+                  className="h-8 text-sm"
+                  {...register(`items.${index}.notes`)}
+                />
+              </div>
+            </div>
+          ))}
         </div>
       </div>
 
@@ -349,16 +526,14 @@ export function OrderForm({
               step="0.1"
               min="0"
               placeholder="2.5"
-              {...register("fabricQuantity", {
-                valueAsNumber: true,
-              })}
+              {...register("fabricQuantity", { valueAsNumber: true })}
             />
             <FieldError message={errors.fabricQuantity?.message} />
           </div>
         </div>
       </div>
 
-      {/* Dates */}
+      {/* Schedule */}
       <div className="space-y-4">
         <h3 className="text-sm font-semibold text-[#D4AF37] uppercase tracking-wider">
           Schedule

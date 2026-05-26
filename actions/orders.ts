@@ -15,7 +15,8 @@ const ORDER_SELECT = `
   customer:Customer!customerId(*),
   assignedTo:User!assignedToId(*),
   invoice:Invoice!orderId(*),
-  statusHistory:OrderHistory!orderId(*)
+  statusHistory:OrderHistory!orderId(*),
+  items:OrderItem!orderId(*, assignedTo:User!assignedToId(id,name,role,position))
 `;
 
 export async function getOrders(params: {
@@ -113,11 +114,17 @@ export async function createOrder(data: unknown): Promise<ApiResponse<OrderWithR
     const orderNumber = generateOrderNumber();
     const now = new Date().toISOString();
 
+    const items = parsed.data.items;
+    const derivedGarmentType =
+      items.length === 1
+        ? items[0].garmentType
+        : `${items[0].garmentType} +${items.length - 1} more`;
+
     const { error: orderError } = await supabase.from("Order").insert({
       id: orderId,
       orderNumber,
       customerId: parsed.data.customerId,
-      garmentType: parsed.data.garmentType,
+      garmentType: derivedGarmentType,
       fabricName: parsed.data.fabricName ?? null,
       fabricColor: parsed.data.fabricColor ?? null,
       fabricQuantity: parsed.data.fabricQuantity ?? null,
@@ -135,6 +142,22 @@ export async function createOrder(data: unknown): Promise<ApiResponse<OrderWithR
     });
 
     if (orderError) throw orderError;
+
+    const { error: itemsError } = await supabase.from("OrderItem").insert(
+      items.map((item, idx) => ({
+        id: randomUUID(),
+        orderId,
+        garmentType: item.garmentType,
+        quantity: item.quantity,
+        unitPrice: item.unitPrice,
+        assignedToId: item.assignedToId || null,
+        notes: item.notes || null,
+        sortOrder: item.sortOrder ?? idx,
+        createdAt: now,
+        updatedAt: now,
+      }))
+    );
+    if (itemsError) throw itemsError;
 
     await supabase.from("OrderHistory").insert({
       id: historyId,
@@ -190,11 +213,18 @@ export async function updateOrder(id: string, data: unknown): Promise<ApiRespons
   }
 
   try {
+    const items = parsed.data.items;
+    const derivedGarmentType =
+      items.length === 1
+        ? items[0].garmentType
+        : `${items[0].garmentType} +${items.length - 1} more`;
+    const now = new Date().toISOString();
+
     const { error } = await supabase
       .from("Order")
       .update({
         customerId: parsed.data.customerId,
-        garmentType: parsed.data.garmentType,
+        garmentType: derivedGarmentType,
         fabricName: parsed.data.fabricName ?? null,
         fabricColor: parsed.data.fabricColor ?? null,
         fabricQuantity: parsed.data.fabricQuantity ?? null,
@@ -206,11 +236,30 @@ export async function updateOrder(id: string, data: unknown): Promise<ApiRespons
         designNotes: parsed.data.designNotes ?? null,
         notes: parsed.data.notes ?? null,
         assignedToId: parsed.data.assignedToId || null,
-        updatedAt: new Date().toISOString(),
+        updatedAt: now,
       })
       .eq("id", id);
 
     if (error) throw error;
+
+    await supabase.from("OrderItem").delete().eq("orderId", id);
+    if (items.length > 0) {
+      const { error: itemsError } = await supabase.from("OrderItem").insert(
+        items.map((item, idx) => ({
+          id: randomUUID(),
+          orderId: id,
+          garmentType: item.garmentType,
+          quantity: item.quantity,
+          unitPrice: item.unitPrice,
+          assignedToId: item.assignedToId || null,
+          notes: item.notes || null,
+          sortOrder: item.sortOrder ?? idx,
+          createdAt: now,
+          updatedAt: now,
+        }))
+      );
+      if (itemsError) throw itemsError;
+    }
 
     const { data: order } = await supabase.from("Order").select(ORDER_SELECT).eq("id", id).maybeSingle();
 

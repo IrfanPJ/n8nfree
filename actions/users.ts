@@ -4,6 +4,18 @@ import { auth } from "@/lib/auth";
 import { supabase } from "@/lib/supabase";
 import type { StaffPosition, UserRole } from "@/types";
 
+export async function getAssignableStaff() {
+  const session = await auth();
+  if (!session?.user) return { success: false as const, error: "Unauthorized" };
+  const { data, error } = await supabase
+    .from("User")
+    .select("id, name, role, position, isActive")
+    .eq("isActive", true)
+    .order("name");
+  if (error) return { success: false as const, error: error.message };
+  return { success: true as const, data: (data ?? []) as { id: string; name: string; role: string; position: string | null; isActive: boolean }[] };
+}
+
 export async function getTeamMembers() {
   const session = await auth();
   if (!session?.user || session.user.role !== "ADMIN") {

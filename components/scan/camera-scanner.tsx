@@ -30,10 +30,20 @@ export function CameraScanner({ onDetected, onClose }: CameraScannerProps) {
     detectedRef.current = false;
     setError(null);
 
+    // Cancellation flag: if the component unmounts or facing changes while getUserMedia
+    // is still pending, the resolved stream is stopped immediately and never assigned.
+    let cancelled = false;
+
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: facing, width: { ideal: 1280 }, height: { ideal: 720 } },
       });
+
+      if (cancelled) {
+        stream.getTracks().forEach((t) => t.stop());
+        return;
+      }
+
       streamRef.current = stream;
       const video = videoRef.current;
       if (!video) return;
@@ -43,14 +53,29 @@ export function CameraScanner({ onDetected, onClose }: CameraScannerProps) {
       // Lazy-load jsqr only on client when camera starts
       const jsQR = (await import("jsqr")).default;
 
-      const scan = () => {
-        const canvas = canvasRef.current;
-        if (!canvas || !video || video.readyState < 2) {
-          rafRef.current = requestAnimationFrame(scan);
-          return;
+      // Set canvas dimensions once when video metadata is known — not on every frame
+      const canvas = canvasRef.current;
+      if (canvas) {
+        canvas.width = video.videoWidth || 1280;
+        canvas.height = video.videoHeight || 720;
+      }
+
+      // Throttle to ~10fps — jsQR on a full 1280×720 frame is expensive on mobile
+      let lastScan = 0;
+      const scan = (ts: number) => {
+        if (cancelled) return;
+        rafRef.current = requestAnimationFrame(scan);
+        if (ts - lastScan < 100) return; // ~10fps
+        lastScan = ts;
+
+        if (!canvas || !video || video.readyState < 2) return;
+
+        // Only resize canvas if video dimensions actually changed (e.g. after orientation change)
+        if (canvas.width !== video.videoWidth || canvas.height !== video.videoHeight) {
+          canvas.width = video.videoWidth;
+          canvas.height = video.videoHeight;
         }
-        canvas.width = video.videoWidth;
-        canvas.height = video.videoHeight;
+
         const ctx = canvas.getContext("2d");
         if (!ctx) return;
         ctx.drawImage(video, 0, 0);
@@ -60,27 +85,35 @@ export function CameraScanner({ onDetected, onClose }: CameraScannerProps) {
         });
         if (code?.data && !detectedRef.current) {
           detectedRef.current = true;
+          cancelled = true;
           stopStream();
           onDetected(code.data);
-          return;
         }
-        rafRef.current = requestAnimationFrame(scan);
       };
       rafRef.current = requestAnimationFrame(scan);
+
+      // Return cleanup to set cancelled flag when effect tears down
+      return () => { cancelled = true; };
     } catch (err: any) {
-      if (err?.name === "NotAllowedError") {
-        setError("Camera access denied. Please allow camera permission and try again.");
-      } else if (err?.name === "NotFoundError") {
-        setError("No camera found on this device.");
-      } else {
-        setError("Could not start camera.");
+      if (!cancelled) {
+        if (err?.name === "NotAllowedError") {
+          setError("Camera access denied. Please allow camera permission and try again.");
+        } else if (err?.name === "NotFoundError") {
+          setError("No camera found on this device.");
+        } else {
+          setError("Could not start camera.");
+        }
       }
     }
   }, [stopStream, onDetected]);
 
   useEffect(() => {
-    startCamera(facingMode);
-    return stopStream;
+    let cleanupFn: (() => void) | undefined;
+    startCamera(facingMode).then((fn) => { cleanupFn = fn; });
+    return () => {
+      cleanupFn?.();
+      stopStream();
+    };
   }, [facingMode]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleFlip = () => {
@@ -133,7 +166,6 @@ export function CameraScanner({ onDetected, onClose }: CameraScannerProps) {
 
             {/* Viewfinder overlay */}
             <div className="relative z-10 w-64 h-64">
-              {/* Corner brackets */}
               {(["tl","tr","bl","br"] as const).map((corner) => (
                 <span
                   key={corner}
@@ -146,7 +178,6 @@ export function CameraScanner({ onDetected, onClose }: CameraScannerProps) {
                   )}
                 />
               ))}
-              {/* Scan line animation */}
               <div className="absolute inset-x-0 h-0.5 bg-[#D4AF37]/70 animate-scan-line" />
             </div>
           </>

@@ -45,7 +45,8 @@ export async function signUpAction(
     password: hashed,
     role: "STAFF",
     position: null,
-    isActive: true,
+    isActive: false,      // requires admin activation before the account can log in
+    pagePermissions: [],  // no page access until admin grants it
     createdAt: now,
     updatedAt: now,
   });

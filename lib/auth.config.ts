@@ -1,7 +1,7 @@
 import type { NextAuthConfig } from "next-auth";
 
 export const authConfig: NextAuthConfig = {
-  session: { strategy: "jwt" },
+  session: { strategy: "jwt", maxAge: 3600 }, // 1 hour — limits stale-role window after demotion
   pages: {
     signIn: "/login",
     error: "/login",

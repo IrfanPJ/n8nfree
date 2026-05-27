@@ -9,15 +9,7 @@ import { generateOrderNumber } from "@/lib/utils";
 import * as Sentry from "@sentry/nextjs";
 import { sendOrderStatusUpdate } from "@/lib/email";
 import type { ApiResponse, OrderWithRelations, PaginatedResult, OrderStatus } from "@/types";
-
-const ORDER_SELECT = `
-  *,
-  customer:Customer!customerId(*),
-  assignedTo:User!assignedToId(*),
-  invoice:Invoice!orderId(*),
-  statusHistory:OrderHistory!orderId(*),
-  items:OrderItem!orderId(*, assignedTo:User!assignedToId(id,name,role,position))
-`;
+import { ORDER_SELECT } from "@/lib/order-select";
 
 export async function getOrders(params: {
   page?: number;
@@ -26,7 +18,7 @@ export async function getOrders(params: {
   status?: string;
   priority?: string;
   branch?: string;
-  cursor?: string; // createdAt ISO string of last item for cursor-based pagination
+  cursor?: string;
 }): Promise<PaginatedResult<OrderWithRelations>> {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
@@ -39,13 +31,15 @@ export async function getOrders(params: {
   if (status) { countQ = countQ.eq("status", status); dataQ = dataQ.eq("status", status); }
   if (priority) { countQ = countQ.eq("priority", priority); dataQ = dataQ.eq("priority", priority); }
   if (branch && branch !== "All Branches") { countQ = countQ.eq("branch", branch); dataQ = dataQ.eq("branch", branch); }
+
   if (search) {
-    const f = `orderNumber.ilike.%${search}%,garmentType.ilike.%${search}%,fabricName.ilike.%${search}%`;
+    // Escape PostgREST filter metacharacters to prevent filter injection
+    const safe = search.replace(/[%_,()"'\\]/g, "\\$&");
+    const f = `orderNumber.ilike.%${safe}%,garmentType.ilike.%${safe}%,fabricName.ilike.%${safe}%`;
     countQ = countQ.or(f);
     dataQ = dataQ.or(f);
   }
 
-  // Cursor-based: skip offset when cursor provided
   if (cursor) {
     dataQ = dataQ.lt("createdAt", cursor);
   } else {
@@ -174,7 +168,7 @@ export async function createOrder(data: unknown): Promise<ApiResponse<OrderWithR
       .eq("id", parsed.data.customerId)
       .maybeSingle();
 
-    await supabase.from("ActivityLog").insert({
+    supabase.from("ActivityLog").insert({
       id: randomUUID(),
       userId: session.user.id,
       customerId: parsed.data.customerId,
@@ -183,7 +177,7 @@ export async function createOrder(data: unknown): Promise<ApiResponse<OrderWithR
       entity: "Order",
       entityId: orderId,
       description: `Order "${orderNumber}" was created for ${customer?.name ?? "customer"}`,
-    });
+    }).catch(() => {});
 
     const { data: order } = await supabase
       .from("Order")
@@ -198,7 +192,7 @@ export async function createOrder(data: unknown): Promise<ApiResponse<OrderWithR
       message: `Order ${orderNumber} created successfully`,
     };
   } catch (error) {
-    Sentry.captureException(error); console.error("Create order error:", error);
+    Sentry.captureException(error, { extra: { action: "createOrder" } });
     return { success: false, error: "Failed to create order" };
   }
 }
@@ -220,7 +214,33 @@ export async function updateOrder(id: string, data: unknown): Promise<ApiRespons
         : `${items[0].garmentType} +${items.length - 1} more`;
     const now = new Date().toISOString();
 
-    const { error } = await supabase
+    // Fetch existing item IDs before touching anything
+    const { data: oldItemRows } = await supabase
+      .from("OrderItem")
+      .select("id")
+      .eq("orderId", id);
+    const oldIds = (oldItemRows ?? []).map((r: any) => r.id);
+
+    // Insert new items first — if this fails, Order row is untouched
+    const newIds = items.map(() => randomUUID());
+    const { error: itemsError } = await supabase.from("OrderItem").insert(
+      items.map((item, idx) => ({
+        id: newIds[idx],
+        orderId: id,
+        garmentType: item.garmentType,
+        quantity: item.quantity,
+        unitPrice: item.unitPrice,
+        assignedToId: item.assignedToId || null,
+        notes: item.notes || null,
+        sortOrder: item.sortOrder ?? idx,
+        createdAt: now,
+        updatedAt: now,
+      }))
+    );
+    if (itemsError) throw itemsError;
+
+    // Update Order row — if this fails, compensate by deleting the new items
+    const { error: orderError } = await supabase
       .from("Order")
       .update({
         customerId: parsed.data.customerId,
@@ -240,30 +260,22 @@ export async function updateOrder(id: string, data: unknown): Promise<ApiRespons
       })
       .eq("id", id);
 
-    if (error) throw error;
+    if (orderError) {
+      // Compensate: remove the newly inserted items to avoid duplicates
+      if (newIds.length) {
+        await supabase.from("OrderItem").delete().in("id", newIds);
+      }
+      throw orderError;
+    }
 
-    await supabase.from("OrderItem").delete().eq("orderId", id);
-    if (items.length > 0) {
-      const { error: itemsError } = await supabase.from("OrderItem").insert(
-        items.map((item, idx) => ({
-          id: randomUUID(),
-          orderId: id,
-          garmentType: item.garmentType,
-          quantity: item.quantity,
-          unitPrice: item.unitPrice,
-          assignedToId: item.assignedToId || null,
-          notes: item.notes || null,
-          sortOrder: item.sortOrder ?? idx,
-          createdAt: now,
-          updatedAt: now,
-        }))
-      );
-      if (itemsError) throw itemsError;
+    // Both succeeded — now safe to remove old items
+    if (oldIds.length) {
+      await supabase.from("OrderItem").delete().in("id", oldIds);
     }
 
     const { data: order } = await supabase.from("Order").select(ORDER_SELECT).eq("id", id).maybeSingle();
 
-    await supabase.from("ActivityLog").insert({
+    supabase.from("ActivityLog").insert({
       id: randomUUID(),
       userId: session.user.id,
       customerId: parsed.data.customerId,
@@ -272,13 +284,13 @@ export async function updateOrder(id: string, data: unknown): Promise<ApiRespons
       entity: "Order",
       entityId: id,
       description: `Order "${order?.orderNumber}" was updated`,
-    });
+    }).catch(() => {});
 
     revalidatePath("/orders");
     revalidatePath(`/orders/${id}`);
     return { success: true, data: order as OrderWithRelations, message: "Order updated successfully" };
   } catch (error) {
-    Sentry.captureException(error); console.error("Update order error:", error);
+    Sentry.captureException(error, { extra: { orderId: id, action: "updateOrder" } });
     return { success: false, error: "Failed to update order" };
   }
 }
@@ -318,7 +330,7 @@ export async function updateOrderStatus(
 
     const { data: order } = await supabase.from("Order").select(ORDER_SELECT).eq("id", id).maybeSingle();
 
-    await supabase.from("ActivityLog").insert({
+    supabase.from("ActivityLog").insert({
       id: randomUUID(),
       userId: session.user.id,
       customerId: (order as any)?.customerId,
@@ -328,7 +340,7 @@ export async function updateOrderStatus(
       entityId: id,
       description: `Order "${order?.orderNumber}" status changed to ${parsed.data.status}`,
       metadata: { status: parsed.data.status, notes: parsed.data.notes },
-    });
+    }).catch(() => {});
 
     const customer = (order as any)?.customer;
     if (customer?.email) {
@@ -347,11 +359,16 @@ export async function updateOrderStatus(
     }
     return {
       success: true,
-      data: { ...order, statusHistory: (order?.statusHistory ?? []).sort((a: any, b: any) => new Date(b.changedAt).getTime() - new Date(a.changedAt).getTime()) } as OrderWithRelations,
+      data: {
+        ...order,
+        statusHistory: (order?.statusHistory ?? []).sort(
+          (a: any, b: any) => new Date(b.changedAt).getTime() - new Date(a.changedAt).getTime()
+        ),
+      } as OrderWithRelations,
       message: `Order status updated to ${parsed.data.status}`,
     };
   } catch (error) {
-    Sentry.captureException(error); console.error("Update order status error:", error);
+    Sentry.captureException(error, { extra: { orderId: id, action: "updateOrderStatus" } });
     return { success: false, error: "Failed to update order status" };
   }
 }
@@ -372,7 +389,7 @@ export async function deleteOrder(id: string): Promise<ApiResponse<void>> {
 
     await supabase.from("Order").update({ isActive: false, updatedAt: new Date().toISOString() }).eq("id", id);
 
-    await supabase.from("ActivityLog").insert({
+    supabase.from("ActivityLog").insert({
       id: randomUUID(),
       userId: session.user.id,
       customerId: order?.customerId,
@@ -381,12 +398,12 @@ export async function deleteOrder(id: string): Promise<ApiResponse<void>> {
       entity: "Order",
       entityId: id,
       description: `Order "${order?.orderNumber}" was deleted`,
-    });
+    }).catch(() => {});
 
     revalidatePath("/orders");
     return { success: true, message: "Order deleted successfully" };
   } catch (error) {
-    Sentry.captureException(error); console.error("Delete order error:", error);
+    Sentry.captureException(error, { extra: { orderId: id, action: "deleteOrder" } });
     return { success: false, error: "Failed to delete order" };
   }
 }
@@ -394,6 +411,10 @@ export async function deleteOrder(id: string): Promise<ApiResponse<void>> {
 export async function updateOrderDesign(id: string, specText: string): Promise<void> {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
+  // Only ADMIN or MANAGER can overwrite design notes
+  if (!["ADMIN", "MANAGER"].includes(session.user.role)) {
+    throw new Error("Insufficient permissions");
+  }
 
   const trimmed = specText?.trim() ?? "";
   if (trimmed.length > 5000) throw new Error("Design notes exceed maximum length of 5000 characters");
@@ -404,7 +425,7 @@ export async function updateOrderDesign(id: string, specText: string): Promise<v
     .eq("id", id);
 
   if (error) {
-    Sentry.captureException(error);
+    Sentry.captureException(error, { extra: { orderId: id, action: "updateOrderDesign" } });
     throw new Error("Failed to update order design");
   }
 

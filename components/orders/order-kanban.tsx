@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useRef, useTransition, useEffect } from "react";
+import React, { useState, useRef, useTransition } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
 import {
@@ -339,11 +339,6 @@ export function OrderKanban({
   const [draggedOrderId, setDraggedOrderId] = useState<string | null>(null);
   /* Ref gives drop handlers a guaranteed-fresh id without stale closures */
   const dragRef = useRef<string | null>(null);
-
-  // Sync kanban state when parent refreshes data (e.g. after router.refresh() from Realtime)
-  useEffect(() => {
-    setOrders(initialOrders);
-  }, [initialOrders]);
 
   const ordersByStatus = React.useMemo(() => {
     const map: Record<OrderStatus, OrderWithRelations[]> = {

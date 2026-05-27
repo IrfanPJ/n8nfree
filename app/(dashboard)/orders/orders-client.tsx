@@ -221,7 +221,7 @@ export function OrdersClient({
     setData(initialData);
   }, [initialData]);
 
-  // Realtime: refresh data whenever any Order row changes (cross-device, e.g. QR scan on phone)
+  // Realtime: call router.refresh() whenever any Order row changes (e.g. after a QR scan)
   useEffect(() => {
     const sb = getSupabaseBrowser();
     if (!sb) return;

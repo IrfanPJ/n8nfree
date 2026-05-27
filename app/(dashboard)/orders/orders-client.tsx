@@ -216,7 +216,12 @@ export function OrdersClient({
   const [designOrder, setDesignOrder] = useState<OrderWithRelations | null>(null);
   const [qrOrder, setQrOrder] = useState<OrderWithRelations | null>(null);
 
-  // Realtime: refresh page data whenever any Order row changes (e.g. after a QR scan)
+  // Sync local state whenever the server re-fetches (router.refresh updates initialData prop)
+  useEffect(() => {
+    setData(initialData);
+  }, [initialData]);
+
+  // Realtime: call router.refresh() whenever any Order row changes (e.g. after a QR scan)
   useEffect(() => {
     const sb = getSupabaseBrowser();
     if (!sb) return;
@@ -227,6 +232,13 @@ export function OrdersClient({
       })
       .subscribe();
     return () => { sb.removeChannel(channel); };
+  }, [router]);
+
+  // Refresh when user switches back to this tab (handles mobile scan → return to orders tab)
+  useEffect(() => {
+    const onVisible = () => { if (document.visibilityState === "visible") router.refresh(); };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
   }, [router]);
 
   const debouncedSearch = useCallback(

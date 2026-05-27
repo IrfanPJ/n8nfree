@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useCallback, useTransition } from "react";
+import React, { useState, useCallback, useTransition, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
@@ -58,6 +58,7 @@ import { BespokeDesigner } from "@/components/orders/bespoke-designer";
 import { OrderQRDialog } from "@/components/orders/order-qr-dialog";
 import { deleteOrder, updateOrderStatus, updateOrderDesign } from "@/actions/orders";
 import type { OrderWithRelations, PaginatedResult, OrderStatus, Measurement } from "@/types";
+import { getSupabaseBrowser } from "@/lib/supabase-browser";
 import {
   formatCurrency,
   formatDate,
@@ -214,6 +215,19 @@ export function OrdersClient({
   const [statusUpdating, setStatusUpdating] = useState<string | null>(null);
   const [designOrder, setDesignOrder] = useState<OrderWithRelations | null>(null);
   const [qrOrder, setQrOrder] = useState<OrderWithRelations | null>(null);
+
+  // Realtime: refresh page data whenever any Order row changes (e.g. after a QR scan)
+  useEffect(() => {
+    const sb = getSupabaseBrowser();
+    if (!sb) return;
+    const channel = sb
+      .channel("orders-realtime")
+      .on("postgres_changes", { event: "*", schema: "public", table: "Order" }, () => {
+        router.refresh();
+      })
+      .subscribe();
+    return () => { sb.removeChannel(channel); };
+  }, [router]);
 
   const debouncedSearch = useCallback(
     debounce((...args: unknown[]) => {

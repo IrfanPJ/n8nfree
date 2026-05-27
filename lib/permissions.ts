@@ -1,5 +1,6 @@
 export const PAGE_PERMISSIONS = [
   { key: "dashboard", label: "Dashboard" },
+  { key: "scan", label: "QR Scanner" },
   { key: "pos", label: "Sales / POS" },
   { key: "orders", label: "Orders" },
   { key: "customers", label: "Client Book" },

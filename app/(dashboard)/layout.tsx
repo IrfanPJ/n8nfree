@@ -8,7 +8,7 @@ import Link from "next/link";
 import { Lock } from "lucide-react";
 
 // Pages that are always accessible regardless of permissions
-const ALWAYS_ALLOWED = new Set(["settings", "notifications"]);
+const ALWAYS_ALLOWED = new Set(["settings", "notifications", "scan"]);
 
 function AccessDeniedPage() {
   return (

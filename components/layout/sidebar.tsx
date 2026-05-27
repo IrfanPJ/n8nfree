@@ -8,7 +8,7 @@ import {
   LayoutDashboard, Users, ShoppingBag, Calendar, FileText,
   Bell, Settings, LogOut, ChevronLeft, ChevronRight,
   Scissors, Package, MessageSquare, BarChart3, Phone,
-  Target, Layers, ShoppingCart, X,
+  Target, Layers, ShoppingCart, X, ScanLine,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useUIStore } from "@/store/ui-store";
@@ -20,6 +20,7 @@ import { signOut } from "next-auth/react";
 
 const navItems = [
   { href: "/pos", label: "Sales / POS", icon: ShoppingCart },
+  { href: "/scan", label: "QR Scanner", icon: ScanLine },
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/appointments", label: "Appointments", icon: Calendar },
   { href: "/orders", label: "Orders", icon: ShoppingBag },

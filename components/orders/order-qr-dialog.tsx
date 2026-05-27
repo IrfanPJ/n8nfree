@@ -35,7 +35,7 @@ export function OrderQRDialog({
       setDataUrl("");
       return;
     }
-    QRCode.toDataURL(orderId, {
+    QRCode.toDataURL(`${window.location.origin}/scan/${orderId}`, {
       width: 256,
       margin: 2,
       errorCorrectionLevel: "M",

@@ -32,16 +32,14 @@ interface OrderFormProps {
 
 const GARMENT_TYPES = [
   "Suit",
-  "Sherwani",
-  "Kurta",
+  "Jacket",
+  "Blazer",
   "Shirt",
   "Trousers",
-  "Blazer",
   "Waistcoat",
-  "Lehenga",
-  "Saree Blouse",
-  "Salwar Kameez",
-  "Gown",
+  "Tie",
+  "Kandura",
+  "Sherwani",
   "Other",
 ];
 

@@ -108,6 +108,11 @@ const config: Config = {
           "0%, 100%": { boxShadow: "0 0 0 0 rgba(212, 175, 55, 0.4)" },
           "50%": { boxShadow: "0 0 0 8px rgba(212, 175, 55, 0)" },
         },
+        "scan-line": {
+          "0%": { top: "0%" },
+          "50%": { top: "100%" },
+          "100%": { top: "0%" },
+        },
       },
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",
@@ -116,6 +121,7 @@ const config: Config = {
         "fade-in": "fade-in 0.4s ease-out",
         "slide-in-right": "slide-in-right 0.3s ease-out",
         "gold-pulse": "gold-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite",
+        "scan-line": "scan-line 2s ease-in-out infinite",
       },
       backgroundImage: {
         "gold-gradient": "linear-gradient(135deg, #D4AF37 0%, #F5E27D 50%, #B8960C 100%)",

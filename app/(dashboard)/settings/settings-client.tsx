@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { User, Bell, Palette, Building2, Save, Users, ShieldCheck } from "lucide-react";
+import { User, Bell, Palette, Building2, Save, Users, ShieldCheck, ChevronDown, Lock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -16,8 +16,10 @@ import { useTheme } from "next-themes";
 import { toast } from "sonner";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { getInitials } from "@/lib/utils";
-import { updateTeamMember } from "@/actions/users";
+import { updateTeamMember, updateUserPermissions } from "@/actions/users";
 import type { StaffPosition, UserRole } from "@/types";
+import { PAGE_PERMISSIONS } from "@/lib/permissions";
+import { cn } from "@/lib/utils";
 
 const POSITION_LABELS: Record<StaffPosition, string> = {
   SALES_STAFF: "Sales Staff",
@@ -43,6 +45,7 @@ type TeamMember = {
   role: string;
   position: string | null;
   isActive: boolean;
+  pagePermissions?: string[] | null;
 };
 
 interface SettingsClientProps {
@@ -56,6 +59,109 @@ interface SettingsClientProps {
   teamMembers?: TeamMember[];
 }
 
+function MemberPermissionsRow({ member, onUpdate }: {
+  member: TeamMember;
+  onUpdate: (id: string, perms: string[] | null) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [saving, setSaving] = useState(false);
+  // null means unrestricted (all checked)
+  const current = member.pagePermissions;
+  const allKeys = PAGE_PERMISSIONS.map((p) => p.key);
+  const isUnrestricted = current === null || current === undefined;
+
+  const isChecked = (key: string) => isUnrestricted || current!.includes(key);
+
+  async function handleToggle(key: string) {
+    setSaving(true);
+    let next: string[] | null;
+    if (isUnrestricted) {
+      // Turn off one page → save all others
+      next = allKeys.filter((k) => k !== key);
+    } else {
+      const had = current!.includes(key);
+      const updated = had
+        ? current!.filter((k) => k !== key)
+        : [...current!, key];
+      // If all pages checked, save null (unrestricted)
+      next = updated.length === allKeys.length ? null : updated;
+    }
+    const result = await updateUserPermissions(member.id, next);
+    if (result.success) {
+      onUpdate(member.id, next);
+      toast.success("Page access updated");
+    } else {
+      toast.error(result.error ?? "Failed to update permissions");
+    }
+    setSaving(false);
+  }
+
+  async function handleGrantAll() {
+    setSaving(true);
+    const result = await updateUserPermissions(member.id, null);
+    if (result.success) { onUpdate(member.id, null); toast.success("Full access granted"); }
+    else toast.error(result.error ?? "Failed");
+    setSaving(false);
+  }
+
+  async function handleRevokeAll() {
+    setSaving(true);
+    const result = await updateUserPermissions(member.id, []);
+    if (result.success) { onUpdate(member.id, []); toast.success("All access revoked"); }
+    else toast.error(result.error ?? "Failed");
+    setSaving(false);
+  }
+
+  const checkedCount = isUnrestricted ? allKeys.length : (current?.length ?? 0);
+
+  return (
+    <div className="border border-border rounded-lg overflow-hidden">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="w-full flex items-center gap-2 px-3 py-2 bg-secondary/20 hover:bg-secondary/40 transition-colors text-xs"
+      >
+        <Lock className="w-3.5 h-3.5 text-[#D4AF37]" />
+        <span className="font-medium text-muted-foreground">Page Access</span>
+        <span className={cn(
+          "ml-1 text-[10px] px-1.5 py-0.5 rounded-full font-semibold",
+          isUnrestricted ? "bg-green-500/15 text-green-400" : checkedCount === 0 ? "bg-red-500/15 text-red-400" : "bg-[#D4AF37]/15 text-[#D4AF37]"
+        )}>
+          {isUnrestricted ? "Full Access" : `${checkedCount}/${allKeys.length} pages`}
+        </span>
+        <ChevronDown className={cn("w-3.5 h-3.5 ml-auto text-muted-foreground transition-transform", open && "rotate-180")} />
+      </button>
+
+      {open && (
+        <div className="p-3 space-y-3 border-t border-border">
+          <div className="flex items-center gap-2 pb-1">
+            <button type="button" onClick={handleGrantAll} disabled={saving} className="text-[10px] text-green-400 hover:text-green-300 font-medium">
+              Grant All
+            </button>
+            <span className="text-muted-foreground text-[10px]">·</span>
+            <button type="button" onClick={handleRevokeAll} disabled={saving} className="text-[10px] text-red-400 hover:text-red-300 font-medium">
+              Revoke All
+            </button>
+          </div>
+          <div className="grid grid-cols-2 gap-x-4 gap-y-2">
+            {PAGE_PERMISSIONS.map((page) => (
+              <label key={page.key} className={cn("flex items-center gap-2 cursor-pointer select-none", saving && "opacity-50 pointer-events-none")}>
+                <input
+                  type="checkbox"
+                  checked={isChecked(page.key)}
+                  onChange={() => handleToggle(page.key)}
+                  className="w-3.5 h-3.5 rounded accent-[#D4AF37]"
+                />
+                <span className="text-xs text-muted-foreground">{page.label}</span>
+              </label>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function TeamTab({ teamMembers, currentUserId }: { teamMembers: TeamMember[]; currentUserId: string }) {
   const [members, setMembers] = useState(teamMembers);
   const [pending, startTransition] = useTransition();
@@ -65,9 +171,7 @@ function TeamTab({ teamMembers, currentUserId }: { teamMembers: TeamMember[]; cu
     startTransition(async () => {
       const result = await updateTeamMember(memberId, { position: newPos });
       if (result.success) {
-        setMembers((prev) =>
-          prev.map((m) => (m.id === memberId ? { ...m, position: newPos } : m))
-        );
+        setMembers((prev) => prev.map((m) => (m.id === memberId ? { ...m, position: newPos } : m)));
         toast.success("Position updated");
       } else {
         toast.error(result.error ?? "Failed to update position");
@@ -79,14 +183,16 @@ function TeamTab({ teamMembers, currentUserId }: { teamMembers: TeamMember[]; cu
     startTransition(async () => {
       const result = await updateTeamMember(memberId, { role });
       if (result.success) {
-        setMembers((prev) =>
-          prev.map((m) => (m.id === memberId ? { ...m, role } : m))
-        );
+        setMembers((prev) => prev.map((m) => (m.id === memberId ? { ...m, role } : m)));
         toast.success("Role updated");
       } else {
         toast.error(result.error ?? "Failed to update role");
       }
     });
+  }
+
+  function handlePermissionsUpdate(memberId: string, perms: string[] | null) {
+    setMembers((prev) => prev.map((m) => (m.id === memberId ? { ...m, pagePermissions: perms } : m)));
   }
 
   return (
@@ -97,75 +203,74 @@ function TeamTab({ teamMembers, currentUserId }: { teamMembers: TeamMember[]; cu
           Team Management
         </CardTitle>
         <CardDescription>
-          Assign positions and access roles to your staff members
+          Assign roles, positions and page access to your staff members
         </CardDescription>
       </CardHeader>
-      <CardContent className="space-y-3">
+      <CardContent className="space-y-4">
         {members.length === 0 && (
           <p className="text-sm text-muted-foreground text-center py-6">No team members yet</p>
         )}
         {members.map((member) => {
           const isSelf = member.id === currentUserId;
           return (
-            <div
-              key={member.id}
-              className="flex items-center gap-4 p-3 rounded-lg border border-border"
-            >
-              <Avatar className="h-9 w-9 shrink-0">
-                <AvatarFallback className="bg-primary/10 text-primary text-sm font-semibold">
-                  {getInitials(member.name ?? member.email ?? "U")}
-                </AvatarFallback>
-              </Avatar>
+            <div key={member.id} className="space-y-2 p-3 rounded-lg border border-border">
+              <div className="flex items-center gap-3">
+                <Avatar className="h-9 w-9 shrink-0">
+                  <AvatarFallback className="bg-primary/10 text-primary text-sm font-semibold">
+                    {getInitials(member.name ?? member.email ?? "U")}
+                  </AvatarFallback>
+                </Avatar>
 
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium truncate">{member.name ?? "—"}</p>
-                <p className="text-xs text-muted-foreground truncate">{member.email}</p>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium truncate">{member.name ?? "—"}</p>
+                  <p className="text-xs text-muted-foreground truncate">{member.email}</p>
+                </div>
+
+                {isSelf ? (
+                  <Badge variant="gold" className="text-xs shrink-0">You</Badge>
+                ) : (
+                  <div className="flex items-center gap-2 shrink-0 flex-wrap">
+                    <Select
+                      defaultValue={member.role as UserRole}
+                      onValueChange={(v) => handleRoleChange(member.id, v as UserRole)}
+                      disabled={pending}
+                    >
+                      <SelectTrigger className="h-8 w-[110px] text-xs">
+                        <ShieldCheck className="w-3 h-3 mr-1 text-muted-foreground" />
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {(Object.keys(ROLE_LABELS) as UserRole[]).map((r) => (
+                          <SelectItem key={r} value={r} className="text-xs">{ROLE_LABELS[r]}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+
+                    <Select
+                      defaultValue={member.position ?? "NONE"}
+                      onValueChange={(v) => handlePositionChange(member.id, v as StaffPosition | "NONE")}
+                      disabled={pending}
+                    >
+                      <SelectTrigger className="h-8 w-[180px] text-xs">
+                        <SelectValue placeholder="No position" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="NONE" className="text-xs text-muted-foreground">No position</SelectItem>
+                        {(Object.keys(POSITION_LABELS) as StaffPosition[]).map((pos) => (
+                          <SelectItem key={pos} value={pos} className="text-xs">{POSITION_LABELS[pos]}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
               </div>
 
-              {isSelf ? (
-                <Badge variant="gold" className="text-xs shrink-0">You</Badge>
-              ) : (
-                <div className="flex items-center gap-2 shrink-0">
-                  {/* Access role */}
-                  <Select
-                    defaultValue={member.role as UserRole}
-                    onValueChange={(v) => handleRoleChange(member.id, v as UserRole)}
-                    disabled={pending}
-                  >
-                    <SelectTrigger className="h-8 w-[110px] text-xs">
-                      <ShieldCheck className="w-3 h-3 mr-1 text-muted-foreground" />
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {(Object.keys(ROLE_LABELS) as UserRole[]).map((r) => (
-                        <SelectItem key={r} value={r} className="text-xs">
-                          {ROLE_LABELS[r]}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-
-                  {/* Position */}
-                  <Select
-                    defaultValue={member.position ?? "NONE"}
-                    onValueChange={(v) => handlePositionChange(member.id, v as StaffPosition | "NONE")}
-                    disabled={pending}
-                  >
-                    <SelectTrigger className="h-8 w-[200px] text-xs">
-                      <SelectValue placeholder="No position" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="NONE" className="text-xs text-muted-foreground">
-                        No position assigned
-                      </SelectItem>
-                      {(Object.keys(POSITION_LABELS) as StaffPosition[]).map((pos) => (
-                        <SelectItem key={pos} value={pos} className="text-xs">
-                          {POSITION_LABELS[pos]}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
+              {/* Page access — only for non-self, non-admin members */}
+              {!isSelf && member.role !== "ADMIN" && (
+                <MemberPermissionsRow
+                  member={member}
+                  onUpdate={handlePermissionsUpdate}
+                />
               )}
             </div>
           );

@@ -42,6 +42,7 @@ export type User = {
   password: string | null;
   role: UserRole;
   position: StaffPosition | null;
+  pagePermissions: string[] | null;
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
@@ -453,10 +454,12 @@ declare module "next-auth" {
       email?: string | null;
       image?: string | null;
       role: string;
+      pagePermissions?: string[] | null;
     };
   }
 
   interface User {
     role?: string;
+    pagePermissions?: string[] | null;
   }
 }

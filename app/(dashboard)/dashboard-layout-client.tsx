@@ -28,6 +28,7 @@ interface DashboardLayoutClientProps {
     image?: string | null;
     role?: string;
   };
+  pagePermissions?: string[] | null;
 }
 
 function MobileBottomNav() {
@@ -54,7 +55,7 @@ function MobileBottomNav() {
   );
 }
 
-export function DashboardLayoutClient({ children, user }: DashboardLayoutClientProps) {
+export function DashboardLayoutClient({ children, user, pagePermissions }: DashboardLayoutClientProps) {
   const { sidebarCollapsed } = useUIStore();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   useRealtimeNotifications();
@@ -62,7 +63,7 @@ export function DashboardLayoutClient({ children, user }: DashboardLayoutClientP
   return (
     <div className="min-h-screen bg-background">
       <Sidebar
-        user={user}
+        user={{ ...user, pagePermissions }}
         mobileOpen={mobileMenuOpen}
         onMobileClose={() => setMobileMenuOpen(false)}
       />

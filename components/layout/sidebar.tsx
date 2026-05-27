@@ -45,6 +45,7 @@ interface SidebarProps {
     email?: string | null;
     image?: string | null;
     role?: string;
+    pagePermissions?: string[] | null;
   };
   mobileOpen?: boolean;
   onMobileClose?: () => void;
@@ -124,7 +125,12 @@ export function Sidebar({ user, mobileOpen = false, onMobileClose }: SidebarProp
         {/* Nav Items */}
         <nav className="flex-1 py-4 overflow-y-auto scrollbar-hide">
           <ul className="space-y-1 px-2">
-            {navItems.map((item) => {
+            {navItems.filter((item) => {
+              if (user?.role === "ADMIN") return true;
+              if (!user?.pagePermissions) return true;
+              const key = item.href.slice(1); // "/orders" → "orders"
+              return user.pagePermissions.includes(key);
+            }).map((item) => {
               const isActive = pathname === item.href || pathname.startsWith(`${item.href}/`);
               const Icon = item.icon;
 

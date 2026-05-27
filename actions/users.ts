@@ -23,10 +23,29 @@ export async function getTeamMembers() {
   }
   const { data, error } = await supabase
     .from("User")
-    .select("id, name, email, role, position, isActive, createdAt")
+    .select("id, name, email, role, position, isActive, createdAt, pagePermissions")
     .order("createdAt", { ascending: true });
   if (error) return { success: false as const, error: error.message };
   return { success: true as const, data: data ?? [] };
+}
+
+export async function updateUserPermissions(
+  userId: string,
+  pagePermissions: string[] | null
+) {
+  const session = await auth();
+  if (!session?.user || session.user.role !== "ADMIN") {
+    return { success: false as const, error: "Unauthorized" };
+  }
+  if (userId === session.user.id) {
+    return { success: false as const, error: "Cannot change your own permissions" };
+  }
+  const { error } = await supabase
+    .from("User")
+    .update({ pagePermissions, updatedAt: new Date().toISOString() })
+    .eq("id", userId);
+  if (error) return { success: false as const, error: error.message };
+  return { success: true as const };
 }
 
 export async function updateTeamMember(

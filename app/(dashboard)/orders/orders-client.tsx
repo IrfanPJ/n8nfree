@@ -221,26 +221,13 @@ export function OrdersClient({
     setData(initialData);
   }, [initialData]);
 
-  // Realtime: patch the changed row in local state for UPDATE events (avoids full server re-render
-  // fan-out — at scale, 50 clients × every scan = 50 simultaneous server renders).
-  // For INSERT/DELETE a full refresh is needed since pagination totals change.
+  // Realtime: refresh data whenever any Order row changes (cross-device, e.g. QR scan on phone)
   useEffect(() => {
     const sb = getSupabaseBrowser();
     if (!sb) return;
     const channel = sb
       .channel("orders-realtime")
-      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "Order" }, (payload) => {
-        setData((prev) => ({
-          ...prev,
-          data: prev.data.map((o) =>
-            o.id === payload.new.id ? { ...o, ...(payload.new as Partial<typeof o>) } : o
-          ),
-        }));
-      })
-      .on("postgres_changes", { event: "INSERT", schema: "public", table: "Order" }, () => {
-        router.refresh();
-      })
-      .on("postgres_changes", { event: "DELETE", schema: "public", table: "Order" }, () => {
+      .on("postgres_changes", { event: "*", schema: "public", table: "Order" }, () => {
         router.refresh();
       })
       .subscribe();

@@ -6,24 +6,7 @@ import { revalidatePath } from "next/cache";
 import { randomUUID } from "crypto";
 import * as Sentry from "@sentry/nextjs";
 import type { OrderStatus, OrderWithRelations, ApiResponse } from "@/types";
-
-export const POSITION_STAGE_MAP: Record<string, OrderStatus[]> = {
-  SALES_STAFF:           ["MEASUREMENT", "TRIAL"],
-  LEAD_MANAGEMENT_STAFF: ["MEASUREMENT", "TRIAL"],
-  PURCHASE_STAFF:        ["FABRIC_ORDERING", "FABRIC_COLLECTED"],
-  PRODUCTION_IN_CHARGE:  ["CUTTING", "SEMI_STITCH", "FINAL_STITCH", "PENDING_ALTERATION"],
-  MASTER:                ["CUTTING"],
-  TAILOR:                ["SEMI_STITCH", "FINAL_STITCH"],
-  QUALITY_CHECK:         ["TRIAL", "READY_FOR_DELIVERY", "PENDING_ALTERATION", "READY_FINAL_DELIVERY"],
-  LOGISTICS_COORDINATOR: ["DELIVERED", "ORDER_CLOSED"],
-};
-
-// All 12 stages in order (for admin full picker)
-export const ALL_STAGES: OrderStatus[] = [
-  "MEASUREMENT", "FABRIC_ORDERING", "FABRIC_COLLECTED", "CUTTING",
-  "SEMI_STITCH", "TRIAL", "FINAL_STITCH", "READY_FOR_DELIVERY",
-  "DELIVERED", "PENDING_ALTERATION", "READY_FINAL_DELIVERY", "ORDER_CLOSED",
-];
+import { POSITION_STAGE_MAP, ALL_STAGES } from "@/lib/scan-config";
 
 const ORDER_SELECT = `
   *,

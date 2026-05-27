@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { processOrderScan, POSITION_STAGE_MAP, ALL_STAGES } from "@/actions/scan";
+import { processOrderScan } from "@/actions/scan";
 import { OrderStatusBadge } from "@/components/orders/order-status-badge";
 import { Button } from "@/components/ui/button";
 import { cn, ORDER_STATUS_CONFIG, formatDate, formatCurrency } from "@/lib/utils";

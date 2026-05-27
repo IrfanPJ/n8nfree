@@ -6,23 +6,8 @@ import { ScanLine, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
-import { POSITION_STAGE_MAP } from "@/actions/scan";
+import { POSITION_STAGE_MAP, STATUS_LABELS } from "@/lib/scan-config";
 import type { OrderStatus } from "@/types";
-
-const STATUS_LABELS: Record<string, string> = {
-  MEASUREMENT: "Measurement",
-  FABRIC_ORDERING: "Fabric Ordering",
-  FABRIC_COLLECTED: "Fabric Collected",
-  CUTTING: "Cutting",
-  SEMI_STITCH: "Semi Stitch",
-  TRIAL: "Trial",
-  FINAL_STITCH: "Final Stitch",
-  READY_FOR_DELIVERY: "Ready for Delivery",
-  DELIVERED: "Delivered",
-  PENDING_ALTERATION: "Pending Alteration",
-  READY_FINAL_DELIVERY: "Ready Final Delivery",
-  ORDER_CLOSED: "Order Closed",
-};
 
 interface ScanClientProps {
   userPosition: string | null;

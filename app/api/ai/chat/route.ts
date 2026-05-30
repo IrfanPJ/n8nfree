@@ -163,20 +163,21 @@ Currency is AED (UAE Dirham).
 ${businessContext}
 --- END OF DATA ---`;
 
-  // Build Gemini conversation format (alternating user/model roles)
+  // Build Gemini conversation format — skip leading assistant messages (e.g. welcome),
+  // Gemini requires alternating turns starting with "user"
+  const userFirst = messages.findIndex((m) => m.role === "user");
+  if (userFirst === -1) {
+    return NextResponse.json({ choices: [{ message: { content: "Please ask a question." } }] });
+  }
+
   const contents: { role: string; parts: { text: string }[] }[] = [];
-  for (const msg of messages) {
+  for (const msg of messages.slice(userFirst)) {
     const role = msg.role === "assistant" ? "model" : "user";
     if (contents.length > 0 && contents[contents.length - 1].role === role) {
       contents[contents.length - 1].parts[0].text += "\n" + msg.content;
     } else {
       contents.push({ role, parts: [{ text: msg.content }] });
     }
-  }
-
-  // Gemini requires alternating roles starting with user
-  if (contents.length === 0 || contents[0].role !== "user") {
-    return NextResponse.json({ choices: [{ message: { content: "Please ask a question." } }] });
   }
 
   try {

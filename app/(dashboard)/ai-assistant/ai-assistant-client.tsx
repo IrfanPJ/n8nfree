@@ -37,11 +37,17 @@ function MessageBubble({ message }: { message: AIMessage }) {
           ? "bg-primary/10 border border-primary/20 text-foreground rounded-tr-sm"
           : "bg-card border border-border text-foreground rounded-tl-sm"
       )}>
-        {message.content.split("\n").map((line, i) => (
-          <p key={i} className={line.startsWith("**") ? "font-semibold mt-2" : "mt-1 first:mt-0"}>
-            {line.replace(/\*\*(.*?)\*\*/g, "$1")}
-          </p>
-        ))}
+        {message.content.split("\n").map((line, i) => {
+          const trimmed = line.trimStart();
+          if (!trimmed) return <div key={i} className="h-1" />;
+          if (trimmed.startsWith("## ")) return <p key={i} className="font-bold text-[#D4AF37] mt-3 first:mt-0 text-base">{trimmed.slice(3)}</p>;
+          if (trimmed.startsWith("### ")) return <p key={i} className="font-semibold mt-2 first:mt-0">{trimmed.slice(4)}</p>;
+          const rendered = trimmed.replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>").replace(/\*(.*?)\*/g, "<em>$1</em>");
+          if (trimmed.startsWith("- ") || trimmed.startsWith("* ")) {
+            return <p key={i} className="mt-0.5 pl-3 relative before:content-['•'] before:absolute before:left-0 before:text-[#D4AF37]" dangerouslySetInnerHTML={{ __html: rendered.slice(2) }} />;
+          }
+          return <p key={i} className="mt-1 first:mt-0" dangerouslySetInnerHTML={{ __html: rendered }} />;
+        })}
       </div>
     </motion.div>
   );

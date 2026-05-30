@@ -12,10 +12,10 @@ import { cn } from "@/lib/utils";
 import type { AIMessage } from "@/types";
 
 const QUICK_PROMPTS = [
-  { label: "Revenue Summary", icon: TrendingUp, prompt: "Give me a summary of this month's revenue performance and key insights." },
-  { label: "Customer Insights", icon: Users, prompt: "Analyze our customer base and suggest strategies to increase retention." },
-  { label: "Order Analytics", icon: ShoppingBag, prompt: "What are the current order trends and which status needs attention?" },
-  { label: "Business Report", icon: BarChart3, prompt: "Create a brief business performance report with actionable recommendations." },
+  { label: "Revenue & Balance", icon: TrendingUp, prompt: "Show me revenue collected and outstanding balances." },
+  { label: "All Customers", icon: Users, prompt: "List all customers with their contact details." },
+  { label: "Order Status", icon: ShoppingBag, prompt: "Show all orders with their current status and delivery dates." },
+  { label: "Leads & Follow-ups", icon: BarChart3, prompt: "Show all leads and pending follow-ups." },
 ];
 
 function MessageBubble({ message }: { message: AIMessage }) {

@@ -6,7 +6,6 @@ import { Send, Bot, User, Sparkles, Loader2, TrendingUp, Users, ShoppingBag, Bar
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import type { AIMessage } from "@/types";
@@ -93,49 +92,28 @@ export function AIAssistantClient() {
 
       if (!response.ok) throw new Error("API error");
 
-      const reader = response.body?.getReader();
-      const decoder = new TextDecoder();
+      const data = await response.json();
+      const content = data?.choices?.[0]?.message?.content ?? "No data returned.";
 
-      const assistantMessage: AIMessage = {
-        id: (Date.now() + 1).toString(),
-        role: "assistant",
-        content: "",
-        createdAt: new Date(),
-      };
-
-      setMessages((prev) => [...prev, assistantMessage]);
-
-      if (reader) {
-        let fullContent = "";
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          const chunk = decoder.decode(value);
-          const lines = chunk.split("\n");
-          for (const line of lines) {
-            if (line.startsWith("data: ")) {
-              const data = line.slice(6);
-              if (data === "[DONE]") break;
-              try {
-                const parsed = JSON.parse(data);
-                const delta = parsed.choices?.[0]?.delta?.content ?? "";
-                fullContent += delta;
-                setMessages((prev) =>
-                  prev.map((m) => m.id === assistantMessage.id ? { ...m, content: fullContent } : m)
-                );
-              } catch {}
-            }
-          }
-        }
-      }
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: (Date.now() + 1).toString(),
+          role: "assistant",
+          content,
+          createdAt: new Date(),
+        },
+      ]);
     } catch (error) {
-      const errorMessage: AIMessage = {
-        id: (Date.now() + 1).toString(),
-        role: "assistant",
-        content: "I apologize, but I encountered an error. Please ensure your OpenAI API key is configured. In the meantime, here are some insights based on typical tailoring business patterns:\n\n**Revenue Trend**: Focus on premium garments which yield 3-5x higher margins.\n**Customer Retention**: VIP customers typically generate 40% more revenue per visit.\n**Order Efficiency**: Orders in TRIAL status should be resolved within 48 hours.",
-        createdAt: new Date(),
-      };
-      setMessages((prev) => [...prev, errorMessage]);
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: (Date.now() + 1).toString(),
+          role: "assistant",
+          content: "Something went wrong fetching data. Please try again.",
+          createdAt: new Date(),
+        },
+      ]);
     } finally {
       setLoading(false);
       textareaRef.current?.focus();

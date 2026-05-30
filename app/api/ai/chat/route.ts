@@ -45,7 +45,7 @@ async function fetchBusinessContext(): Promise<string> {
     supabase.from("Customer").select("name, phone, email, notes, createdAt").eq("isActive", true).order("name").limit(100),
     supabase.from("Lead").select("name, phone, status, source, garmentType, notes, createdAt").order("createdAt", { ascending: false }).limit(50),
     supabase.from("FollowUp").select("notes, dueDate, status, lead:Lead!leadId(name, phone)").order("dueDate", { ascending: true }).limit(30),
-    supabase.from("Appointment").select("title, date, status, notes, customer:Customer!customerId(name, phone)").order("date", { ascending: true }).limit(30),
+    supabase.from("Appointment").select("title, date, status, notes, customer:Customer!customerId(name, phone)").order("date", { ascending: false }).limit(100),
     supabase.from("User").select("name, role, position, isActive").order("name"),
     supabase.from("Purchase").select("description, amount, category, date, vendor").order("date", { ascending: false }).limit(30),
   ]);
@@ -107,11 +107,17 @@ async function fetchBusinessContext(): Promise<string> {
     ).join("\n")}`);
   }
 
-  if (appointments?.length) {
-    sections.push(`## Upcoming Appointments (${appointments.length})\n${appointments.map((a: any) =>
-      `- ${(a.customer as any)?.name ?? "?"} | ${a.title ?? "Appointment"} | Date: ${fmt(a.date)} | Status: ${a.status}`
-    ).join("\n")}`);
-  }
+  const now2 = new Date();
+  const monthStart = new Date(now2.getFullYear(), now2.getMonth(), 1).toISOString();
+  const monthEnd = new Date(now2.getFullYear(), now2.getMonth() + 1, 0, 23, 59, 59).toISOString();
+  const thisMonthAppts = (appointments ?? []).filter((a: any) => a.date >= monthStart && a.date <= monthEnd);
+  sections.push(`## Appointments (all: ${(appointments ?? []).length}, this month: ${thisMonthAppts.length})
+${(appointments ?? []).length === 0
+    ? "No appointments found in the database."
+    : (appointments ?? []).map((a: any) =>
+        `- ${(a.customer as any)?.name ?? "?"} | ${a.title ?? "Appointment"} | Date: ${fmt(a.date)} | Status: ${a.status}`
+      ).join("\n")
+  }`);
 
   if (invoices?.length) {
     const unpaid = (invoices ?? []).filter((i: any) => i.status !== "PAID");

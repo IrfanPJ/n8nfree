@@ -65,14 +65,14 @@ export function AppointmentForm({
   const defaultStart = appointment
     ? toDatetimeLocal(appointment.startTime)
     : defaultDate
-    ? format(defaultDate, "yyyy-MM-dd'T'09:00")
-    : format(new Date(), "yyyy-MM-dd'T'09:00");
+    ? format(defaultDate, "yyyy-MM-dd'T'HH:mm")
+    : format(new Date().setMinutes(0, 0, 0), "yyyy-MM-dd'T'HH:mm");
 
   const defaultEnd = appointment
     ? toDatetimeLocal(appointment.endTime)
     : defaultDate
-    ? format(defaultDate, "yyyy-MM-dd'T'10:00")
-    : format(new Date(), "yyyy-MM-dd'T'10:00");
+    ? format(new Date(defaultDate.getTime() + 60 * 60 * 1000), "yyyy-MM-dd'T'HH:mm")
+    : format(new Date().setMinutes(0, 0, 0) + 60 * 60 * 1000, "yyyy-MM-dd'T'HH:mm");
 
   const {
     register,

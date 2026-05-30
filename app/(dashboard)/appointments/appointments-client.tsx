@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useState, useMemo } from "react";
-import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Plus,
@@ -260,7 +259,6 @@ export function AppointmentsClient({
   customers,
   staff,
 }: AppointmentsClientProps) {
-  const router = useRouter();
   const [appointments, setAppointments] = useState(initialAppointments);
   const [viewMode, setViewMode] = useState<ViewMode>("list");
   const [currentMonth, setCurrentMonth] = useState(() => startOfMonth(new Date()));
@@ -301,6 +299,19 @@ export function AppointmentsClient({
             !["CANCELLED", "COMPLETED", "NO_SHOW"].includes(a.status)
         )
         .slice(0, 20),
+    [filtered]
+  );
+
+  const pastAppointments = useMemo(
+    () =>
+      filtered
+        .filter(
+          (a) =>
+            !isToday(new Date(a.startTime)) &&
+            (new Date(a.startTime) < new Date() ||
+              ["CANCELLED", "COMPLETED", "NO_SHOW"].includes(a.status))
+        )
+        .sort((a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime()),
     [filtered]
   );
 
@@ -776,8 +787,8 @@ export function AppointmentsClient({
           {/* Upcoming */}
           {upcomingAppointments.length > 0 && (
             <div className="space-y-3">
-              <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
-                Upcoming
+              <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-2">
+                <Clock className="w-3.5 h-3.5" /> Upcoming ({upcomingAppointments.length})
               </h2>
               <div className="space-y-2">
                 <AnimatePresence>
@@ -795,7 +806,29 @@ export function AppointmentsClient({
             </div>
           )}
 
-          {/* All (past / filtered) */}
+          {/* Past / Completed / Cancelled */}
+          {pastAppointments.length > 0 && (
+            <div className="space-y-3">
+              <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-2">
+                <CalendarDays className="w-3.5 h-3.5" /> Past ({pastAppointments.length})
+              </h2>
+              <div className="space-y-2">
+                <AnimatePresence>
+                  {pastAppointments.map((a) => (
+                    <AppointmentCard
+                      key={a.id}
+                      appointment={a}
+                      onEdit={setEditAppointment}
+                      onDelete={handleDelete}
+                      onStatusChange={handleStatusChange}
+                    />
+                  ))}
+                </AnimatePresence>
+              </div>
+            </div>
+          )}
+
+          {/* Empty state */}
           {filtered.length === 0 && (
             <div className="text-center py-20 space-y-3">
               <div className="w-16 h-16 rounded-full bg-secondary flex items-center justify-center mx-auto">
@@ -806,27 +839,6 @@ export function AppointmentsClient({
                 <Plus className="w-4 h-4 mr-2" />
                 Schedule first appointment
               </Button>
-            </div>
-          )}
-
-          {filtered.length > 0 && upcomingAppointments.length === 0 && todayAppointments.length === 0 && (
-            <div className="space-y-2">
-              <AnimatePresence>
-                {filtered
-                  .sort(
-                    (a, b) =>
-                      new Date(b.startTime).getTime() - new Date(a.startTime).getTime()
-                  )
-                  .map((a) => (
-                    <AppointmentCard
-                      key={a.id}
-                      appointment={a}
-                      onEdit={setEditAppointment}
-                      onDelete={handleDelete}
-                      onStatusChange={handleStatusChange}
-                    />
-                  ))}
-              </AnimatePresence>
             </div>
           )}
         </div>

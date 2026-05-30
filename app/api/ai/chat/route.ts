@@ -1,7 +1,7 @@
 export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
-import { supabase } from "@/lib/supabase";
+import { fetchBusinessContext, buildSystemInstruction } from "@/lib/ai-context";
 
 const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
 function checkRateLimit(userId: string): boolean {
@@ -11,138 +11,6 @@ function checkRateLimit(userId: string): boolean {
   if (entry.count >= 30) return false;
   entry.count++;
   return true;
-}
-
-function fmt(d: string | null | undefined) {
-  if (!d) return "N/A";
-  return new Date(d).toLocaleDateString("en-AE", { day: "2-digit", month: "short", year: "numeric" });
-}
-function aed(n: number | null | undefined) {
-  return `AED ${(n ?? 0).toLocaleString("en-AE")}`;
-}
-
-async function fetchBusinessContext(): Promise<string> {
-  const [
-    { count: totalOrders },
-    { count: activeOrders },
-    { count: totalCustomers },
-    { count: totalLeads },
-    { data: invoices },
-    { data: orders },
-    { data: customers },
-    { data: leads },
-    { data: followups },
-    { data: appointments },
-    { data: staff },
-    { data: purchases },
-  ] = await Promise.all([
-    supabase.from("Order").select("*", { count: "exact", head: true }).eq("isActive", true),
-    supabase.from("Order").select("*", { count: "exact", head: true }).eq("isActive", true).not("status", "in", '("DELIVERED","ORDER_CLOSED")'),
-    supabase.from("Customer").select("*", { count: "exact", head: true }).eq("isActive", true),
-    supabase.from("Lead").select("*", { count: "exact", head: true }),
-    supabase.from("Invoice").select("invoiceNumber, totalAmount, paidAmount, balanceAmount, status, dueDate, order:Order!orderId(orderNumber, customer:Customer!customerId(name))").eq("isActive", true).order("createdAt", { ascending: false }).limit(50),
-    supabase.from("Order").select("orderNumber, status, garmentType, deliveryDate, totalAmount, advanceAmount, priority, notes, customer:Customer!customerId(name, phone), assignedTo:User!assignedToId(name)").eq("isActive", true).order("createdAt", { ascending: false }).limit(100),
-    supabase.from("Customer").select("name, phone, email, notes, createdAt").eq("isActive", true).order("name").limit(100),
-    supabase.from("Lead").select("name, phone, status, source, garmentType, notes, createdAt").order("createdAt", { ascending: false }).limit(50),
-    supabase.from("FollowUp").select("notes, dueDate, status, lead:Lead!leadId(name, phone)").order("dueDate", { ascending: true }).limit(30),
-    supabase.from("Appointment").select("title, startTime, endTime, status, notes, customer:Customer!customerId(name, phone)").eq("isActive", true).order("startTime", { ascending: false }).limit(100),
-    supabase.from("User").select("name, role, position, isActive").order("name"),
-    supabase.from("Purchase").select("description, amount, category, date, vendor").order("date", { ascending: false }).limit(30),
-  ]);
-
-  const paid = (invoices ?? []).reduce((s, r: any) => s + (r.paidAmount ?? 0), 0);
-  const outstanding = (invoices ?? []).reduce((s, r: any) => s + (r.balanceAmount ?? 0), 0);
-  const now = new Date();
-
-  const overdueOrders = (orders ?? []).filter((o: any) =>
-    o.deliveryDate && new Date(o.deliveryDate) < now && !["DELIVERED", "ORDER_CLOSED"].includes(o.status)
-  );
-
-  const byStatus: Record<string, number> = {};
-  (orders ?? []).forEach((o: any) => { byStatus[o.status] = (byStatus[o.status] ?? 0) + 1; });
-
-  const sections: string[] = [];
-
-  sections.push(`## Business Summary
-- Total Orders: ${totalOrders ?? 0}
-- Active (in-progress) Orders: ${activeOrders ?? 0}
-- Overdue Orders: ${overdueOrders.length}
-- Total Customers: ${totalCustomers ?? 0}
-- Total Leads: ${totalLeads ?? 0}
-- Revenue Collected: ${aed(paid)}
-- Outstanding Balance: ${aed(outstanding)}`);
-
-  sections.push(`## Order Status Breakdown\n${Object.entries(byStatus).map(([s, c]) => `- ${s}: ${c}`).join("\n")}`);
-
-  if (overdueOrders.length) {
-    sections.push(`## Overdue Orders\n${overdueOrders.slice(0, 20).map((o: any) =>
-      `- ${o.orderNumber} | ${(o.customer as any)?.name} | ${o.garmentType} | Due: ${fmt(o.deliveryDate)} | ${o.status}`
-    ).join("\n")}`);
-  }
-
-  if (orders?.length) {
-    sections.push(`## All Orders (${orders.length})\n${orders.map((o: any) => {
-      const balance = (o.totalAmount ?? 0) - (o.advanceAmount ?? 0);
-      return `- ${o.orderNumber} | Customer: ${(o.customer as any)?.name ?? "?"} | Phone: ${(o.customer as any)?.phone ?? "N/A"} | Garment: ${o.garmentType} | Status: ${o.status} | Priority: ${o.priority} | Delivery: ${fmt(o.deliveryDate)} | Total: ${aed(o.totalAmount)} | Balance: ${aed(balance)} | Tailor: ${(o.assignedTo as any)?.name ?? "Unassigned"}`;
-    }).join("\n")}`);
-  }
-
-  if (customers?.length) {
-    sections.push(`## Customers (${customers.length})\n${customers.map((c: any) =>
-      `- ${c.name} | Phone: ${c.phone ?? "N/A"} | Email: ${c.email ?? "N/A"} | Joined: ${fmt(c.createdAt)}${c.notes ? ` | Notes: ${c.notes}` : ""}`
-    ).join("\n")}`);
-  }
-
-  if (leads?.length) {
-    const leadByStatus: Record<string, number> = {};
-    leads.forEach((l: any) => { leadByStatus[l.status] = (leadByStatus[l.status] ?? 0) + 1; });
-    sections.push(`## Leads (${leads.length})\nBy status: ${Object.entries(leadByStatus).map(([s, c]) => `${s}: ${c}`).join(", ")}\n${leads.map((l: any) =>
-      `- ${l.name} | Phone: ${l.phone ?? "N/A"} | Status: ${l.status} | Source: ${l.source ?? "N/A"} | Garment: ${l.garmentType ?? "N/A"} | Date: ${fmt(l.createdAt)}`
-    ).join("\n")}`);
-  }
-
-  if (followups?.length) {
-    sections.push(`## Pending Follow-ups (${followups.length})\n${followups.map((f: any) =>
-      `- ${(f.lead as any)?.name ?? "?"} | Due: ${fmt(f.dueDate)} | Status: ${f.status} | Notes: ${f.notes ?? ""}`
-    ).join("\n")}`);
-  }
-
-  const now2 = new Date();
-  const thisMonthStart = new Date(now2.getFullYear(), now2.getMonth(), 1).toISOString();
-  const thisMonthEnd = new Date(now2.getFullYear(), now2.getMonth() + 1, 0, 23, 59, 59).toISOString();
-  const nextMonthStart = new Date(now2.getFullYear(), now2.getMonth() + 1, 1).toISOString();
-  const nextMonthEnd = new Date(now2.getFullYear(), now2.getMonth() + 2, 0, 23, 59, 59).toISOString();
-  const thisMonthAppts = (appointments ?? []).filter((a: any) => a.startTime >= thisMonthStart && a.startTime <= thisMonthEnd);
-  const nextMonthAppts = (appointments ?? []).filter((a: any) => a.startTime >= nextMonthStart && a.startTime <= nextMonthEnd);
-  sections.push(`## Appointments (total: ${(appointments ?? []).length}, this month: ${thisMonthAppts.length}, next month: ${nextMonthAppts.length})
-${(appointments ?? []).length === 0
-    ? "No appointments found in the database."
-    : (appointments ?? []).map((a: any) =>
-        `- ${(a.customer as any)?.name ?? "?"} | ${a.title ?? "Appointment"} | Date: ${fmt(a.startTime)} | Status: ${a.status}`
-      ).join("\n")
-  }`);
-
-  if (invoices?.length) {
-    const unpaid = (invoices ?? []).filter((i: any) => i.status !== "PAID");
-    sections.push(`## Invoices\n- Total paid: ${aed(paid)}\n- Total outstanding: ${aed(outstanding)}\n- Unpaid/partial invoices: ${unpaid.length}${unpaid.length ? "\n" + unpaid.slice(0, 15).map((i: any) =>
-      `  - ${i.invoiceNumber} | ${(i.order as any)?.customer?.name ?? "?"} | Balance: ${aed(i.balanceAmount)} | Due: ${fmt(i.dueDate)} | ${i.status}`
-    ).join("\n") : ""}`);
-  }
-
-  if (staff?.length) {
-    sections.push(`## Team / Staff (${staff.length})\n${staff.map((s: any) =>
-      `- ${s.name} | Role: ${s.role} | Position: ${s.position ?? "N/A"} | ${s.isActive ? "Active" : "Inactive"}`
-    ).join("\n")}`);
-  }
-
-  if (purchases?.length) {
-    const totalExpenses = (purchases ?? []).reduce((s: number, p: any) => s + (p.amount ?? 0), 0);
-    sections.push(`## Expenses / Purchases (${purchases.length} records, total: ${aed(totalExpenses)})\n${purchases.map((p: any) =>
-      `- ${p.description ?? "?"} | ${p.category ?? "?"} | ${aed(p.amount)} | ${fmt(p.date)} | Vendor: ${p.vendor ?? "N/A"}`
-    ).join("\n")}`);
-  }
-
-  return sections.join("\n\n");
 }
 
 export async function POST(request: NextRequest) {
@@ -158,27 +26,15 @@ export async function POST(request: NextRequest) {
   const body = await request.json();
   const messages: { role: string; content: string }[] = body.messages ?? [];
 
-  const [businessContext] = await Promise.all([fetchBusinessContext()]);
-
-  const systemInstruction = `You are an intelligent AI assistant for House of Tailors, a premium tailoring and bespoke clothing business based in UAE.
-You have access to live business data fetched directly from the database, provided below.
-Answer questions naturally, helpfully, and concisely. Use markdown for formatting when it helps readability.
-When listing orders, customers, or leads, present them in a clear structured format.
-Always base your answers strictly on the data provided — do not fabricate numbers or names.
-Today's date is ${new Date().toLocaleDateString("en-AE", { day: "2-digit", month: "long", year: "numeric" })}.
-Currency is AED (UAE Dirham).
-
---- LIVE BUSINESS DATA ---
-${businessContext}
---- END OF DATA ---`;
-
-  // Build Gemini conversation format — skip leading assistant messages (e.g. welcome),
-  // Gemini requires alternating turns starting with "user"
   const userFirst = messages.findIndex((m) => m.role === "user");
   if (userFirst === -1) {
     return NextResponse.json({ choices: [{ message: { content: "Please ask a question." } }] });
   }
 
+  const businessContext = await fetchBusinessContext();
+  const systemInstruction = buildSystemInstruction(businessContext);
+
+  // Build Gemini conversation — skip leading assistant messages, requires user-first alternating turns
   const contents: { role: string; parts: { text: string }[] }[] = [];
   for (const msg of messages.slice(userFirst)) {
     const role = msg.role === "assistant" ? "model" : "user";
@@ -198,23 +54,18 @@ ${businessContext}
         body: JSON.stringify({
           systemInstruction: { parts: [{ text: systemInstruction }] },
           contents,
-          generationConfig: {
-            maxOutputTokens: 2048,
-            temperature: 0.2,
-          },
+          generationConfig: { maxOutputTokens: 2048, temperature: 0.2 },
         }),
       }
     );
 
     if (!response.ok) {
-      const err = await response.text();
-      console.error("Gemini error:", err);
+      console.error("Gemini error:", await response.text());
       return NextResponse.json({ error: "AI service error" }, { status: 502 });
     }
 
     const data = await response.json();
     const content = data?.candidates?.[0]?.content?.parts?.[0]?.text ?? "I couldn't generate a response. Please try again.";
-
     return NextResponse.json({ choices: [{ message: { content } }] });
   } catch (err) {
     console.error("Gemini fetch error:", err);

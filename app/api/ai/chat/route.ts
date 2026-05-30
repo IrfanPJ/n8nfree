@@ -45,7 +45,7 @@ async function fetchBusinessContext(): Promise<string> {
     supabase.from("Customer").select("name, phone, email, notes, createdAt").eq("isActive", true).order("name").limit(100),
     supabase.from("Lead").select("name, phone, status, source, garmentType, notes, createdAt").order("createdAt", { ascending: false }).limit(50),
     supabase.from("FollowUp").select("notes, dueDate, status, lead:Lead!leadId(name, phone)").order("dueDate", { ascending: true }).limit(30),
-    supabase.from("Appointment").select("title, date, status, notes, customer:Customer!customerId(name, phone)").order("date", { ascending: false }).limit(100),
+    supabase.from("Appointment").select("title, startTime, endTime, status, notes, customer:Customer!customerId(name, phone)").eq("isActive", true).order("startTime", { ascending: false }).limit(100),
     supabase.from("User").select("name, role, position, isActive").order("name"),
     supabase.from("Purchase").select("description, amount, category, date, vendor").order("date", { ascending: false }).limit(30),
   ]);
@@ -108,14 +108,17 @@ async function fetchBusinessContext(): Promise<string> {
   }
 
   const now2 = new Date();
-  const monthStart = new Date(now2.getFullYear(), now2.getMonth(), 1).toISOString();
-  const monthEnd = new Date(now2.getFullYear(), now2.getMonth() + 1, 0, 23, 59, 59).toISOString();
-  const thisMonthAppts = (appointments ?? []).filter((a: any) => a.date >= monthStart && a.date <= monthEnd);
-  sections.push(`## Appointments (all: ${(appointments ?? []).length}, this month: ${thisMonthAppts.length})
+  const thisMonthStart = new Date(now2.getFullYear(), now2.getMonth(), 1).toISOString();
+  const thisMonthEnd = new Date(now2.getFullYear(), now2.getMonth() + 1, 0, 23, 59, 59).toISOString();
+  const nextMonthStart = new Date(now2.getFullYear(), now2.getMonth() + 1, 1).toISOString();
+  const nextMonthEnd = new Date(now2.getFullYear(), now2.getMonth() + 2, 0, 23, 59, 59).toISOString();
+  const thisMonthAppts = (appointments ?? []).filter((a: any) => a.startTime >= thisMonthStart && a.startTime <= thisMonthEnd);
+  const nextMonthAppts = (appointments ?? []).filter((a: any) => a.startTime >= nextMonthStart && a.startTime <= nextMonthEnd);
+  sections.push(`## Appointments (total: ${(appointments ?? []).length}, this month: ${thisMonthAppts.length}, next month: ${nextMonthAppts.length})
 ${(appointments ?? []).length === 0
     ? "No appointments found in the database."
     : (appointments ?? []).map((a: any) =>
-        `- ${(a.customer as any)?.name ?? "?"} | ${a.title ?? "Appointment"} | Date: ${fmt(a.date)} | Status: ${a.status}`
+        `- ${(a.customer as any)?.name ?? "?"} | ${a.title ?? "Appointment"} | Date: ${fmt(a.startTime)} | Status: ${a.status}`
       ).join("\n")
   }`);
 

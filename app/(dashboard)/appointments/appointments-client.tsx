@@ -289,28 +289,20 @@ export function AppointmentsClient({
     [filtered]
   );
 
-  const upcomingAppointments = useMemo(
+  // Active = Scheduled / Confirmed / In Progress (regardless of date — status hasn't been closed)
+  const activeAppointments = useMemo(
     () =>
       filtered
-        .filter(
-          (a) =>
-            new Date(a.startTime) > new Date() &&
-            !isToday(new Date(a.startTime)) &&
-            !["CANCELLED", "COMPLETED", "NO_SHOW"].includes(a.status)
-        )
-        .slice(0, 20),
+        .filter((a) => ["SCHEDULED", "CONFIRMED", "IN_PROGRESS"].includes(a.status))
+        .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime()),
     [filtered]
   );
 
+  // Past/closed = Completed, Cancelled, No Show
   const pastAppointments = useMemo(
     () =>
       filtered
-        .filter(
-          (a) =>
-            !isToday(new Date(a.startTime)) &&
-            (new Date(a.startTime) < new Date() ||
-              ["CANCELLED", "COMPLETED", "NO_SHOW"].includes(a.status))
-        )
+        .filter((a) => ["COMPLETED", "CANCELLED", "NO_SHOW"].includes(a.status))
         .sort((a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime()),
     [filtered]
   );
@@ -378,7 +370,7 @@ export function AppointmentsClient({
         <div>
           <h1 className="text-2xl font-bold">Appointments</h1>
           <p className="text-sm text-muted-foreground mt-0.5">
-            {appointments.length} total · {todayAppointments.length} today
+            {appointments.length} total · {todayAppointments.length} today · {appointments.filter((a) => ["SCHEDULED","CONFIRMED","IN_PROGRESS"].includes(a.status)).length} active
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -435,8 +427,8 @@ export function AppointmentsClient({
             highlight: todayAppointments.length > 0,
           },
           {
-            label: "Upcoming",
-            value: upcomingAppointments.length,
+            label: "Active",
+            value: appointments.filter((a) => ["SCHEDULED", "CONFIRMED", "IN_PROGRESS"].includes(a.status)).length,
             icon: Clock,
             highlight: false,
           },
@@ -784,15 +776,15 @@ export function AppointmentsClient({
       {/* List View */}
       {viewMode === "list" && (
         <div className="space-y-6">
-          {/* Upcoming */}
-          {upcomingAppointments.length > 0 && (
+          {/* Active (Scheduled / Confirmed / In Progress) */}
+          {activeAppointments.length > 0 && (
             <div className="space-y-3">
               <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-2">
-                <Clock className="w-3.5 h-3.5" /> Upcoming ({upcomingAppointments.length})
+                <Clock className="w-3.5 h-3.5" /> Active ({activeAppointments.length})
               </h2>
               <div className="space-y-2">
                 <AnimatePresence>
-                  {upcomingAppointments.map((a) => (
+                  {activeAppointments.map((a) => (
                     <AppointmentCard
                       key={a.id}
                       appointment={a}
@@ -806,7 +798,7 @@ export function AppointmentsClient({
             </div>
           )}
 
-          {/* Past / Completed / Cancelled */}
+          {/* Past / Completed / Cancelled / No Show */}
           {pastAppointments.length > 0 && (
             <div className="space-y-3">
               <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-2">

@@ -3,11 +3,9 @@
 import { revalidatePath } from "next/cache";
 import { randomUUID } from "crypto";
 import { supabase } from "@/lib/supabase";
-import { getDbClient } from "@/lib/supabase-branch";
 import { auth } from "@/lib/auth";
 import { customerSchema } from "@/validators/customer";
 import * as Sentry from "@sentry/nextjs";
-import { getBranchFilter } from "@/lib/branch";
 import type { ApiResponse, CustomerWithRelations, PaginatedResult } from "@/types";
 
 export async function getCustomers(params: {
@@ -24,13 +22,12 @@ export async function getCustomers(params: {
   const { page = 1, pageSize = 20, search, isVIP, gender, branch } = params;
   const skip = (page - 1) * pageSize;
 
-  const db = await getDbClient(session.user.role, (session.user as any).branch ?? "Main");
-  let countQ = db
+  let countQ = supabase
     .from("Customer")
     .select("*", { count: "exact", head: true })
     .eq("isActive", true);
 
-  let dataQ = db
+  let dataQ = supabase
     .from("Customer")
     .select(`*, Order(count), Measurement(count), Appointment(count), Invoice(count), FollowUp(count)`)
     .eq("isActive", true);
@@ -48,10 +45,9 @@ export async function getCustomers(params: {
     countQ = countQ.eq("gender", gender);
     dataQ = dataQ.eq("gender", gender);
   }
-  const branchFilter = getBranchFilter(session.user as any, branch);
-  if (branchFilter) {
-    countQ = countQ.eq("branch", branchFilter);
-    dataQ = dataQ.eq("branch", branchFilter);
+  if (branch && branch !== "All Branches") {
+    countQ = countQ.eq("branch", branch);
+    dataQ = dataQ.eq("branch", branch);
   }
 
   const [{ count: total }, { data: rawData }] = await Promise.all([
@@ -143,7 +139,6 @@ export async function createCustomer(data: unknown): Promise<ApiResponse<Custome
         email: parsed.data.email || null,
         dateOfBirth: parsed.data.dateOfBirth || null,
         tags: parsed.data.tags ?? [],
-        branch: (session.user as any).branch ?? "Main",
         createdAt: now,
         updatedAt: now,
       })

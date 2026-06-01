@@ -6,8 +6,6 @@ import { supabase } from "@/lib/supabase";
 import { auth } from "@/lib/auth";
 import { appointmentSchema } from "@/validators/appointment";
 import { sendAppointmentConfirmation } from "@/lib/email";
-import { getDbClient } from "@/lib/supabase-branch";
-import { getBranchFilter } from "@/lib/branch";
 import type { ApiResponse, AppointmentWithRelations, AppointmentStatus } from "@/types";
 
 export interface GetAppointmentsParams {
@@ -27,15 +25,14 @@ export async function getAppointments(params: GetAppointmentsParams = {}): Promi
 
   const { dateFrom, dateTo, status, customerId, staffId, branch } = params;
 
-  const db = await getDbClient(session.user.role, (session.user as any).branch ?? "Main");
-  let q = db.from("Appointment").select(APPT_SELECT).eq("isActive", true);
-  const branchFilter = getBranchFilter(session.user as any, branch);
+  let q = supabase.from("Appointment").select(APPT_SELECT).eq("isActive", true);
+
   if (status) q = q.eq("status", status);
   if (customerId) q = q.eq("customerId", customerId);
   if (staffId) q = q.eq("staffId", staffId);
   if (dateFrom) q = q.gte("startTime", new Date(dateFrom).toISOString());
   if (dateTo) q = q.lte("startTime", new Date(dateTo).toISOString());
-  if (branchFilter) q = q.eq("branch", branchFilter);
+  if (branch && branch !== "All Branches") q = q.eq("branch", branch);
 
   const { data } = await q.order("startTime", { ascending: true });
   return (data ?? []) as AppointmentWithRelations[];
@@ -73,7 +70,6 @@ export async function createAppointment(data: unknown): Promise<ApiResponse<Appo
       location: parsed.data.location || null,
       notes: parsed.data.notes || null,
       reminderAt: parsed.data.reminderAt ? new Date(parsed.data.reminderAt).toISOString() : null,
-      branch: (session.user as any).branch ?? "Main",
       createdAt: now,
       updatedAt: now,
     });

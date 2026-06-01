@@ -23,7 +23,7 @@ export async function getTeamMembers() {
   }
   const { data, error } = await supabase
     .from("User")
-    .select("id, name, email, role, position, branch, isActive, createdAt, pagePermissions")
+    .select("id, name, email, role, position, isActive, createdAt, pagePermissions")
     .order("createdAt", { ascending: true });
   if (error) return { success: false as const, error: error.message };
   return { success: true as const, data: data ?? [] };
@@ -50,7 +50,7 @@ export async function updateUserPermissions(
 
 export async function updateTeamMember(
   userId: string,
-  updates: { position?: StaffPosition | null; role?: UserRole; branch?: string }
+  updates: { position?: StaffPosition | null; role?: UserRole }
 ) {
   const session = await auth();
   if (!session?.user || session.user.role !== "ADMIN") {

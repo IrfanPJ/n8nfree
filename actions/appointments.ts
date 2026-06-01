@@ -23,7 +23,7 @@ export async function getAppointments(params: GetAppointmentsParams = {}): Promi
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
 
-  const { dateFrom, dateTo, status, customerId, staffId, branch } = params;
+  const { dateFrom, dateTo, status, customerId, staffId } = params;
 
   let q = supabase.from("Appointment").select(APPT_SELECT).eq("isActive", true);
 
@@ -32,7 +32,6 @@ export async function getAppointments(params: GetAppointmentsParams = {}): Promi
   if (staffId) q = q.eq("staffId", staffId);
   if (dateFrom) q = q.gte("startTime", new Date(dateFrom).toISOString());
   if (dateTo) q = q.lte("startTime", new Date(dateTo).toISOString());
-  if (branch && branch !== "All Branches") q = q.eq("branch", branch);
 
   const { data } = await q.order("startTime", { ascending: true });
   return (data ?? []) as AppointmentWithRelations[];
@@ -70,6 +69,7 @@ export async function createAppointment(data: unknown): Promise<ApiResponse<Appo
       location: parsed.data.location || null,
       notes: parsed.data.notes || null,
       reminderAt: parsed.data.reminderAt ? new Date(parsed.data.reminderAt).toISOString() : null,
+      branch: "Business Bay",
       createdAt: now,
       updatedAt: now,
     });

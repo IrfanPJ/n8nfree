@@ -4,13 +4,12 @@ import { getLeads } from "@/actions/leads";
 import { LeadsClient } from "./leads-client";
 import { Skeleton } from "@/components/ui/skeleton";
 
-async function LeadsContent({ searchParams }: { searchParams: Promise<{ branch?: string }> }) {
-  const params = await searchParams;
-  const leads = await getLeads({ branch: params.branch });
+async function LeadsContent() {
+  const leads = await getLeads();
   return <LeadsClient initialLeads={leads} />;
 }
 
-export default function LeadsPage({ searchParams }: { searchParams: Promise<{ branch?: string }> }) {
+export default function LeadsPage() {
   return (
     <Suspense
       fallback={
@@ -21,7 +20,7 @@ export default function LeadsPage({ searchParams }: { searchParams: Promise<{ br
         </div>
       }
     >
-      <LeadsContent searchParams={searchParams} />
+      <LeadsContent />
     </Suspense>
   );
 }

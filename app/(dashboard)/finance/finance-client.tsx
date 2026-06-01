@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { DollarSign, TrendingUp, TrendingDown, AlertCircle, BarChart3 } from "lucide-react";
+import { DollarSign, TrendingUp, TrendingDown, AlertCircle, BarChart3, ShoppingCart, CreditCard, Banknote } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import {
@@ -70,12 +70,26 @@ const CustomTooltip = ({ active, payload, label }: any) => {
   );
 };
 
+type POSSale = {
+  id: string;
+  receiptNo: string;
+  clientName: string | null;
+  items: any[];
+  subtotal: number;
+  tax: number;
+  total: number;
+  paymentMethod: string;
+  branch: string;
+  createdAt: string;
+};
+
 export function FinanceClient({
-  stats, monthly, topClients,
+  stats, monthly, topClients, posSales = [],
 }: {
   stats: FinanceStats;
   monthly: MonthlyData[];
   topClients: TopClient[];
+  posSales?: POSSale[];
 }) {
   const revenueByCategory = [
     { name: "Invoices", value: stats.invoiceRevenue },
@@ -200,6 +214,45 @@ export function FinanceClient({
                       className="h-full rounded-full bg-[#D4AF37]"
                       style={{ width: `${(client.total / maxClient) * 100}%` }}
                     />
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* POS Sales History */}
+      <Card className="border-border/50">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-sm font-semibold uppercase tracking-wide text-muted-foreground flex items-center gap-2">
+            <ShoppingCart className="w-4 h-4 text-[#D4AF37]" />
+            POS Sales History
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {posSales.length === 0 ? (
+            <p className="text-sm text-muted-foreground text-center py-6">No POS sales recorded</p>
+          ) : (
+            <div className="space-y-2">
+              {posSales.map((sale) => (
+                <div key={sale.id} className="flex items-center gap-3 py-2.5 px-3 rounded-lg border border-border/50 hover:bg-secondary/30 transition-colors">
+                  <div className="w-8 h-8 rounded-lg bg-[#D4AF37]/10 flex items-center justify-center shrink-0">
+                    {sale.paymentMethod === "CARD"
+                      ? <CreditCard className="w-4 h-4 text-[#D4AF37]" />
+                      : <Banknote className="w-4 h-4 text-[#D4AF37]" />}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium truncate">{sale.receiptNo}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {sale.clientName ?? "Walk-in"} · {sale.branch} · {(sale.items ?? []).length} item{(sale.items ?? []).length !== 1 ? "s" : ""}
+                    </p>
+                  </div>
+                  <div className="text-right shrink-0">
+                    <p className="text-sm font-bold text-[#D4AF37]">{formatAED(sale.total)}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {new Date(sale.createdAt).toLocaleDateString("en-AE", { day: "2-digit", month: "short", year: "numeric" })}
+                    </p>
                   </div>
                 </div>
               ))}

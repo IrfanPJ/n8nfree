@@ -18,7 +18,6 @@ export async function getFabrics(params: {
   let q = supabase.from("Fabric").select("*").eq("isActive", true);
 
   if (params.search) q = q.ilike("name", `%${params.search}%`);
-  if (params.branch && params.branch !== "All Branches") q = q.eq("branch", params.branch);
 
   const { data } = await q.order("name", { ascending: true });
   const fabrics = (data ?? []) as Fabric[];
@@ -52,6 +51,7 @@ export async function createFabric(data: unknown): Promise<ApiResponse<Fabric>> 
       pricePerUnit: parsed.data.pricePerUnit,
       unit: parsed.data.unit,
       notes: parsed.data.notes || null,
+      branch: "Business Bay",
       isActive: true,
       createdAt: now,
       updatedAt: now,

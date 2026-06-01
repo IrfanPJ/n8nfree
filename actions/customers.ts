@@ -19,7 +19,7 @@ export async function getCustomers(params: {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
 
-  const { page = 1, pageSize = 20, search, isVIP, gender, branch } = params;
+  const { page = 1, pageSize = 20, search, isVIP, gender } = params;
   const skip = (page - 1) * pageSize;
 
   let countQ = supabase
@@ -44,10 +44,6 @@ export async function getCustomers(params: {
   if (gender) {
     countQ = countQ.eq("gender", gender);
     dataQ = dataQ.eq("gender", gender);
-  }
-  if (branch && branch !== "All Branches") {
-    countQ = countQ.eq("branch", branch);
-    dataQ = dataQ.eq("branch", branch);
   }
 
   const [{ count: total }, { data: rawData }] = await Promise.all([
@@ -139,6 +135,7 @@ export async function createCustomer(data: unknown): Promise<ApiResponse<Custome
         email: parsed.data.email || null,
         dateOfBirth: parsed.data.dateOfBirth || null,
         tags: parsed.data.tags ?? [],
+        branch: "Business Bay",
         createdAt: now,
         updatedAt: now,
       })

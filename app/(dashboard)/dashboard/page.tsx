@@ -6,7 +6,7 @@ import {
   ChevronRight, ShoppingCart,
 } from "lucide-react";
 import {
-  getDashboardStats, getRevenueData, getOrderStatusData, getRecentActivities,
+  getDashboardStats, getRevenueData, getRecentActivities,
   getUrgentOrders, getWorkshopCapacity, getNextDelivery, getBookingHeatmap,
   getTodayAppointments, getReadyOrders,
 } from "@/actions/dashboard";
@@ -47,9 +47,9 @@ async function DashboardContent() {
         <div className="relative z-10 flex items-center justify-between w-full px-8 py-6">
           <div>
             <p className="text-[#D4AF37]/70 text-xs font-semibold uppercase tracking-widest mb-1">Management Panel</p>
-            <h1 className="text-3xl font-bold text-white">{greeting}, Dubai</h1>
+            <h1 className="text-3xl font-bold text-white">{greeting}, Business Bay</h1>
             <p className="text-white/50 text-sm mt-1">
-              {now.toLocaleDateString("en-AE", { weekday: "long", year: "numeric", month: "long", day: "numeric" })} · All Branches
+              {now.toLocaleDateString("en-AE", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}
             </p>
           </div>
           <div className="flex items-center gap-3">
@@ -65,24 +65,19 @@ async function DashboardContent() {
         </div>
       </div>
 
-      {/* ── Widgets row: Capacity · Next Delivery · Heatmap ── */}
+      {/* ── Widgets row ── */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        {/* Workshop Capacity */}
         <Card className="border-border/50">
           <CardContent className="p-5">
             <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-3">Workshop Capacity</p>
             <p className="text-4xl font-bold text-[#D4AF37]">{capacity.percentage}%</p>
             <div className="mt-3 h-1.5 bg-secondary rounded-full overflow-hidden">
-              <div
-                className="h-full rounded-full bg-[#D4AF37] transition-all"
-                style={{ width: `${capacity.percentage}%` }}
-              />
+              <div className="h-full rounded-full bg-[#D4AF37] transition-all" style={{ width: `${capacity.percentage}%` }} />
             </div>
             <p className="text-xs text-muted-foreground mt-2">{capacity.current} of {capacity.max} slots</p>
           </CardContent>
         </Card>
 
-        {/* Next Delivery */}
         <Card className="border-border/50">
           <CardContent className="p-5">
             <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-3">Next Delivery</p>
@@ -101,25 +96,16 @@ async function DashboardContent() {
           </CardContent>
         </Card>
 
-        {/* Booking Heatmap */}
         <Card className="border-border/50">
           <CardContent className="p-5">
             <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-3">Booking Heatmap</p>
             <div className="flex items-end gap-1.5">
-              {/* Mon-Sun, reordered from Sun-Sat */}
               {[1, 2, 3, 4, 5, 6, 0].map((dayIdx, i) => {
                 const count = heatmap[dayIdx];
                 const intensity = count / heatmapMax;
                 return (
                   <div key={i} className="flex-1 flex flex-col items-center gap-1">
-                    <div
-                      className="w-full rounded-sm transition-all"
-                      style={{
-                        height: `${Math.max(8, intensity * 48)}px`,
-                        backgroundColor: `rgba(212,175,55,${0.1 + intensity * 0.9})`,
-                      }}
-                      title={`${count} appointments`}
-                    />
+                    <div className="w-full rounded-sm transition-all" style={{ height: `${Math.max(8, intensity * 48)}px`, backgroundColor: `rgba(212,175,55,${0.1 + intensity * 0.9})` }} title={`${count} appointments`} />
                     <span className="text-[9px] text-muted-foreground">{DAYS[i]}</span>
                   </div>
                 );
@@ -132,45 +118,16 @@ async function DashboardContent() {
       {/* ── Stats Row ── */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {[
-          {
-            label: "Pending Appointments",
-            value: stats.todayAppointments,
-            sub: "requiring attention",
-            icon: <Calendar className="w-4 h-4 text-blue-400" />,
-            bg: "bg-blue-500/10",
-          },
-          {
-            label: "Active Orders",
-            value: stats.pendingOrders,
-            sub: "in progress",
-            icon: <ShoppingBag className="w-4 h-4 text-[#D4AF37]" />,
-            bg: "bg-[#D4AF37]/10",
-          },
-          {
-            label: "Clients in Book",
-            value: stats.totalCustomers,
-            sub: `${stats.newCustomers} new this month`,
-            icon: <Users className="w-4 h-4 text-green-400" />,
-            bg: "bg-green-500/10",
-          },
-          {
-            label: "Revenue This Month",
-            value: null,
-            sub: "This month",
-            currency: stats.totalRevenue,
-            icon: <DollarSign className="w-4 h-4 text-[#D4AF37]" />,
-            bg: "bg-[#D4AF37]/10",
-          },
+          { label: "Pending Appointments", value: stats.todayAppointments, sub: "requiring attention", icon: <Calendar className="w-4 h-4 text-blue-400" />, bg: "bg-blue-500/10" },
+          { label: "Active Orders", value: stats.pendingOrders, sub: "in progress", icon: <ShoppingBag className="w-4 h-4 text-[#D4AF37]" />, bg: "bg-[#D4AF37]/10" },
+          { label: "Clients in Book", value: stats.totalCustomers, sub: `${stats.newCustomers} new this month`, icon: <Users className="w-4 h-4 text-green-400" />, bg: "bg-green-500/10" },
+          { label: "Revenue This Month", value: null, sub: "This month", currency: stats.totalRevenue, icon: <DollarSign className="w-4 h-4 text-[#D4AF37]" />, bg: "bg-[#D4AF37]/10" },
         ].map((s, i) => (
           <Card key={i} className="border-border/50">
             <CardContent className="p-5">
-              <div className={`w-9 h-9 rounded-lg ${s.bg} flex items-center justify-center mb-3`}>
-                {s.icon}
-              </div>
+              <div className={`w-9 h-9 rounded-lg ${s.bg} flex items-center justify-center mb-3`}>{s.icon}</div>
               {s.currency !== undefined ? (
-                <p className="text-xl font-bold text-[#D4AF37]">
-                  AED {s.currency.toLocaleString("en-AE")}
-                </p>
+                <p className="text-xl font-bold text-[#D4AF37]">AED {s.currency.toLocaleString("en-AE")}</p>
               ) : (
                 <p className="text-3xl font-bold">{s.value}</p>
               )}
@@ -192,9 +149,7 @@ async function DashboardContent() {
           </div>
           <div className="flex flex-wrap gap-2">
             {urgentOrders.map((o: any) => (
-              <a key={o.id} href="/orders"
-                className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-card border border-border hover:border-amber-500/40 transition-colors text-xs"
-              >
+              <a key={o.id} href="/orders" className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-card border border-border hover:border-amber-500/40 transition-colors text-xs">
                 <span className="font-semibold text-[#D4AF37]">{o.orderNumber}</span>
                 <span className="text-muted-foreground">{o.customer?.name}</span>
                 <span className={o.urgency === "overdue" ? "font-bold text-red-400 uppercase" : o.urgency === "today" ? "font-bold text-amber-400 uppercase" : "text-muted-foreground"}>
@@ -250,9 +205,7 @@ async function DashboardContent() {
                       <p className="text-sm font-medium truncate">{a.customer?.name}</p>
                       <p className="text-xs text-muted-foreground">{a.type} · {new Date(a.startTime).toLocaleTimeString("en-AE", { hour: "2-digit", minute: "2-digit" })}</p>
                     </div>
-                    <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${
-                      a.status === "CONFIRMED" ? "bg-green-500/10 text-green-400" : "bg-blue-500/10 text-blue-400"
-                    }`}>{a.status}</span>
+                    <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${a.status === "CONFIRMED" ? "bg-green-500/10 text-green-400" : "bg-blue-500/10 text-blue-400"}`}>{a.status}</span>
                   </li>
                 ))}
               </ul>
@@ -278,9 +231,7 @@ async function DashboardContent() {
                       <p className="text-sm font-medium truncate">{o.customer?.name}</p>
                       <p className="text-xs text-muted-foreground">{o.garmentType} · {o.orderNumber}</p>
                     </div>
-                    <a href="/orders" className="text-[10px] text-[#D4AF37] hover:underline flex items-center gap-0.5">
-                      View <ChevronRight className="w-3 h-3" />
-                    </a>
+                    <a href="/orders" className="text-[10px] text-[#D4AF37] hover:underline flex items-center gap-0.5">View <ChevronRight className="w-3 h-3" /></a>
                   </li>
                 ))}
               </ul>
@@ -360,15 +311,9 @@ function DashboardSkeleton() {
   return (
     <div className="space-y-6">
       <Skeleton className="h-40 rounded-2xl" />
-      <div className="grid grid-cols-3 gap-4">
-        {[...Array(3)].map((_, i) => <Skeleton key={i} className="h-28 rounded-xl" />)}
-      </div>
-      <div className="grid grid-cols-4 gap-4">
-        {[...Array(4)].map((_, i) => <Skeleton key={i} className="h-28 rounded-xl" />)}
-      </div>
-      <div className="grid grid-cols-2 gap-4">
-        {[...Array(2)].map((_, i) => <Skeleton key={i} className="h-52 rounded-xl" />)}
-      </div>
+      <div className="grid grid-cols-3 gap-4">{[...Array(3)].map((_, i) => <Skeleton key={i} className="h-28 rounded-xl" />)}</div>
+      <div className="grid grid-cols-4 gap-4">{[...Array(4)].map((_, i) => <Skeleton key={i} className="h-28 rounded-xl" />)}</div>
+      <div className="grid grid-cols-2 gap-4">{[...Array(2)].map((_, i) => <Skeleton key={i} className="h-52 rounded-xl" />)}</div>
     </div>
   );
 }

@@ -46,6 +46,8 @@ export async function signUpAction(
     role: "STAFF",
     position: null,
     isActive: true,
+    branch: "Business Bay",
+    branches: ["Business Bay"],
     createdAt: now,
     updatedAt: now,
   });

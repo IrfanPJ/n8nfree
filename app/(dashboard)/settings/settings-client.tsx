@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { User, Bell, Palette, Building2, Save, Users, ShieldCheck, ChevronDown, Lock } from "lucide-react";
+import { User, Bell, Palette, Building2, Save, Users, ShieldCheck, ChevronDown, Lock, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -16,7 +16,7 @@ import { useTheme } from "next-themes";
 import { toast } from "sonner";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { getInitials } from "@/lib/utils";
-import { updateTeamMember, updateUserPermissions } from "@/actions/users";
+import { updateTeamMember, updateUserPermissions, deleteTeamMember } from "@/actions/users";
 import type { StaffPosition, UserRole } from "@/types";
 import { PAGE_PERMISSIONS } from "@/lib/permissions";
 import { cn } from "@/lib/utils";
@@ -162,6 +162,7 @@ function MemberPermissionsRow({ member, onUpdate }: {
   );
 }
 
+
 function TeamTab({ teamMembers, currentUserId }: { teamMembers: TeamMember[]; currentUserId: string }) {
   const [members, setMembers] = useState(teamMembers);
   const [pending, startTransition] = useTransition();
@@ -193,6 +194,19 @@ function TeamTab({ teamMembers, currentUserId }: { teamMembers: TeamMember[]; cu
 
   function handlePermissionsUpdate(memberId: string, perms: string[] | null) {
     setMembers((prev) => prev.map((m) => (m.id === memberId ? { ...m, pagePermissions: perms } : m)));
+  }
+
+  function handleDelete(memberId: string, memberName: string | null) {
+    if (!confirm(`Remove ${memberName ?? "this member"} from the team? They will lose all access.`)) return;
+    startTransition(async () => {
+      const result = await deleteTeamMember(memberId);
+      if (result.success) {
+        setMembers((prev) => prev.filter((m) => m.id !== memberId));
+        toast.success("Member removed");
+      } else {
+        toast.error(result.error ?? "Failed to remove member");
+      }
+    });
   }
 
   return (
@@ -261,6 +275,16 @@ function TeamTab({ teamMembers, currentUserId }: { teamMembers: TeamMember[]; cu
                         ))}
                       </SelectContent>
                     </Select>
+
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      disabled={pending}
+                      onClick={() => handleDelete(member.id, member.name)}
+                      className="h-8 w-8 text-red-400 hover:text-red-300 hover:bg-red-500/10 shrink-0"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </Button>
                   </div>
                 )}
               </div>

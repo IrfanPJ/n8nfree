@@ -5,9 +5,10 @@ import { auth } from "@/lib/auth";
 import { startOfMonth, endOfMonth, subMonths, startOfDay, endOfDay } from "date-fns";
 import type { DashboardStats, RevenueData, OrderStatusData } from "@/types";
 
-async function countWhere(table: string, filters: Record<string, unknown>): Promise<number> {
+async function countWhere(table: string, filters: Record<string, unknown>, branch?: string): Promise<number> {
   let q = supabase.from(table).select("*", { count: "exact", head: true });
   for (const [k, v] of Object.entries(filters)) q = q.eq(k, v);
+  if (branch && branch !== "All Branches") q = q.eq("branch", branch);
   const { count } = await q;
   return count ?? 0;
 }
@@ -17,39 +18,44 @@ async function countRange(
   base: Record<string, unknown>,
   rangeCol: string,
   start: Date,
-  end: Date
+  end: Date,
+  branch?: string,
 ): Promise<number> {
   let q = supabase.from(table).select("*", { count: "exact", head: true });
   for (const [k, v] of Object.entries(base)) q = q.eq(k, v);
   q = q.gte(rangeCol, start.toISOString()).lte(rangeCol, end.toISOString());
+  if (branch && branch !== "All Branches") q = q.eq("branch", branch);
   const { count } = await q;
   return count ?? 0;
 }
 
-async function sumRevenue(start: Date, end: Date): Promise<number> {
-  const { data } = await supabase
+async function sumRevenue(start: Date, end: Date, branch?: string): Promise<number> {
+  let q = supabase
     .from("Invoice")
     .select("paidAmount")
     .eq("isActive", true)
     .eq("status", "PAID")
     .gte("createdAt", start.toISOString())
     .lte("createdAt", end.toISOString());
+  if (branch && branch !== "All Branches") q = q.eq("branch", branch);
+  const { data } = await q;
   return data?.reduce((s, r) => s + (r.paidAmount ?? 0), 0) ?? 0;
 }
 
-async function sumPOSRevenue(start: Date, end: Date): Promise<number> {
-  const { data } = await supabase
+async function sumPOSRevenue(start: Date, end: Date, branch?: string): Promise<number> {
+  let q = supabase
     .from("POSSale")
     .select("total")
     .gte("createdAt", start.toISOString())
     .lte("createdAt", end.toISOString());
+  if (branch && branch !== "All Branches") q = q.eq("branch", branch);
+  const { data } = await q;
   return data?.reduce((s, r) => s + (r.total ?? 0), 0) ?? 0;
 }
 
-export async function getDashboardStats(): Promise<DashboardStats> {
+export async function getDashboardStats(_branch?: string): Promise<DashboardStats> {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
-
   const now = new Date();
   const curStart = startOfMonth(now);
   const curEnd = endOfMonth(now);
@@ -88,15 +94,15 @@ export async function getDashboardStats(): Promise<DashboardStats> {
     supabase.from("Appointment").select("*", { count: "exact", head: true }).eq("isActive", true).gte("startTime", todayStart.toISOString()).lte("startTime", todayEnd.toISOString()).then(r => r.count ?? 0),
     supabase.from("Order").select("*", { count: "exact", head: true }).eq("isActive", true).eq("status", "READY_FOR_DELIVERY").gte("deliveryDate", now.toISOString()).lte("deliveryDate", weekOut.toISOString()).then(r => r.count ?? 0),
     countWhere("Invoice", { isActive: true, status: "OVERDUE" }),
-    supabase.from("Invoice").select("paidAmount").eq("isActive", true).eq("status", "PAID").then(r => r.data?.reduce((s, i) => s + (i.paidAmount ?? 0), 0) ?? 0),
+    supabase.from("Invoice").select("paidAmount").eq("isActive", true).eq("status", "PAID").then(r => r.data?.reduce((s: number, i: any) => s + (i.paidAmount ?? 0), 0) ?? 0),
     // POS
     supabase.from("POSSale").select("*", { count: "exact", head: true }).gte("createdAt", todayStart.toISOString()).lte("createdAt", todayEnd.toISOString()).then(r => r.count ?? 0),
     sumPOSRevenue(todayStart, todayEnd),
-    supabase.from("POSSale").select("total").then(r => r.data?.reduce((s, i) => s + (i.total ?? 0), 0) ?? 0),
+    supabase.from("POSSale").select("total").then(r => r.data?.reduce((s: number, i: any) => s + (i.total ?? 0), 0) ?? 0),
     // Leads
     supabase.from("Lead").select("*", { count: "exact", head: true }).eq("isActive", true).not("stage", "in", '("CLOSED_WON","CLOSED_LOST")').then(r => r.count ?? 0),
     supabase.from("Lead").select("*", { count: "exact", head: true }).eq("isActive", true).eq("stage", "CLOSED_WON").then(r => r.count ?? 0),
-    supabase.from("Lead").select("value").eq("isActive", true).not("stage", "in", '("CLOSED_WON","CLOSED_LOST")').then(r => r.data?.reduce((s, i) => s + (i.value ?? 0), 0) ?? 0),
+    supabase.from("Lead").select("value").eq("isActive", true).not("stage", "in", '("CLOSED_WON","CLOSED_LOST")').then(r => r.data?.reduce((s: number, i: any) => s + (i.value ?? 0), 0) ?? 0),
     // Fabrics
     supabase.from("Fabric").select("stockQty, reorderLevel").eq("isActive", true),
     // Follow-ups
@@ -137,7 +143,7 @@ export async function getDashboardStats(): Promise<DashboardStats> {
   };
 }
 
-export async function getRevenueData(): Promise<RevenueData[]> {
+export async function getRevenueData(_branch?: string): Promise<RevenueData[]> {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
 
@@ -190,7 +196,7 @@ export async function getOrderStatusData(): Promise<OrderStatusData[]> {
   }));
 }
 
-export async function getUrgentOrders() {
+export async function getUrgentOrders(_branch?: string) {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
 
@@ -216,7 +222,7 @@ export async function getUrgentOrders() {
   });
 }
 
-export async function getWorkshopCapacity() {
+export async function getWorkshopCapacity(_branch?: string) {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
 
@@ -231,7 +237,7 @@ export async function getWorkshopCapacity() {
   return { current, max: MAX_SLOTS, percentage: Math.round((current / MAX_SLOTS) * 100) };
 }
 
-export async function getNextDelivery() {
+export async function getNextDelivery(_branch?: string) {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
 
@@ -247,7 +253,7 @@ export async function getNextDelivery() {
   return data?.[0] ?? null;
 }
 
-export async function getBookingHeatmap() {
+export async function getBookingHeatmap(_branch?: string) {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
 
@@ -261,14 +267,14 @@ export async function getBookingHeatmap() {
     .gte("startTime", fourWeeksAgo.toISOString());
 
   const counts = [0, 0, 0, 0, 0, 0, 0];
-  data?.forEach((apt: any) => {
+  (data ?? []).forEach((apt: any) => {
     const day = new Date(apt.startTime).getDay();
     counts[day]++;
   });
   return counts;
 }
 
-export async function getTodayAppointments() {
+export async function getTodayAppointments(_branch?: string) {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
 
@@ -287,7 +293,7 @@ export async function getTodayAppointments() {
   return data ?? [];
 }
 
-export async function getReadyOrders() {
+export async function getReadyOrders(_branch?: string) {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
 

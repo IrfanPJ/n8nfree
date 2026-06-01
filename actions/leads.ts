@@ -7,15 +7,11 @@ import { auth } from "@/lib/auth";
 import { leadSchema } from "@/validators/lead";
 import type { ApiResponse, Lead, LeadStage } from "@/types";
 
-export async function getLeads(params: { branch?: string } = {}): Promise<Lead[]> {
+export async function getLeads(_params: { branch?: string } = {}): Promise<Lead[]> {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
 
   let q = supabase.from("Lead").select("*").eq("isActive", true);
-
-  if (params.branch && params.branch !== "All Branches") {
-    q = q.eq("branch", params.branch);
-  }
 
   const { data } = await q.order("createdAt", { ascending: false });
   return (data ?? []) as Lead[];
@@ -42,6 +38,7 @@ export async function createLead(data: unknown): Promise<ApiResponse<Lead>> {
       notes: parsed.data.notes || null,
       value: parsed.data.value,
       source: parsed.data.source || null,
+      branch: "Business Bay",
       isActive: true,
       createdAt: now,
       updatedAt: now,

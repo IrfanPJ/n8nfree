@@ -5,7 +5,7 @@ import { auth } from "@/lib/auth";
 import * as Sentry from "@sentry/nextjs";
 import { startOfMonth, endOfMonth, subMonths } from "date-fns";
 
-export async function getFinanceStats() {
+export async function getFinanceStats(_branch?: string) {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
 
@@ -44,7 +44,7 @@ export async function getFinanceStats() {
   }
 }
 
-export async function getMonthlyFinance() {
+export async function getMonthlyFinance(_branch?: string) {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
 
@@ -81,7 +81,7 @@ export async function getMonthlyFinance() {
   }
 }
 
-export async function getTopClientsByRevenue() {
+export async function getTopClientsByRevenue(_branch?: string) {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
 

@@ -17,6 +17,7 @@ export interface GetInvoicesParams {
   search?: string;
   dateFrom?: string;
   dateTo?: string;
+  branch?: string;
 }
 
 const INVOICE_SELECT = `*, customer:Customer!customerId(*), order:Order!orderId(*), items:InvoiceItem!invoiceId(*), payments:Payment!invoiceId(*)`;

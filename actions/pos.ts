@@ -13,7 +13,22 @@ export type POSSalePayload = {
   tax: number;
   total: number;
   paymentMethod: "CASH" | "CARD";
+  branch?: string;
 };
+
+export async function getPOSSales(params: { limit?: number } = {}) {
+  const session = await auth();
+  if (!session?.user) throw new Error("Unauthorized");
+
+  const { data, error } = await supabase
+    .from("POSSale")
+    .select("id, receiptNo, clientName, items, subtotal, tax, total, paymentMethod, branch, createdAt")
+    .order("createdAt", { ascending: false })
+    .limit(params.limit ?? 50);
+
+  if (error) return [];
+  return data ?? [];
+}
 
 export async function createPOSSale(payload: POSSalePayload) {
   const session = await auth();
@@ -29,6 +44,7 @@ export async function createPOSSale(payload: POSSalePayload) {
     tax: payload.tax,
     total: payload.total,
     paymentMethod: payload.paymentMethod,
+    branch: "Business Bay",
     createdAt: now,
   });
 

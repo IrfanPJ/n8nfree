@@ -31,14 +31,13 @@ export async function getOrders(params: {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
 
-  const { page = 1, pageSize = 20, search, status, priority, branch, cursor } = params;
+  const { page = 1, pageSize = 20, search, status, priority, cursor } = params;
 
   let countQ = supabase.from("Order").select("*", { count: "exact", head: true }).eq("isActive", true);
   let dataQ = supabase.from("Order").select(ORDER_SELECT).eq("isActive", true);
 
   if (status) { countQ = countQ.eq("status", status); dataQ = dataQ.eq("status", status); }
   if (priority) { countQ = countQ.eq("priority", priority); dataQ = dataQ.eq("priority", priority); }
-  if (branch && branch !== "All Branches") { countQ = countQ.eq("branch", branch); dataQ = dataQ.eq("branch", branch); }
   if (search) {
     const f = `orderNumber.ilike.%${search}%,garmentType.ilike.%${search}%,fabricName.ilike.%${search}%`;
     countQ = countQ.or(f);
@@ -136,6 +135,7 @@ export async function createOrder(data: unknown): Promise<ApiResponse<OrderWithR
       designNotes: parsed.data.designNotes ?? null,
       notes: parsed.data.notes ?? null,
       assignedToId: parsed.data.assignedToId || null,
+      branch: "Business Bay",
       status: "MEASUREMENT",
       createdAt: now,
       updatedAt: now,

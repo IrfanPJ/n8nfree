@@ -16,6 +16,7 @@ export async function getFollowUps(params: {
   status?: string;
   priority?: string;
   customerId?: string;
+  branch?: string;
 }): Promise<PaginatedResult<FollowUpWithRelations>> {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");

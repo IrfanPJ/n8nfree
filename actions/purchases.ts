@@ -35,6 +35,7 @@ export async function getPurchases(params: {
   search?: string;
   category?: string;
   supplierId?: string;
+  branch?: string;
 }): Promise<PaginatedResult<PurchaseWithRelations>> {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");

@@ -7,7 +7,6 @@ import { useUIStore } from "@/store/ui-store";
 import { useTheme } from "next-themes";
 import { GlobalSearch } from "@/components/shared/global-search";
 import { NotificationsPanel } from "@/components/shared/notifications-panel";
-import { BranchSelector } from "@/components/shared/branch-selector";
 import { LanguageToggle } from "@/components/shared/language-toggle";
 import { cn } from "@/lib/utils";
 
@@ -52,9 +51,6 @@ export function Topbar({ title, subtitle, onMobileMenuToggle }: TopbarProps) {
         </div>
 
         <div className="flex items-center gap-1 sm:gap-2">
-          <div className="hidden sm:block">
-            <BranchSelector />
-          </div>
 
           <Button
             variant="ghost"

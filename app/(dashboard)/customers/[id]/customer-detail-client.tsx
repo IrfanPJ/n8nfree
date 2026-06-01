@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import {
   ArrowLeft, Edit2, Star, Phone, Mail, MapPin, Calendar, ShoppingBag,
-  Ruler, FileText, Phone as PhoneIcon, Package, MessageCircle
+  Ruler, FileText, Package, MessageCircle, Plus
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -14,6 +14,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { CustomerForm } from "@/components/customers/customer-form";
+import { MeasurementForm } from "@/components/measurements/measurement-form";
 import type { CustomerWithRelations } from "@/types";
 import {
   getInitials, formatDate, formatCurrency, ORDER_STATUS_CONFIG, INVOICE_STATUS_CONFIG, openWhatsApp
@@ -27,6 +28,7 @@ interface CustomerDetailClientProps {
 export function CustomerDetailClient({ customer }: CustomerDetailClientProps) {
   const router = useRouter();
   const [editOpen, setEditOpen] = useState(false);
+  const [measurementOpen, setMeasurementOpen] = useState(false);
 
   const totalRevenue = customer.invoices
     .filter((i) => i.status === "PAID")
@@ -48,6 +50,10 @@ export function CustomerDetailClient({ customer }: CustomerDetailClientProps) {
           >
             <MessageCircle className="w-4 h-4 mr-2 text-green-400" />
             WhatsApp
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => setMeasurementOpen(true)}>
+            <Ruler className="w-4 h-4 mr-2 text-[#D4AF37]" />
+            Add Measurement
           </Button>
           <Button variant="gold-outline" onClick={() => setEditOpen(true)}>
             <Edit2 className="w-4 h-4 mr-2" />
@@ -182,10 +188,20 @@ export function CustomerDetailClient({ customer }: CustomerDetailClientProps) {
         </TabsContent>
 
         <TabsContent value="measurements" className="mt-4">
+          <div className="flex items-center justify-between mb-3">
+            <p className="text-sm text-muted-foreground">
+              {customer.measurements.length} measurement{customer.measurements.length !== 1 ? "s" : ""} recorded
+            </p>
+            <Button size="sm" variant="gold" onClick={() => setMeasurementOpen(true)}>
+              <Plus className="w-3.5 h-3.5 mr-1.5" />
+              Add Measurement
+            </Button>
+          </div>
           {customer.measurements.length === 0 ? (
-            <div className="text-center py-12 text-muted-foreground">
-              <Package className="w-10 h-10 mx-auto mb-3 opacity-30" />
-              <p>No measurements recorded</p>
+            <div className="text-center py-12 text-muted-foreground border border-dashed border-border rounded-xl">
+              <Ruler className="w-10 h-10 mx-auto mb-3 opacity-30" />
+              <p className="font-medium">No measurements recorded yet</p>
+              <p className="text-xs mt-1">Tap &quot;Add Measurement&quot; to record this client&apos;s measurements</p>
             </div>
           ) : (
             <div className="space-y-3">
@@ -265,7 +281,7 @@ export function CustomerDetailClient({ customer }: CustomerDetailClientProps) {
         <TabsContent value="followups" className="mt-4">
           {customer.followUps.length === 0 ? (
             <div className="text-center py-12 text-muted-foreground">
-              <PhoneIcon className="w-10 h-10 mx-auto mb-3 opacity-30" />
+              <Phone className="w-10 h-10 mx-auto mb-3 opacity-30" />
               <p>No follow-ups</p>
             </div>
           ) : (
@@ -308,6 +324,26 @@ export function CustomerDetailClient({ customer }: CustomerDetailClientProps) {
             customer={customer}
             onSuccess={() => { setEditOpen(false); router.refresh(); }}
             onCancel={() => setEditOpen(false)}
+          />
+        </DialogContent>
+      </Dialog>
+
+      {/* Add Measurement Dialog */}
+      <Dialog open={measurementOpen} onOpenChange={setMeasurementOpen}>
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Ruler className="w-5 h-5 text-[#D4AF37]" />
+              Add Measurement — {customer.name}
+            </DialogTitle>
+          </DialogHeader>
+          <MeasurementForm
+            defaultCustomerId={customer.id}
+            onSuccess={() => {
+              setMeasurementOpen(false);
+              router.refresh();
+            }}
+            onCancel={() => setMeasurementOpen(false)}
           />
         </DialogContent>
       </Dialog>

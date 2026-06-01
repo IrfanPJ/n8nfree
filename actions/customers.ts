@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { randomUUID } from "crypto";
 import { supabase } from "@/lib/supabase";
+import { getDbClient } from "@/lib/supabase-branch";
 import { auth } from "@/lib/auth";
 import { customerSchema } from "@/validators/customer";
 import * as Sentry from "@sentry/nextjs";
@@ -23,12 +24,13 @@ export async function getCustomers(params: {
   const { page = 1, pageSize = 20, search, isVIP, gender, branch } = params;
   const skip = (page - 1) * pageSize;
 
-  let countQ = supabase
+  const db = await getDbClient(session.user.role, (session.user as any).branch ?? "Main");
+  let countQ = db
     .from("Customer")
     .select("*", { count: "exact", head: true })
     .eq("isActive", true);
 
-  let dataQ = supabase
+  let dataQ = db
     .from("Customer")
     .select(`*, Order(count), Measurement(count), Appointment(count), Invoice(count), FollowUp(count)`)
     .eq("isActive", true);
@@ -141,6 +143,7 @@ export async function createCustomer(data: unknown): Promise<ApiResponse<Custome
         email: parsed.data.email || null,
         dateOfBirth: parsed.data.dateOfBirth || null,
         tags: parsed.data.tags ?? [],
+        branch: (session.user as any).branch ?? "Main",
         createdAt: now,
         updatedAt: now,
       })

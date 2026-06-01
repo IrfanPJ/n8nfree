@@ -6,6 +6,7 @@ import { supabase } from "@/lib/supabase";
 import { auth } from "@/lib/auth";
 import { appointmentSchema } from "@/validators/appointment";
 import { sendAppointmentConfirmation } from "@/lib/email";
+import { getDbClient } from "@/lib/supabase-branch";
 import { getBranchFilter } from "@/lib/branch";
 import type { ApiResponse, AppointmentWithRelations, AppointmentStatus } from "@/types";
 
@@ -26,7 +27,8 @@ export async function getAppointments(params: GetAppointmentsParams = {}): Promi
 
   const { dateFrom, dateTo, status, customerId, staffId, branch } = params;
 
-  let q = supabase.from("Appointment").select(APPT_SELECT).eq("isActive", true);
+  const db = await getDbClient(session.user.role, (session.user as any).branch ?? "Main");
+  let q = db.from("Appointment").select(APPT_SELECT).eq("isActive", true);
   const branchFilter = getBranchFilter(session.user as any, branch);
   if (status) q = q.eq("status", status);
   if (customerId) q = q.eq("customerId", customerId);
@@ -71,6 +73,7 @@ export async function createAppointment(data: unknown): Promise<ApiResponse<Appo
       location: parsed.data.location || null,
       notes: parsed.data.notes || null,
       reminderAt: parsed.data.reminderAt ? new Date(parsed.data.reminderAt).toISOString() : null,
+      branch: (session.user as any).branch ?? "Main",
       createdAt: now,
       updatedAt: now,
     });

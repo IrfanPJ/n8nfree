@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { randomUUID } from "crypto";
 import { supabase } from "@/lib/supabase";
+import { getDbClient } from "@/lib/supabase-branch";
 import { auth } from "@/lib/auth";
 import { orderSchema, orderStatusUpdateSchema } from "@/validators/order";
 import { generateOrderNumber } from "@/lib/utils";
@@ -34,9 +35,11 @@ export async function getOrders(params: {
 
   const { page = 1, pageSize = 20, search, status, priority, branch, cursor } = params;
 
-  let countQ = supabase.from("Order").select("*", { count: "exact", head: true }).eq("isActive", true);
-  let dataQ = supabase.from("Order").select(ORDER_SELECT).eq("isActive", true);
+  const db = await getDbClient(session.user.role, (session.user as any).branch ?? "Main");
+  let countQ = db.from("Order").select("*", { count: "exact", head: true }).eq("isActive", true);
+  let dataQ = db.from("Order").select(ORDER_SELECT).eq("isActive", true);
 
+  // Admin/Manager: optional URL-param branch filter; non-admins: RLS handles it
   const branchFilter = getBranchFilter(session.user as any, branch);
   if (status) { countQ = countQ.eq("status", status); dataQ = dataQ.eq("status", status); }
   if (priority) { countQ = countQ.eq("priority", priority); dataQ = dataQ.eq("priority", priority); }
@@ -139,6 +142,7 @@ export async function createOrder(data: unknown): Promise<ApiResponse<OrderWithR
       notes: parsed.data.notes ?? null,
       assignedToId: parsed.data.assignedToId || null,
       status: "MEASUREMENT",
+      branch: (session.user as any).branch ?? "Main",
       createdAt: now,
       updatedAt: now,
     });
@@ -418,8 +422,9 @@ export async function getOrdersForKanban(branch?: string): Promise<OrderWithRela
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
 
+  const db = await getDbClient(session.user.role, (session.user as any).branch ?? "Main");
   const branchFilter = getBranchFilter(session.user as any, branch);
-  let q = supabase
+  let q = db
     .from("Order")
     .select(ORDER_SELECT)
     .eq("isActive", true)

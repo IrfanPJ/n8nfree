@@ -5,6 +5,7 @@ import { randomUUID } from "crypto";
 import { supabase } from "@/lib/supabase";
 import { auth } from "@/lib/auth";
 import { leadSchema } from "@/validators/lead";
+import { getDbClient } from "@/lib/supabase-branch";
 import { getBranchFilter } from "@/lib/branch";
 import type { ApiResponse, Lead, LeadStage } from "@/types";
 
@@ -12,7 +13,8 @@ export async function getLeads(params: { branch?: string } = {}): Promise<Lead[]
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
 
-  let q = supabase.from("Lead").select("*").eq("isActive", true);
+  const db = await getDbClient(session.user.role, (session.user as any).branch ?? "Main");
+  let q = db.from("Lead").select("*").eq("isActive", true);
   const branchFilter = getBranchFilter(session.user as any, params.branch);
   if (branchFilter) q = q.eq("branch", branchFilter);
 
@@ -41,6 +43,7 @@ export async function createLead(data: unknown): Promise<ApiResponse<Lead>> {
       notes: parsed.data.notes || null,
       value: parsed.data.value,
       source: parsed.data.source || null,
+      branch: (session.user as any).branch ?? "Main",
       isActive: true,
       createdAt: now,
       updatedAt: now,

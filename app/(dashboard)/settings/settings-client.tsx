@@ -17,6 +17,7 @@ import { toast } from "sonner";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { getInitials } from "@/lib/utils";
 import { updateTeamMember, updateUserPermissions, deleteTeamMember } from "@/actions/users";
+import { updateBusinessSettings, type BusinessSettings } from "@/actions/business-settings";
 import type { StaffPosition, UserRole } from "@/types";
 import { PAGE_PERMISSIONS } from "@/lib/permissions";
 import { cn } from "@/lib/utils";
@@ -57,6 +58,7 @@ interface SettingsClientProps {
     role?: string;
   };
   teamMembers?: TeamMember[];
+  businessSettings?: BusinessSettings;
 }
 
 function MemberPermissionsRow({ member, onUpdate }: {
@@ -304,7 +306,7 @@ function TeamTab({ teamMembers, currentUserId }: { teamMembers: TeamMember[]; cu
   );
 }
 
-export function SettingsClient({ user, teamMembers = [] }: SettingsClientProps) {
+export function SettingsClient({ user, teamMembers = [], businessSettings }: SettingsClientProps) {
   const { theme, setTheme } = useTheme();
   const [notifications, setNotifications] = useState({
     orderUpdates: true,
@@ -314,18 +316,23 @@ export function SettingsClient({ user, teamMembers = [] }: SettingsClientProps) 
     systemAlerts: false,
   });
 
-  const [businessInfo] = useState({
-    name: "House of Tailors",
-    gst: "22AAAAA0000A1Z5",
-    phone: "+91 98765 43210",
-    email: "info@houseoftailors.com",
-    address: "Shop No. 12, Fashion Street, Mumbai - 400001",
+  const [bizInfo, setBizInfo] = useState<BusinessSettings>({
+    name: businessSettings?.name ?? "",
+    gst: businessSettings?.gst ?? "",
+    phone: businessSettings?.phone ?? "",
+    email: businessSettings?.email ?? "",
+    address: businessSettings?.address ?? "",
   });
+  const [savingBiz, setSavingBiz] = useState(false);
 
   const isAdmin = user.role === "ADMIN";
 
-  const handleSave = () => {
-    toast.success("Settings saved successfully");
+  const handleSaveBiz = async () => {
+    setSavingBiz(true);
+    const result = await updateBusinessSettings(bizInfo);
+    if (result.success) toast.success("Business info saved");
+    else toast.error(result.error ?? "Failed to save");
+    setSavingBiz(false);
   };
 
   return (
@@ -391,7 +398,7 @@ export function SettingsClient({ user, teamMembers = [] }: SettingsClientProps) 
                 </div>
               </div>
 
-              <Button variant="gold" onClick={handleSave}>
+              <Button variant="gold" onClick={() => toast.success("Saved")}>
                 <Save className="w-4 h-4 mr-2" />
                 Save Profile
               </Button>
@@ -407,35 +414,58 @@ export function SettingsClient({ user, teamMembers = [] }: SettingsClientProps) 
                 Business Information
               </CardTitle>
               <CardDescription>
-                This information appears on invoices and documents
+                Appears on invoices and printed documents
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-1.5">
                   <Label>Business Name</Label>
-                  <Input defaultValue={businessInfo.name} />
+                  <Input
+                    placeholder="e.g. House of Tailors"
+                    value={bizInfo.name}
+                    onChange={(e) => setBizInfo((p) => ({ ...p, name: e.target.value }))}
+                  />
                 </div>
                 <div className="space-y-1.5">
-                  <Label>GST Number</Label>
-                  <Input defaultValue={businessInfo.gst} />
+                  <Label>TRN / GST Number</Label>
+                  <Input
+                    placeholder="e.g. 100123456789"
+                    value={bizInfo.gst}
+                    onChange={(e) => setBizInfo((p) => ({ ...p, gst: e.target.value }))}
+                  />
                 </div>
                 <div className="space-y-1.5">
                   <Label>Phone</Label>
-                  <Input defaultValue={businessInfo.phone} />
+                  <Input
+                    placeholder="+971 50 123 4567"
+                    value={bizInfo.phone}
+                    onChange={(e) => setBizInfo((p) => ({ ...p, phone: e.target.value }))}
+                  />
                 </div>
                 <div className="space-y-1.5">
                   <Label>Email</Label>
-                  <Input defaultValue={businessInfo.email} />
+                  <Input
+                    type="email"
+                    placeholder="info@yourbusiness.com"
+                    value={bizInfo.email}
+                    onChange={(e) => setBizInfo((p) => ({ ...p, email: e.target.value }))}
+                  />
                 </div>
               </div>
               <div className="space-y-1.5">
                 <Label>Address</Label>
-                <Textarea defaultValue={businessInfo.address} rows={2} />
+                <Textarea
+                  placeholder="Shop address..."
+                  rows={2}
+                  value={bizInfo.address}
+                  onChange={(e) => setBizInfo((p) => ({ ...p, address: e.target.value }))}
+                  className="resize-none"
+                />
               </div>
-              <Button variant="gold" onClick={handleSave}>
+              <Button variant="gold" onClick={handleSaveBiz} disabled={savingBiz}>
                 <Save className="w-4 h-4 mr-2" />
-                Save Business Info
+                {savingBiz ? "Saving…" : "Save Business Info"}
               </Button>
             </CardContent>
           </Card>
@@ -471,7 +501,7 @@ export function SettingsClient({ user, teamMembers = [] }: SettingsClientProps) 
                   </div>
                 );
               })}
-              <Button variant="gold" onClick={handleSave}>
+              <Button variant="gold" onClick={() => toast.success("Saved")}>
                 <Save className="w-4 h-4 mr-2" />
                 Save Preferences
               </Button>

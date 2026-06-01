@@ -17,6 +17,7 @@ import { toast } from "sonner";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { getInitials } from "@/lib/utils";
 import { updateTeamMember, updateUserPermissions } from "@/actions/users";
+import { BRANCHES } from "@/store/branch-store";
 import type { StaffPosition, UserRole } from "@/types";
 import { PAGE_PERMISSIONS } from "@/lib/permissions";
 import { cn } from "@/lib/utils";
@@ -44,6 +45,7 @@ type TeamMember = {
   email: string;
   role: string;
   position: string | null;
+  branch?: string | null;
   isActive: boolean;
   pagePermissions?: string[] | null;
 };
@@ -191,6 +193,18 @@ function TeamTab({ teamMembers, currentUserId }: { teamMembers: TeamMember[]; cu
     });
   }
 
+  function handleBranchChange(memberId: string, branch: string) {
+    startTransition(async () => {
+      const result = await updateTeamMember(memberId, { branch });
+      if (result.success) {
+        setMembers((prev) => prev.map((m) => (m.id === memberId ? { ...m, branch } : m)));
+        toast.success("Branch updated");
+      } else {
+        toast.error(result.error ?? "Failed to update branch");
+      }
+    });
+  }
+
   function handlePermissionsUpdate(memberId: string, perms: string[] | null) {
     setMembers((prev) => prev.map((m) => (m.id === memberId ? { ...m, pagePermissions: perms } : m)));
   }
@@ -258,6 +272,22 @@ function TeamTab({ teamMembers, currentUserId }: { teamMembers: TeamMember[]; cu
                         <SelectItem value="NONE" className="text-xs text-muted-foreground">No position</SelectItem>
                         {(Object.keys(POSITION_LABELS) as StaffPosition[]).map((pos) => (
                           <SelectItem key={pos} value={pos} className="text-xs">{POSITION_LABELS[pos]}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+
+                    <Select
+                      defaultValue={member.branch ?? "Main"}
+                      onValueChange={(v) => handleBranchChange(member.id, v)}
+                      disabled={pending}
+                    >
+                      <SelectTrigger className="h-8 w-[160px] text-xs">
+                        <Building2 className="w-3 h-3 mr-1 text-muted-foreground" />
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {BRANCHES.filter((b) => b !== "All Branches").map((b) => (
+                          <SelectItem key={b} value={b} className="text-xs">{b}</SelectItem>
                         ))}
                       </SelectContent>
                     </Select>

@@ -27,7 +27,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
 
         const { data: user } = await supabase
           .from("User")
-          .select("id, email, name, image, role, password, isActive")
+          .select("id, email, name, image, role, password, isActive, branch")
           .eq("email", email)
           .maybeSingle();
 
@@ -42,6 +42,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           name: user.name,
           image: user.image,
           role: user.role,
+          branch: user.branch ?? "Main",
         };
       },
     }),
@@ -51,7 +52,8 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     async jwt({ token, user }) {
       if (user) {
         token.id = user.id;
-        token.role = (user as { role?: string }).role;
+        token.role = (user as any).role;
+        token.branch = (user as any).branch ?? "Main";
       }
       return token;
     },
@@ -59,6 +61,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       if (token) {
         session.user.id = token.id as string;
         session.user.role = token.role as string;
+        session.user.branch = token.branch as string;
       }
       return session;
     },

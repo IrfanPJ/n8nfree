@@ -27,6 +27,7 @@ interface DashboardLayoutClientProps {
     email?: string | null;
     image?: string | null;
     role?: string;
+    branch?: string;
   };
   pagePermissions?: string[] | null;
 }
@@ -67,7 +68,7 @@ export function DashboardLayoutClient({ children, user, pagePermissions }: Dashb
         mobileOpen={mobileMenuOpen}
         onMobileClose={() => setMobileMenuOpen(false)}
       />
-      <Topbar onMobileMenuToggle={() => setMobileMenuOpen((v) => !v)} />
+      <Topbar onMobileMenuToggle={() => setMobileMenuOpen((v) => !v)} userRole={user.role} userBranch={user.branch} />
       <main
         className={cn(
           "transition-all duration-200 pt-16 pb-16 lg:pb-0",

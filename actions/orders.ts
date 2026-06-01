@@ -6,6 +6,7 @@ import { supabase } from "@/lib/supabase";
 import { auth } from "@/lib/auth";
 import { orderSchema, orderStatusUpdateSchema } from "@/validators/order";
 import { generateOrderNumber } from "@/lib/utils";
+import { getBranchFilter } from "@/lib/branch";
 import * as Sentry from "@sentry/nextjs";
 import { sendOrderStatusUpdate } from "@/lib/email";
 import type { ApiResponse, OrderWithRelations, PaginatedResult, OrderStatus } from "@/types";
@@ -36,9 +37,10 @@ export async function getOrders(params: {
   let countQ = supabase.from("Order").select("*", { count: "exact", head: true }).eq("isActive", true);
   let dataQ = supabase.from("Order").select(ORDER_SELECT).eq("isActive", true);
 
+  const branchFilter = getBranchFilter(session.user as any, branch);
   if (status) { countQ = countQ.eq("status", status); dataQ = dataQ.eq("status", status); }
   if (priority) { countQ = countQ.eq("priority", priority); dataQ = dataQ.eq("priority", priority); }
-  if (branch && branch !== "All Branches") { countQ = countQ.eq("branch", branch); dataQ = dataQ.eq("branch", branch); }
+  if (branchFilter) { countQ = countQ.eq("branch", branchFilter); dataQ = dataQ.eq("branch", branchFilter); }
   if (search) {
     const f = `orderNumber.ilike.%${search}%,garmentType.ilike.%${search}%,fabricName.ilike.%${search}%`;
     countQ = countQ.or(f);
@@ -412,15 +414,18 @@ export async function updateOrderDesign(id: string, specText: string): Promise<v
   revalidatePath(`/orders/${id}`);
 }
 
-export async function getOrdersForKanban(): Promise<OrderWithRelations[]> {
+export async function getOrdersForKanban(branch?: string): Promise<OrderWithRelations[]> {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
 
-  const { data } = await supabase
+  const branchFilter = getBranchFilter(session.user as any, branch);
+  let q = supabase
     .from("Order")
     .select(ORDER_SELECT)
     .eq("isActive", true)
-    .not("status", "in", '("DELIVERED","ORDER_CLOSED")')
+    .not("status", "in", '("DELIVERED","ORDER_CLOSED")');
+  if (branchFilter) q = q.eq("branch", branchFilter);
+  const { data } = await q
     .order("deliveryDate", { ascending: true })
     .limit(200);
 

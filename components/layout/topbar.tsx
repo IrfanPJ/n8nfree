@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { Bell, Search, Moon, Sun, Menu } from "lucide-react";
+import { Bell, Search, Moon, Sun, Menu, Building2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useUIStore } from "@/store/ui-store";
 import { useTheme } from "next-themes";
@@ -15,9 +15,12 @@ interface TopbarProps {
   title?: string;
   subtitle?: string;
   onMobileMenuToggle?: () => void;
+  userRole?: string;
+  userBranch?: string;
 }
 
-export function Topbar({ title, subtitle, onMobileMenuToggle }: TopbarProps) {
+export function Topbar({ title, subtitle, onMobileMenuToggle, userRole, userBranch }: TopbarProps) {
+  const isAdmin = userRole === "ADMIN" || userRole === "MANAGER";
   const { setSidebarCollapsed, sidebarCollapsed } = useUIStore();
   const { resolvedTheme, setTheme } = useTheme();
   const [searchOpen, setSearchOpen] = useState(false);
@@ -53,7 +56,14 @@ export function Topbar({ title, subtitle, onMobileMenuToggle }: TopbarProps) {
 
         <div className="flex items-center gap-1 sm:gap-2">
           <div className="hidden sm:block">
-            <BranchSelector />
+            {isAdmin ? (
+              <BranchSelector />
+            ) : (
+              <div className="flex items-center gap-1.5 h-8 px-3 rounded-md border border-border/40 text-xs text-muted-foreground">
+                <Building2 className="w-3.5 h-3.5 flex-shrink-0" />
+                {userBranch ?? "Main"}
+              </div>
+            )}
           </div>
 
           <Button

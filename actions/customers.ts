@@ -6,6 +6,7 @@ import { supabase } from "@/lib/supabase";
 import { auth } from "@/lib/auth";
 import { customerSchema } from "@/validators/customer";
 import * as Sentry from "@sentry/nextjs";
+import { getBranchFilter } from "@/lib/branch";
 import type { ApiResponse, CustomerWithRelations, PaginatedResult } from "@/types";
 
 export async function getCustomers(params: {
@@ -45,9 +46,10 @@ export async function getCustomers(params: {
     countQ = countQ.eq("gender", gender);
     dataQ = dataQ.eq("gender", gender);
   }
-  if (branch && branch !== "All Branches") {
-    countQ = countQ.eq("branch", branch);
-    dataQ = dataQ.eq("branch", branch);
+  const branchFilter = getBranchFilter(session.user as any, branch);
+  if (branchFilter) {
+    countQ = countQ.eq("branch", branchFilter);
+    dataQ = dataQ.eq("branch", branchFilter);
   }
 
   const [{ count: total }, { data: rawData }] = await Promise.all([

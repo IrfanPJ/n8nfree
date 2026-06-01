@@ -5,6 +5,7 @@ import { randomUUID } from "crypto";
 import { supabase } from "@/lib/supabase";
 import { auth } from "@/lib/auth";
 import { leadSchema } from "@/validators/lead";
+import { getBranchFilter } from "@/lib/branch";
 import type { ApiResponse, Lead, LeadStage } from "@/types";
 
 export async function getLeads(params: { branch?: string } = {}): Promise<Lead[]> {
@@ -12,10 +13,8 @@ export async function getLeads(params: { branch?: string } = {}): Promise<Lead[]
   if (!session?.user) throw new Error("Unauthorized");
 
   let q = supabase.from("Lead").select("*").eq("isActive", true);
-
-  if (params.branch && params.branch !== "All Branches") {
-    q = q.eq("branch", params.branch);
-  }
+  const branchFilter = getBranchFilter(session.user as any, params.branch);
+  if (branchFilter) q = q.eq("branch", branchFilter);
 
   const { data } = await q.order("createdAt", { ascending: false });
   return (data ?? []) as Lead[];

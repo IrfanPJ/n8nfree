@@ -221,14 +221,22 @@ export function OrdersClient({
     setData(initialData);
   }, [initialData]);
 
-  // Realtime: call router.refresh() whenever any Order row changes (e.g. after a QR scan)
+  // Realtime: refresh + toast whenever an Order row changes (e.g. after a QR scan)
   useEffect(() => {
     const sb = getSupabaseBrowser();
     if (!sb) return;
     const channel = sb
       .channel("orders-realtime")
-      .on("postgres_changes", { event: "*", schema: "public", table: "Order" }, () => {
+      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "Order" }, (payload) => {
         router.refresh();
+        const newStatus = (payload.new as any)?.status;
+        const orderNum = (payload.new as any)?.orderNumber;
+        if (orderNum && newStatus) {
+          toast.success(`${orderNum} status updated`, {
+            description: newStatus.replace(/_/g, " "),
+            duration: 3000,
+          });
+        }
       })
       .subscribe();
     return () => { sb.removeChannel(channel); };

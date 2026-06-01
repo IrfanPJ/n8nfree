@@ -25,11 +25,13 @@ export async function getTeamMembers() {
   let { data, error } = await supabase
     .from("User")
     .select("id, name, email, role, position, isActive, createdAt, pagePermissions, branches")
+    .eq("isActive", true)
     .order("createdAt", { ascending: true });
   if (error) {
     const fallback = await supabase
       .from("User")
       .select("id, name, email, role, position, isActive, createdAt, pagePermissions")
+      .eq("isActive", true)
       .order("createdAt", { ascending: true });
     if (fallback.error) return { success: false as const, error: fallback.error.message };
     data = (fallback.data ?? []).map((u: any) => ({ ...u, branches: null })) as any;

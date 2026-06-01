@@ -161,7 +161,7 @@ CREATE POLICY "branch_orderhistory_select" ON "OrderHistory"
     (SELECT branch FROM "Order" WHERE id = "OrderHistory"."orderId") = (auth.jwt() ->> 'branch')
   );
 
--- ── FollowUp (via Lead) ───────────────────────────────────────────────────────
+-- ── FollowUp (via Customer) ───────────────────────────────────────────────────
 ALTER TABLE "FollowUp" ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS "branch_followup_select" ON "FollowUp";
@@ -169,5 +169,5 @@ DROP POLICY IF EXISTS "branch_followup_select" ON "FollowUp";
 CREATE POLICY "branch_followup_select" ON "FollowUp"
   FOR SELECT TO authenticated
   USING (
-    (SELECT branch FROM "Lead" WHERE id = "FollowUp"."leadId") = (auth.jwt() ->> 'branch')
+    (SELECT branch FROM "Customer" WHERE id = "FollowUp"."customerId") = (auth.jwt() ->> 'branch')
   );

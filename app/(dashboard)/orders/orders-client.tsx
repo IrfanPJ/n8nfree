@@ -1262,7 +1262,6 @@ function OrderDetailView({ order, onShowQR }: { order: OrderWithRelations; onSho
       {/* ── Measurements Tab ─────────────────── */}
       {activeTab === "measurements" && (
         <div className="space-y-4">
-          {/* Header */}
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium">{order.customer.name}</p>
@@ -1270,7 +1269,45 @@ function OrderDetailView({ order, onShowQR }: { order: OrderWithRelations; onSho
                 {measurements?.length ?? 0} measurement record{measurements?.length !== 1 ? "s" : ""}
               </p>
             </div>
+            {!showAddForm && !editMeasurement && (
+              <Button variant="gold" size="sm" onClick={() => setShowAddForm(true)}>
+                <Plus className="w-3.5 h-3.5 mr-1.5" />
+                Add Measurement
+              </Button>
+            )}
           </div>
+
+          {/* Add / Edit inline form */}
+          {(showAddForm || editMeasurement) && (
+            <div className="p-4 rounded-xl border border-[#D4AF37]/20 bg-[#D4AF37]/5">
+              <div className="flex items-center justify-between mb-4">
+                <p className="text-sm font-semibold text-[#D4AF37]">
+                  {editMeasurement ? "Edit Measurement" : "New Measurement"}
+                </p>
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  onClick={() => { setShowAddForm(false); setEditMeasurement(null); }}
+                >
+                  <X className="w-4 h-4" />
+                </Button>
+              </div>
+              <MeasurementForm
+                measurement={editMeasurement ?? undefined}
+                defaultCustomerId={order.customerId}
+                onSuccess={(m) => {
+                  if (editMeasurement) {
+                    setMeasurements((prev) => prev?.map((x) => x.id === m.id ? m : x) ?? null);
+                  } else {
+                    setMeasurements((prev) => prev ? [m, ...prev] : [m]);
+                  }
+                  setShowAddForm(false);
+                  setEditMeasurement(null);
+                }}
+                onCancel={() => { setShowAddForm(false); setEditMeasurement(null); }}
+              />
+            </div>
+          )}
 
           {/* Loading spinner */}
           {loadingMeasurements && (
@@ -1280,13 +1317,17 @@ function OrderDetailView({ order, onShowQR }: { order: OrderWithRelations; onSho
             </div>
           )}
 
-          {/* Empty state — only when no measurements AND form not open */}
-          {!loadingMeasurements && measurements !== null && measurements.length === 0 && !showAddForm && !editMeasurement && (
-            <div className="text-center py-8 space-y-3">
+          {/* Empty state */}
+          {!loadingMeasurements && measurements !== null && measurements.length === 0 && !showAddForm && (
+            <div className="text-center py-10 space-y-3">
               <div className="w-12 h-12 rounded-full bg-secondary flex items-center justify-center mx-auto">
                 <Ruler className="w-5 h-5 text-muted-foreground" />
               </div>
               <p className="text-sm text-muted-foreground">No measurements recorded yet</p>
+              <Button variant="outline" size="sm" onClick={() => setShowAddForm(true)}>
+                <Plus className="w-3.5 h-3.5 mr-1.5" />
+                Add first measurement
+              </Button>
             </div>
           )}
 
@@ -1304,54 +1345,6 @@ function OrderDetailView({ order, onShowQR }: { order: OrderWithRelations; onSho
                 />
               ))}
             </div>
-          )}
-
-          {/* Add / Edit inline form — expands below the list */}
-          {!loadingMeasurements && measurements !== null && (showAddForm || editMeasurement) && (
-            <div className="rounded-xl border border-[#D4AF37]/20 bg-[#D4AF37]/5 overflow-hidden">
-              <div className="flex items-center justify-between px-4 pt-4 pb-2">
-                <p className="text-sm font-semibold text-[#D4AF37] flex items-center gap-1.5">
-                  <Ruler className="w-3.5 h-3.5" />
-                  {editMeasurement ? "Edit Measurement" : "New Measurement"}
-                </p>
-                <Button
-                  variant="ghost"
-                  size="icon-sm"
-                  onClick={() => { setShowAddForm(false); setEditMeasurement(null); }}
-                >
-                  <X className="w-4 h-4" />
-                </Button>
-              </div>
-              <div className="px-4 pb-4">
-                <MeasurementForm
-                  measurement={editMeasurement ?? undefined}
-                  defaultCustomerId={order.customerId}
-                  onSuccess={(m) => {
-                    if (editMeasurement) {
-                      setMeasurements((prev) => prev?.map((x) => x.id === m.id ? m : x) ?? null);
-                    } else {
-                      setMeasurements((prev) => prev ? [m, ...prev] : [m]);
-                    }
-                    setShowAddForm(false);
-                    setEditMeasurement(null);
-                  }}
-                  onCancel={() => { setShowAddForm(false); setEditMeasurement(null); }}
-                />
-              </div>
-            </div>
-          )}
-
-          {/* Add Measurement button — always at the bottom */}
-          {!loadingMeasurements && measurements !== null && !showAddForm && !editMeasurement && (
-            <Button
-              variant="outline"
-              size="sm"
-              className="w-full border-dashed"
-              onClick={() => setShowAddForm(true)}
-            >
-              <Plus className="w-3.5 h-3.5 mr-1.5" />
-              Add Measurement
-            </Button>
           )}
         </div>
       )}

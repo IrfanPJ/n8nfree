@@ -493,16 +493,16 @@ export function OrderForm({
                     <div className="space-y-1.5">
                       <Label className="text-xs">Fabric</Label>
                       <Select
-                        value={dropdownValue}
+                        value={dropdownValue || "__none__"}
                         onValueChange={(v) =>
-                          setValue(`items.${index}.fabricName`, v === "" ? "" : v === "Others" ? "Others" : v)
+                          setValue(`items.${index}.fabricName`, v === "__none__" ? "" : v === "Others" ? "Others" : v)
                         }
                       >
                         <SelectTrigger className="h-9 text-sm">
                           <SelectValue placeholder="Select fabric" />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="">— None —</SelectItem>
+                          <SelectItem value="__none__">— None —</SelectItem>
                           {FABRIC_OPTIONS.map((fabric) => (
                             <SelectItem key={fabric} value={fabric}>{fabric}</SelectItem>
                           ))}

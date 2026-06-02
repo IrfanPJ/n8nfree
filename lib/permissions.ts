@@ -13,6 +13,7 @@ export const PAGE_PERMISSIONS = [
   { key: "purchases", label: "Purchases" },
   { key: "finance", label: "Finance" },
   { key: "ai-assistant", label: "AI Assistant" },
+  { key: "activity", label: "Activity Log" },
   { key: "notifications", label: "Notifications" },
 ] as const;
 

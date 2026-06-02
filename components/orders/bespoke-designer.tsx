@@ -131,92 +131,237 @@ export function buildSpecText(d: GarmentDesign): string {
   return parts.join(" · ");
 }
 
-// ── Print ──────────────────────────────────────────────────────
+// ── Print — exact PDF form layout ─────────────────────────────
 
-function printSpec(design: GarmentDesign, orderNumber?: string) {
-  const win = window.open("", "_blank", "width=900,height=1100");
+function printSpec(
+  design: GarmentDesign,
+  orderNumber?: string,
+  order?: { customerName?: string; deliveryDate?: string; trialDate?: string; qty?: number; gender?: string }
+) {
+  const win = window.open("", "_blank", "width=1100,height=1400");
   if (!win) return;
+  const logoUrl = window.location.origin + "/1080_HT_BLACK.png";
   const j = design.jacket;
   const s = design.shirt;
   const t = design.trouser;
 
-  const row = (label: string, value: string) =>
-    value ? `<div class="row"><span class="lbl">${label}</span><span class="val">${value}</span></div>` : "";
+  const fmt = (iso?: string) => {
+    if (!iso) return "";
+    try { return new Date(iso).toLocaleDateString("en-AE", { day: "2-digit", month: "2-digit", year: "numeric" }); }
+    catch { return iso; }
+  };
 
-  const section = (title: string, rows: string) =>
-    `<div class="section"><div class="sec-title">${title}</div>${rows}</div>`;
+  // Checkbox: small square, filled if selected
+  const cb = (label: string, selected: boolean) =>
+    `<div class="opt"><span class="sq${selected ? " chk" : ""}"></span>${label}</div>`;
+
+  // Render a column of options
+  const col = (options: string[], val: string) =>
+    options.map((o) => cb(o, o === val)).join("");
+
+  // Size pattern row (inline checkboxes)
+  const spCbs = (val: string) =>
+    ["Create New", "Use Existing", "Use Sample", "Not Required"]
+      .map((o) => `<span class="sp-opt"><span class="sq${o === val ? " chk" : ""}"></span>${o.toUpperCase()}</span>`)
+      .join("");
+
+  // Section header block (same for all 3 garment types)
+  const sectionHeader = (title: string, spVal: string, btnCode: string, fabricLabel: string, liningSwatch: boolean) => `
+    <table class="form-table" cellpadding="0" cellspacing="0">
+      <tr>
+        <td colspan="12" class="sec-title-cell">
+          <span class="sec-title">${title}</span>
+          <span class="order-no">No. ${orderNumber ?? "A0001"}</span>
+        </td>
+      </tr>
+      <tr>
+        <td class="lbl-cell" width="50">DATE:</td>
+        <td class="val-cell" width="100">${fmt(new Date().toISOString())}</td>
+        <td class="lbl-cell" width="80">SIZE PATTERN:</td>
+        <td class="sp-cell" colspan="4">${spCbs(spVal)}</td>
+        <td class="lbl-cell" width="70">ORDER NO.</td>
+        <td class="val-cell" width="120">${orderNumber ?? ""}</td>
+        <td class="lbl-cell" colspan="2">TRIAL DATE:</td>
+        <td class="val-cell">${fmt(order?.trialDate)}</td>
+      </tr>
+      <tr>
+        <td class="lbl-cell">NAME:</td>
+        <td class="val-cell" colspan="5">${order?.customerName ?? ""}</td>
+        <td class="lbl-cell">M.FORM.NO.</td>
+        <td class="val-cell" colspan="2"></td>
+        <td class="lbl-cell" colspan="2">DELIVERY DATE:</td>
+        <td class="val-cell">${fmt(order?.deliveryDate)}</td>
+      </tr>
+      <tr>
+        <td class="lbl-cell">GENDER:</td>
+        <td class="val-cell" colspan="2">${order?.gender ?? ""}</td>
+        <td class="lbl-cell" colspan="2">${fabricLabel}</td>
+        <td class="val-cell"></td>
+        ${liningSwatch ? `<td class="lbl-cell">LINING SWATCH</td><td class="val-cell"></td>` : `<td colspan="2"></td>`}
+        <td class="lbl-cell" colspan="2">BUTTONS CODE</td>
+        <td class="val-cell">${btnCode}</td>
+      </tr>
+      <tr>
+        <td class="lbl-cell">QTY:</td>
+        <td class="val-cell" colspan="11">${order?.qty ?? ""}</td>
+      </tr>
+      <tr><td colspan="12" class="styling-header">STYLING</td></tr>
+    </table>`;
+
+  // ── JACKET styling table
+  const jacketStyling = () => {
+    const cols = [
+      { hdr: "JACKET",           opts: ["Single Breasted","Double Breasted","Band Gala","Bundy"],           val: j.jacketType },
+      { hdr: "NO. OF BUTTONS",   opts: ["1 Button","2 Buttons","3 Buttons","6 Buttons"],                    val: j.noOfButtons },
+      { hdr: "FRONT POCKETS",    opts: ["Straight","Slanting","With Ticket"],                               val: j.frontPockets },
+      { hdr: "LAPEL",            opts: ["Notch","Peak","Shawl"],                                            val: j.lapel },
+      { hdr: "LAPEL PIN HOLE",   opts: ["Show","With Hole","None"],                                         val: j.lapelPinHole },
+      { hdr: "BACK VENT OPEN",   opts: ["Side Vent","Center Vent","No Vent"],                               val: j.backVent },
+      { hdr: "INSIDE FASHION",   opts: ["Straight","Takurdwara","Piping"],                                  val: j.insideFashion },
+      { hdr: "INSIDE POCKETS",   opts: ["2 Pocket","3 Pockets","4 Pockets","No Pocket"],                   val: j.insidePockets },
+      { hdr: "EXTRA POCKET",     opts: ["Pen Pocket","Passport","None"],                                    val: j.extraPocket },
+      { hdr: "SLEEVE BUTTONS",   opts: ["3 Buttons","4 Buttons","5 Buttons"],                               val: j.sleeveButtons },
+      { hdr: "PICK STITCH",      opts: ["Full Pick","Lapel Pick","None"],                                   val: j.pickStitch },
+      { hdr: "OTHERS",           opts: [],                                                                   val: j.others },
+    ];
+    return stylingTable(cols);
+  };
+
+  // ── SHIRT styling table
+  const shirtStyling = () => {
+    const embCell = `
+      ${cb("Yes", s.nameEmbroidery === "Yes")}
+      ${cb("No", s.nameEmbroidery === "No")}
+      ${cb("Left", s.embroideryPosition === "Left")}
+      ${cb("Right", s.embroideryPosition === "Right")}`;
+    const collarCell = `
+      <div class="sub-lbl">POINT SIZE</div><div class="val-input">${s.collarPointSize}</div>
+      <div class="sub-lbl">STAND SIZE</div><div class="val-input">${s.collarStandSize}</div>`;
+    const cols = [
+      { hdr: "SHIRT FIT",           opts: ["Comfort","Slim"],                                          val: s.shirtFit },
+      { hdr: "COLLAR STYLE",        opts: ["Regular","Semi Cut Way","Full Cut Way","Tux Wing"],        val: s.collarStyle },
+      { hdr: "FRONT POCKETS",       opts: ["Single","Double","No Pocket"],                             val: s.frontPockets },
+      { hdr: "FRONT PLACKET",       opts: ["With Placket","Invisible Buttons","No Placket","Tux Pleats"], val: s.frontPlacket },
+      { hdr: "BACK DART",           opts: ["Dart","Center Box","Side Pleats","None"],                  val: s.backDart },
+      { hdr: "CUFF STYLE",          opts: ["One Button","Two Button","French Cuff"],                   val: s.cuffStyle },
+      { hdr: "NAME EMBROIDERY",     opts: [],                                                          val: "", custom: embCell },
+      { hdr: "CUFF SIZE",           opts: ["Left","Right","Regular"],                                  val: s.cuffSize },
+      { hdr: "COLLAR STAND & POINT",opts: [],                                                          val: "", custom: collarCell },
+      { hdr: "COLLAR SIZE",         opts: [],                                                          val: s.collarSize, custom: `<div class="val-input large">${s.collarSize}</div>` },
+    ];
+    return stylingTable(cols);
+  };
+
+  // ── TROUSER styling table
+  const trouserStyling = () => {
+    const waistCell = `<div class="sub-lbl">WAIST SIZE</div><div class="val-input">${t.waistSize}</div>
+      <div class="sub-lbl">FULL LENGTH</div><div class="val-input">${t.fullLength}</div>`;
+    const cols = [
+      { hdr: "FIT",           opts: ["Comfort","Slim","Straight","Loose Fit"],                    val: t.fit },
+      { hdr: "FRONT PLEATS",  opts: ["1 Pleat","2 Pleats","No Pleats","Front Darts"],             val: t.frontPleats },
+      { hdr: "BACK POCKETS",  opts: ["1 Pocket","2 Pockets","No Pockets"],                        val: t.backPockets },
+      { hdr: "BACK POCKETS",  opts: ["Pocket Flap","Button Loop","Kaaj"],                         val: t.backPocketsType },
+      { hdr: "INSIDE LINING", opts: ["Half Lining","Full Lining","No Lining"],                    val: t.insideLining },
+      { hdr: "LOOPS",         opts: ["8 Loops","6 Loops","No Loops"],                             val: t.loops },
+      { hdr: "SIDE ADJUSTER", opts: ["Yes","No","Back Elastic","Side Invisible Elastic"],         val: t.sideAdjuster },
+      { hdr: "FRONT POCKET",  opts: ["Cross","Straight","Jeans Style","No Pockets"],              val: t.frontPocket },
+      { hdr: "BOTTOM STYLE",  opts: ["Cuff Fold","Normal Hemming","Fold & Stitch"],               val: t.bottomStyle },
+      { hdr: "BUTTON / HOOK", opts: ["Long Belt","Hook","Button","Double Button 2\" Belt"],       val: t.buttonHook },
+      { hdr: "COIN POCKET",   opts: ["Inside Belt","Inside Right Pocket","None"],                 val: t.coinPocket },
+      { hdr: "",              opts: [],                                                            val: "", custom: waistCell },
+    ];
+    return stylingTable(cols);
+  };
+
+  type ColDef = { hdr: string; opts: string[]; val: string; custom?: string };
+  function stylingTable(cols: ColDef[]) {
+    const maxRows = Math.max(...cols.map((c) => c.opts.length), 1);
+    return `<table class="style-table" cellpadding="0" cellspacing="0">
+      <tr class="col-hdr-row">
+        ${cols.map((c) => `<th class="col-hdr">${c.hdr}</th>`).join("")}
+      </tr>
+      ${Array.from({ length: maxRows }, (_, r) => `
+        <tr>
+          ${cols.map((c) => {
+            if (c.custom && r === 0) return `<td class="opt-cell" rowspan="${maxRows}">${c.custom}</td>`;
+            if (c.custom) return "";
+            const opt = c.opts[r];
+            return `<td class="opt-cell">${opt ? cb(opt, opt === c.val) : ""}</td>`;
+          }).join("")}
+        </tr>`
+      ).join("")}
+    </table>`;
+  }
+
+  const comments = (text: string) =>
+    `<div class="comments-row"><span class="lbl-cell" style="width:100px">MORE COMMENTS</span><span class="comments-val">${text}</span></div>`;
+
+  const logo = `<div class="logo-row"><img src="${logoUrl}" style="height:32px;object-fit:contain" alt="House of Tailors"></div>`;
+
+  const css = `
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:Arial,sans-serif;font-size:8px;color:#111;background:#fff;padding:8px}
+    .section-wrap{border:1px solid #999;margin-bottom:12px;page-break-inside:avoid}
+    .form-table{width:100%;border-collapse:collapse}
+    .form-table td,.form-table th{border:1px solid #bbb;padding:2px 4px;font-size:8px}
+    .sec-title-cell{background:#e8e8e8;padding:3px 6px;position:relative}
+    .sec-title{font-weight:bold;font-size:9px;letter-spacing:.5px}
+    .order-no{position:absolute;right:6px;top:3px;font-weight:bold;color:#c00;font-size:9px}
+    .lbl-cell{font-weight:bold;font-size:7px;color:#444;white-space:nowrap;background:#f5f5f5}
+    .val-cell{font-size:8px}
+    .sp-cell{padding:2px 4px}
+    .sp-opt{display:inline-flex;align-items:center;gap:2px;margin-right:8px;font-size:7px;font-weight:bold}
+    .styling-header{text-align:center;font-weight:bold;font-size:8px;letter-spacing:1px;background:#f0f0f0;padding:3px}
+    .style-table{width:100%;border-collapse:collapse}
+    .style-table td,.style-table th{border:1px solid #bbb;padding:2px 3px;vertical-align:top}
+    .col-hdr-row{background:#e8e8e8}
+    .col-hdr{font-size:6.5px;font-weight:bold;text-align:center;letter-spacing:.3px;padding:2px 3px}
+    .opt{display:flex;align-items:center;gap:2px;font-size:7px;font-weight:600;text-transform:uppercase;white-space:nowrap;margin-bottom:2px}
+    .opt-cell{padding:2px 3px;vertical-align:top}
+    .sq{display:inline-block;width:8px;height:8px;border:1px solid #555;flex-shrink:0;background:#fff}
+    .sq.chk{background:#222;position:relative}
+    .sq.chk::after{content:"✓";color:#fff;font-size:6px;line-height:8px;display:block;text-align:center}
+    .sub-lbl{font-size:6.5px;font-weight:bold;color:#555;margin-bottom:1px;margin-top:3px}
+    .val-input{border-bottom:1px solid #888;min-width:40px;font-size:8px;font-weight:bold;padding:1px 0;margin-bottom:2px}
+    .val-input.large{font-size:10px;min-width:30px}
+    .comments-row{display:flex;align-items:flex-start;gap:6px;padding:3px 4px;border-top:1px solid #ddd}
+    .comments-val{flex:1;border-bottom:1px solid #888;min-height:16px;font-size:8px}
+    .logo-row{display:flex;justify-content:flex-end;padding:4px 6px 2px}
+    @media print{
+      body{padding:4px}
+      .section-wrap{margin-bottom:8px}
+      @page{margin:8mm;size:A4}
+    }`;
 
   win.document.write(`<!DOCTYPE html><html><head>
-    <title>Style Details${orderNumber ? ` — ${orderNumber}` : ""}</title>
-    <style>
-      body{font-family:Arial,sans-serif;margin:0;padding:24px;color:#111;font-size:12px}
-      .hdr{text-align:center;border-bottom:2px solid #D4AF37;padding-bottom:12px;margin-bottom:20px}
-      .hdr h1{margin:0;font-size:20px;color:#D4AF37;letter-spacing:2px}
-      .hdr p{margin:4px 0 0;font-size:11px;color:#666}
-      .garment-title{font-size:14px;font-weight:bold;color:#D4AF37;border-bottom:1px solid #D4AF37;padding-bottom:6px;margin:24px 0 12px;text-transform:uppercase;letter-spacing:1px}
-      .grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:4px;margin-bottom:8px}
-      .section{margin-bottom:12px}
-      .sec-title{font-size:10px;text-transform:uppercase;letter-spacing:.8px;color:#999;font-weight:bold;margin-bottom:4px}
-      .row{display:flex;justify-content:space-between;padding:3px 0;border-bottom:1px dotted #eee;font-size:12px}
-      .lbl{color:#666}.val{font-weight:600}
-      .comments{background:#f9f9f9;border:1px solid #eee;padding:8px;border-radius:4px;font-size:11px;margin-top:8px}
-      @media print{body{padding:10px}}
-    </style>
+    <title>Style Details — ${orderNumber ?? ""}</title>
+    <style>${css}</style>
   </head><body>
-    <div class="hdr"><h1>HOUSE OF TAILORS</h1><p>Garment Style Details${orderNumber ? ` · ${orderNumber}` : ""}</p></div>
 
-    <div class="garment-title">Jacket Style Details</div>
-    <div class="grid">
-      ${section("Size Pattern", row("", j.sizePattern))}
-      ${section("Buttons Code", row("", j.buttonsCode))}
+    <div class="section-wrap">
+      ${sectionHeader("JACKET STYLE DETAILS", j.sizePattern, j.buttonsCode, "FABRIC SWATCH", true)}
+      ${jacketStyling()}
+      ${comments(j.comments)}
+      ${logo}
     </div>
-    ${section("Jacket Type", row("Type", j.jacketType))}
-    ${section("No. of Buttons", row("", j.noOfButtons))}
-    ${section("Front Pockets", row("", j.frontPockets))}
-    ${section("Lapel", row("", j.lapel))}
-    ${section("Lapel Pin Hole", row("", j.lapelPinHole))}
-    ${section("Back Vent", row("", j.backVent))}
-    ${section("Inside Fashion", row("", j.insideFashion))}
-    ${section("Inside Pockets", row("", j.insidePockets))}
-    ${section("Extra Pocket", row("", j.extraPocket))}
-    ${section("Sleeve Buttons", row("", j.sleeveButtons))}
-    ${section("Pick Stitch", row("", j.pickStitch))}
-    ${j.others ? section("Others", row("", j.others)) : ""}
-    ${j.comments ? `<div class="sec-title">Comments</div><div class="comments">${j.comments}</div>` : ""}
 
-    <div class="garment-title">Shirt Style Details</div>
-    ${section("Size Pattern", row("", s.sizePattern))}
-    ${section("Shirt Fit", row("", s.shirtFit))}
-    ${section("Collar Style", row("", s.collarStyle))}
-    ${section("Front Pockets", row("", s.frontPockets))}
-    ${section("Front Placket", row("", s.frontPlacket))}
-    ${section("Back Dart", row("", s.backDart))}
-    ${section("Cuff Style", row("", s.cuffStyle))}
-    ${section("Name Embroidery", row("", s.nameEmbroidery + (s.embroideryPosition ? ` (${s.embroideryPosition})` : "")))}
-    ${section("Cuff Size", row("", s.cuffSize))}
-    ${s.collarPointSize ? section("Collar Point Size", row("", s.collarPointSize)) : ""}
-    ${s.collarStandSize ? section("Collar Stand Size", row("", s.collarStandSize)) : ""}
-    ${s.collarSize ? section("Collar Size", row("", s.collarSize)) : ""}
-    ${s.comments ? `<div class="sec-title">Comments</div><div class="comments">${s.comments}</div>` : ""}
+    <div class="section-wrap">
+      ${sectionHeader("SHIRT STYLE DETAILS", s.sizePattern, s.buttonsCode, "FABRIC SWATCH", false)}
+      ${shirtStyling()}
+      ${comments(s.comments)}
+      ${logo}
+    </div>
 
-    <div class="garment-title">Trouser Style Details</div>
-    ${section("Size Pattern", row("", t.sizePattern))}
-    ${section("Fit", row("", t.fit))}
-    ${section("Front Pleats", row("", t.frontPleats))}
-    ${section("Back Pockets", row("Count", t.backPockets) + row("Type", t.backPocketsType))}
-    ${section("Inside Lining", row("", t.insideLining))}
-    ${section("Loops", row("", t.loops))}
-    ${section("Side Adjuster", row("", t.sideAdjuster))}
-    ${section("Front Pocket", row("", t.frontPocket))}
-    ${section("Bottom Style", row("", t.bottomStyle))}
-    ${section("Button / Hook", row("", t.buttonHook))}
-    ${section("Coin Pocket", row("", t.coinPocket))}
-    ${t.waistSize ? section("Waist Size", row("", t.waistSize)) : ""}
-    ${t.fullLength ? section("Full Length", row("", t.fullLength)) : ""}
-    ${t.comments ? `<div class="sec-title">Comments</div><div class="comments">${t.comments}</div>` : ""}
+    <div class="section-wrap">
+      ${sectionHeader("TROUSER STYLE DETAILS", t.sizePattern, t.buttonsCode, "FABRIC SWATCH", false)}
+      ${trouserStyling()}
+      ${comments(t.comments)}
+      ${logo}
+    </div>
+
   </body></html>`);
   win.document.close();
-  setTimeout(() => win.print(), 400);
+  setTimeout(() => win.print(), 500);
 }
 
 // ── OptionChip ─────────────────────────────────────────────────
@@ -335,10 +480,17 @@ interface BespokeDesignerProps {
   onClose: () => void;
   orderId?: string;
   orderNumber?: string;
+  order?: {
+    customerName?: string;
+    deliveryDate?: string;
+    trialDate?: string;
+    qty?: number;
+    gender?: string;
+  };
   onSave?: (design: GarmentDesign, specText: string) => Promise<void>;
 }
 
-export function BespokeDesigner({ open, onClose, orderId, orderNumber, onSave }: BespokeDesignerProps) {
+export function BespokeDesigner({ open, onClose, orderId, orderNumber, order, onSave }: BespokeDesignerProps) {
   const [activeTab, setActiveTab] = useState<"jacket" | "shirt" | "trouser">("jacket");
   const [jacket, setJacket] = useState<JacketDesign>(DEFAULT_JACKET);
   const [shirt, setShirt] = useState<ShirtDesign>(DEFAULT_SHIRT);
@@ -378,7 +530,7 @@ export function BespokeDesigner({ open, onClose, orderId, orderNumber, onSave }:
             {orderNumber && <span className="text-xs text-muted-foreground">· {orderNumber}</span>}
           </div>
           <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" onClick={() => printSpec(design, orderNumber)} className="gap-1.5 text-xs">
+            <Button variant="outline" size="sm" onClick={() => printSpec(design, orderNumber, order)} className="gap-1.5 text-xs">
               <Printer className="w-3.5 h-3.5" /> Print
             </Button>
             {onSave && (

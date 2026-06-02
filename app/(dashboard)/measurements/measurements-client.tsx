@@ -43,6 +43,7 @@ function printMeasurement(measurement: Measurement, customerName: string) {
   const win = window.open("", "_blank", "width=700,height=900");
   if (!win) return;
   const u = measurement.unit === "cm" ? "cm" : "in";
+  const logoUrl = window.location.origin + "/1080_HT_BLACK.png";
 
   const sections = [
     {
@@ -98,8 +99,7 @@ function printMeasurement(measurement: Measurement, customerName: string) {
     <style>
       body{font-family:Arial,sans-serif;margin:0;padding:24px;color:#111}
       .hdr{text-align:center;border-bottom:2px solid #D4AF37;padding-bottom:16px;margin-bottom:20px}
-      .hdr h1{margin:0;font-size:22px;color:#D4AF37;letter-spacing:2px}
-      .hdr p{margin:4px 0 0;font-size:12px;color:#666}
+      .hdr p{margin:0;font-size:12px;color:#666}
       .meta{display:flex;gap:24px;flex-wrap:wrap;margin-bottom:20px;padding:12px 16px;background:#f9f9f9;border-radius:8px;border:1px solid #eee}
       .mi .ml{font-size:10px;color:#999;text-transform:uppercase;letter-spacing:.5px}
       .mi .mv{font-size:13px;font-weight:600;margin-top:2px}
@@ -116,7 +116,7 @@ function printMeasurement(measurement: Measurement, customerName: string) {
       @media print{body{padding:10px}}
     </style>
   </head><body>
-    <div class="hdr"><h1>HOUSE OF TAILORS</h1><p>Measurement Record</p></div>
+    <div class="hdr"><img src="${logoUrl}" style="height:70px;max-width:240px;object-fit:contain;display:block;margin:0 auto 10px" alt="House of Tailors"><p>Measurement Record</p></div>
     <div class="meta">
       <div class="mi"><div class="ml">Client</div><div class="mv">${customerName}</div></div>
       <div class="mi"><div class="ml">Label</div><div class="mv">${measurement.label}</div></div>

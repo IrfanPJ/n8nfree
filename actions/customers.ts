@@ -85,15 +85,31 @@ export async function getCustomerById(id: string): Promise<CustomerWithRelations
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
 
-  const [{ data: customer }, { data: measurements }, { data: orders }, { data: appointments }, { data: invoices }, { data: followUps }] =
-    await Promise.all([
-      supabase.from("Customer").select("*").eq("id", id).eq("isActive", true).maybeSingle(),
-      supabase.from("Measurement").select("*").eq("customerId", id).order("takenAt", { ascending: false }),
-      supabase.from("Order").select("*").eq("customerId", id).order("createdAt", { ascending: false }).limit(10),
-      supabase.from("Appointment").select("*").eq("customerId", id).order("startTime", { ascending: false }).limit(5),
-      supabase.from("Invoice").select("*").eq("customerId", id).order("createdAt", { ascending: false }).limit(5),
-      supabase.from("FollowUp").select("*").eq("customerId", id).order("createdAt", { ascending: false }).limit(5),
-    ]);
+  const [
+    { data: customer },
+    { data: measurements },
+    { data: orders },
+    { data: appointments },
+    { data: invoices },
+    { data: followUps },
+    { count: orderCount },
+    { count: measurementCount },
+    { count: appointmentCount },
+    { count: invoiceCount },
+    { count: followUpCount },
+  ] = await Promise.all([
+    supabase.from("Customer").select("*").eq("id", id).eq("isActive", true).maybeSingle(),
+    supabase.from("Measurement").select("*").eq("customerId", id).order("takenAt", { ascending: false }),
+    supabase.from("Order").select("*").eq("customerId", id).order("createdAt", { ascending: false }).limit(10),
+    supabase.from("Appointment").select("*").eq("customerId", id).order("startTime", { ascending: false }).limit(5),
+    supabase.from("Invoice").select("*").eq("customerId", id).order("createdAt", { ascending: false }).limit(5),
+    supabase.from("FollowUp").select("*").eq("customerId", id).order("createdAt", { ascending: false }).limit(5),
+    supabase.from("Order").select("*", { count: "exact", head: true }).eq("customerId", id),
+    supabase.from("Measurement").select("*", { count: "exact", head: true }).eq("customerId", id),
+    supabase.from("Appointment").select("*", { count: "exact", head: true }).eq("customerId", id),
+    supabase.from("Invoice").select("*", { count: "exact", head: true }).eq("customerId", id),
+    supabase.from("FollowUp").select("*", { count: "exact", head: true }).eq("customerId", id),
+  ]);
 
   if (!customer) return null;
 
@@ -105,11 +121,11 @@ export async function getCustomerById(id: string): Promise<CustomerWithRelations
     invoices: invoices ?? [],
     followUps: followUps ?? [],
     _count: {
-      orders: orders?.length ?? 0,
-      measurements: measurements?.length ?? 0,
-      appointments: appointments?.length ?? 0,
-      invoices: invoices?.length ?? 0,
-      followUps: followUps?.length ?? 0,
+      orders: orderCount ?? 0,
+      measurements: measurementCount ?? 0,
+      appointments: appointmentCount ?? 0,
+      invoices: invoiceCount ?? 0,
+      followUps: followUpCount ?? 0,
     },
   } as CustomerWithRelations;
 }

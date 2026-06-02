@@ -242,11 +242,14 @@ export async function updateOrder(id: string, data: unknown): Promise<ApiRespons
 
     if (error) throw error;
 
-    await supabase.from("OrderItem").delete().eq("orderId", id);
+    // Insert new items first, then delete old ones — a failed insert never leaves the order itemless
+    const newItemIds: string[] = [];
     if (items.length > 0) {
-      const { error: itemsError } = await supabase.from("OrderItem").insert(
-        items.map((item, idx) => ({
-          id: randomUUID(),
+      const rows = items.map((item, idx) => {
+        const rowId = randomUUID();
+        newItemIds.push(rowId);
+        return {
+          id: rowId,
           orderId: id,
           garmentType: item.garmentType,
           quantity: item.quantity,
@@ -256,9 +259,14 @@ export async function updateOrder(id: string, data: unknown): Promise<ApiRespons
           sortOrder: item.sortOrder ?? idx,
           createdAt: now,
           updatedAt: now,
-        }))
-      );
+        };
+      });
+      const { error: itemsError } = await supabase.from("OrderItem").insert(rows);
       if (itemsError) throw itemsError;
+      // Only delete old rows after new ones are confirmed saved
+      await supabase.from("OrderItem").delete().eq("orderId", id).not("id", "in", `(${newItemIds.map((x) => `"${x}"`).join(",")})`);
+    } else {
+      await supabase.from("OrderItem").delete().eq("orderId", id);
     }
 
     const { data: order } = await supabase.from("Order").select(ORDER_SELECT).eq("id", id).maybeSingle();

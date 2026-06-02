@@ -145,10 +145,11 @@ export async function deleteMeasurement(id: string): Promise<ApiResponse<void>> 
   if (!session?.user) return { success: false, error: "Unauthorized" };
 
   try {
-    const { data: measurement } = await supabase.from("Measurement").select("customerId").eq("id", id).single();
+    const { data: measurement } = await supabase.from("Measurement").select("customerId").eq("id", id).maybeSingle();
+    if (!measurement) return { success: false, error: "Measurement not found" };
     await supabase.from("Measurement").delete().eq("id", id);
     revalidatePath("/measurements");
-    if (measurement?.customerId) revalidatePath(`/customers/${measurement.customerId}`);
+    if (measurement.customerId) revalidatePath(`/customers/${measurement.customerId}`);
     return { success: true, message: "Measurement deleted" };
   } catch {
     return { success: false, error: "Failed to delete measurement" };

@@ -36,29 +36,24 @@ interface MeasurementFieldProps {
   error?: string;
 }
 
-function MeasurementField({ label, name, register, unit, error }: MeasurementFieldProps) {
+function MeasurementField({ label, name, register, error }: Omit<MeasurementFieldProps, "unit">) {
   return (
     <div className="space-y-1.5">
       <Label htmlFor={name} className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
         {label}
       </Label>
-      <div className="relative">
-        <Input
-          id={name}
-          type="number"
-          step="0.1"
-          min="0"
-          placeholder="0.0"
-          {...register(name)}
-          className={cn(
-            "pr-12 bg-background/50 border-border/60 focus:border-[#D4AF37]/50 focus:ring-[#D4AF37]/20 text-sm",
-            error && "border-destructive"
-          )}
-        />
-        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground pointer-events-none">
-          {unit}
-        </span>
-      </div>
+      <Input
+        id={name}
+        type="number"
+        step="0.1"
+        min="0"
+        placeholder="0.0"
+        {...register(name)}
+        className={cn(
+          "bg-background/50 border-border/60 focus:border-[#D4AF37]/50 focus:ring-[#D4AF37]/20 text-sm",
+          error && "border-destructive"
+        )}
+      />
       {error && <p className="text-xs text-destructive">{error}</p>}
     </div>
   );
@@ -251,7 +246,7 @@ export function MeasurementForm({
               label={f.label}
               name={f.name}
               register={register}
-              unit={unit}
+
               error={errors[f.name]?.message}
             />
           ))}
@@ -274,7 +269,7 @@ export function MeasurementForm({
               label={f.label}
               name={f.name}
               register={register}
-              unit={unit}
+
               error={errors[f.name]?.message}
             />
           ))}
@@ -297,7 +292,7 @@ export function MeasurementForm({
               label={f.label}
               name={f.name}
               register={register}
-              unit={unit}
+
               error={errors[f.name]?.message}
             />
           ))}

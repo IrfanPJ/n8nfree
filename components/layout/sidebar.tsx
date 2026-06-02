@@ -8,7 +8,7 @@ import {
   LayoutDashboard, Users, ShoppingBag, Calendar, FileText,
   Bell, Settings, LogOut, ChevronLeft, ChevronRight,
   Scissors, Package, MessageSquare, BarChart3, Phone,
-  Target, Layers, ShoppingCart, X, ScanLine,
+  Target, Layers, ShoppingCart, X, ScanLine, Activity,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useUIStore } from "@/store/ui-store";
@@ -33,6 +33,7 @@ const navItems = [
   { href: "/finance", label: "Finance", icon: BarChart3 },
   { href: "/measurements", label: "Measurements", icon: Scissors },
   { href: "/ai-assistant", label: "AI Assistant", icon: MessageSquare },
+  { href: "/activity", label: "Activity Log", icon: Activity },
   { href: "/notifications", label: "Notifications", icon: Bell },
 ];
 

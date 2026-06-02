@@ -1,13 +1,14 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { useForm, Controller } from "react-hook-form";
+import { useForm, Controller, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
   Plus, Edit2, Trash2, Phone, Mail, DollarSign,
   TrendingUp, X, GripVertical, Target, Star,
-  List, Calendar, ChevronLeft, ChevronRight, Download,
+  List, Calendar, ChevronLeft, ChevronRight, Download, Upload,
+  AlertCircle, CheckCircle2, FileSpreadsheet,
 } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -26,18 +27,19 @@ import {
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
-import { createLead, updateLead, updateLeadStage, deleteLead } from "@/actions/leads";
+import { createLead, updateLead, updateLeadStage, deleteLead, bulkCreateLeads } from "@/actions/leads";
 import { createAppointment } from "@/actions/appointments";
 import {
   leadSchema, type LeadFormData, LEAD_STAGES, LEAD_STAGE_LABELS,
   LEAD_SOURCES, PIPELINE_STAGES,
 } from "@/validators/lead";
 import { AppointmentForm } from "@/components/appointments/appointment-form";
-import type { Lead, LeadStage } from "@/types";
+import type { Lead, LeadStage, Customer } from "@/types";
 import { cn } from "@/lib/utils";
 
 interface LeadsClientProps {
   initialLeads: Lead[];
+  customers: Customer[];
 }
 
 type ViewMode = "kanban" | "month" | "week" | "day";
@@ -132,6 +134,12 @@ function LeadForm({
   onCancel: () => void;
 }) {
   const isEditing = !!lead;
+
+  // If editing a lead with a custom source not in the preset list, pre-populate "Others" + custom text
+  const existingSource = lead?.source ?? "";
+  const isCustomSource = existingSource !== "" && !(LEAD_SOURCES as readonly string[]).includes(existingSource);
+  const [sourceOther, setSourceOther] = useState(isCustomSource ? existingSource : "");
+
   const { register, handleSubmit, control, formState: { errors, isSubmitting } } = useForm<LeadFormData>({
     resolver: zodResolver(leadSchema) as any,
     defaultValues: {
@@ -142,14 +150,20 @@ function LeadForm({
       stage: lead?.stage ?? "ENQUIRY",
       notes: lead?.notes ?? "",
       value: lead?.value ?? 0,
-      source: lead?.source ?? "",
+      source: isCustomSource ? "Others" : existingSource,
     },
   });
 
+  const selectedSource = useWatch({ control, name: "source" });
+
   const onSubmit = async (data: LeadFormData) => {
+    const submitData = {
+      ...data,
+      source: data.source === "Others" ? (sourceOther.trim() || "") : data.source,
+    };
     const result = isEditing
-      ? await updateLead(lead.id, data)
-      : await createLead(data);
+      ? await updateLead(lead.id, submitData)
+      : await createLead(submitData);
     if (result.success && result.data) {
       toast.success(result.message ?? "Lead saved");
       onSuccess(result.data);
@@ -204,6 +218,16 @@ function LeadForm({
             </Select>
           )} />
         </div>
+        {selectedSource === "Others" && (
+          <div className="space-y-1.5">
+            <Label>Please specify *</Label>
+            <Input
+              placeholder="e.g. LinkedIn, Exhibition, Newspaper..."
+              value={sourceOther}
+              onChange={(e) => setSourceOther(e.target.value)}
+            />
+          </div>
+        )}
         <div className="space-y-1.5">
           <Label>Potential Value (AED)</Label>
           <Input type="number" min="0" step="100" {...register("value")} />
@@ -246,7 +270,7 @@ function exportLeadsCSV(leads: Lead[]) {
   URL.revokeObjectURL(url);
 }
 
-export function LeadsClient({ initialLeads }: LeadsClientProps) {
+export function LeadsClient({ initialLeads, customers }: LeadsClientProps) {
   const [leads, setLeads] = useState<Lead[]>(initialLeads);
   const [modalOpen, setModalOpen] = useState(false);
   const [editLead, setEditLead] = useState<Lead | null>(null);
@@ -260,6 +284,13 @@ export function LeadsClient({ initialLeads }: LeadsClientProps) {
 
   // Appointment popup triggered when lead → APPOINTMENT_CONFIRMED
   const [apptLead, setApptLead] = useState<Lead | null>(null);
+
+  // Import Excel/CSV
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [importOpen, setImportOpen] = useState(false);
+  const [importRows, setImportRows] = useState<Record<string, string>[]>([]);
+  const [importErrors, setImportErrors] = useState<string[]>([]);
+  const [importing, setImporting] = useState(false);
 
   const byStage = useMemo(() => {
     const map = {} as Record<LeadStage, Lead[]>;
@@ -350,6 +381,80 @@ export function LeadsClient({ initialLeads }: LeadsClientProps) {
     setEditLead(null);
   };
 
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    e.target.value = "";
+
+    const XLSX = await import("xlsx");
+    const buffer = await file.arrayBuffer();
+    const wb = XLSX.read(buffer, { type: "array" });
+    const ws = wb.Sheets[wb.SheetNames[0]];
+    const raw: Record<string, string>[] = XLSX.utils.sheet_to_json(ws, { defval: "" });
+
+    setImportRows(raw);
+    setImportErrors([]);
+    setImportOpen(true);
+  };
+
+  const normaliseStage = (v: string): string => {
+    const map: Record<string, string> = {
+      enquiry: "ENQUIRY", interested: "INTERESTED", quoted: "QUOTED",
+      "appointment confirmed": "APPOINTMENT_CONFIRMED", appointment_confirmed: "APPOINTMENT_CONFIRMED",
+      "closed won": "CLOSED_WON", closed_won: "CLOSED_WON",
+      "closed lost": "CLOSED_LOST", closed_lost: "CLOSED_LOST",
+      irrelevant: "IRRELEVANT",
+    };
+    return map[v.toLowerCase().trim()] ?? "ENQUIRY";
+  };
+
+  const handleImportSubmit = async () => {
+    setImporting(true);
+    const mapped = importRows.map((row) => {
+      const get = (...keys: string[]) => {
+        for (const k of keys) {
+          const found = Object.keys(row).find((r) => r.toLowerCase().trim() === k.toLowerCase());
+          if (found) return String(row[found]).trim();
+        }
+        return "";
+      };
+      return {
+        name: get("name", "full name", "contact name"),
+        phone: get("phone", "mobile", "phone number"),
+        email: get("email", "email address"),
+        interest: get("interest", "service", "service interest"),
+        stage: normaliseStage(get("stage") || "enquiry"),
+        notes: get("notes", "note", "remarks"),
+        value: parseFloat(get("value", "amount", "potential value") || "0") || 0,
+        source: get("source", "lead source"),
+      };
+    });
+
+    const result = await bulkCreateLeads(mapped);
+    setImporting(false);
+
+    if (result.success && result.data) {
+      toast.success(`Imported ${result.data.imported} leads`);
+      if (result.data.errors.length) setImportErrors(result.data.errors);
+      else { setImportOpen(false); setImportRows([]); }
+      // reload leads by refreshing page state
+      window.location.reload();
+    } else {
+      toast.error(result.error ?? "Import failed");
+    }
+  };
+
+  const downloadTemplate = async () => {
+    const XLSX = await import("xlsx");
+    const ws = XLSX.utils.aoa_to_sheet([
+      ["Name", "Phone", "Email", "Stage", "Source", "Interest", "Value", "Notes"],
+      ["John Smith", "+971501234567", "john@email.com", "Enquiry", "WhatsApp", "Wedding suit", "5000", "Interested in bespoke"],
+    ]);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Leads");
+    XLSX.writeFile(wb, "leads-import-template.xlsx");
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -379,6 +484,11 @@ export function LeadsClient({ initialLeads }: LeadsClientProps) {
             <Download className="w-3.5 h-3.5 mr-1.5" />
             Export
           </Button>
+          <Button variant="outline" size="sm" onClick={() => fileInputRef.current?.click()}>
+            <Upload className="w-3.5 h-3.5 mr-1.5" />
+            Import
+          </Button>
+          <input ref={fileInputRef} type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={handleFileChange} />
           <Button variant="gold" onClick={() => { setEditLead(null); setDefaultStage("ENQUIRY"); setModalOpen(true); }}>
             <Plus className="w-4 h-4 mr-2" />
             Add Lead
@@ -642,29 +752,139 @@ export function LeadsClient({ initialLeads }: LeadsClientProps) {
         </DialogContent>
       </Dialog>
 
-      {/* Auto appointment popup — triggered when lead moves to Appointment Confirmed */}
-      <Dialog open={!!apptLead} onOpenChange={(o) => { if (!o) setApptLead(null); }}>
+      {/* Import dialog */}
+      <Dialog open={importOpen} onOpenChange={(o) => { if (!o) { setImportOpen(false); setImportRows([]); setImportErrors([]); } }}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <Calendar className="w-5 h-5 text-cyan-400" />
-              Book Appointment — {apptLead?.name}
+              <FileSpreadsheet className="w-5 h-5 text-[#D4AF37]" />
+              Import Leads from Excel / CSV
             </DialogTitle>
-            <p className="text-xs text-muted-foreground mt-1">
-              Lead moved to Appointment Confirmed. Fill in the appointment details below.
-            </p>
           </DialogHeader>
-          <AppointmentForm
-            defaultCustomerId=""
-            defaultLeadId={apptLead?.id}
-            onSuccess={() => {
-              toast.success("Appointment saved");
-              setApptLead(null);
-            }}
-            onCancel={() => setApptLead(null)}
-          />
+
+          <div className="space-y-4">
+            {/* Template download */}
+            <div className="flex items-center justify-between p-3 rounded-lg bg-secondary/40 border border-border/40">
+              <p className="text-xs text-muted-foreground">
+                Accepted columns: <span className="font-medium text-foreground">Name</span> (required), Phone, Email, Stage, Source, Interest, Value, Notes
+              </p>
+              <Button variant="outline" size="sm" onClick={downloadTemplate}>
+                <Download className="w-3 h-3 mr-1.5" />
+                Template
+              </Button>
+            </div>
+
+            {/* Row preview */}
+            {importRows.length > 0 && (
+              <div className="space-y-2">
+                <p className="text-sm font-medium flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-green-400" />
+                  {importRows.length} rows detected
+                </p>
+                <div className="max-h-56 overflow-y-auto rounded-lg border border-border/40 text-xs">
+                  <table className="w-full">
+                    <thead className="bg-secondary/60 sticky top-0">
+                      <tr>
+                        {Object.keys(importRows[0]).slice(0, 6).map((h) => (
+                          <th key={h} className="px-3 py-2 text-left font-medium text-muted-foreground">{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border/30">
+                      {importRows.slice(0, 20).map((row, i) => (
+                        <tr key={i} className="hover:bg-secondary/30">
+                          {Object.values(row).slice(0, 6).map((v, j) => (
+                            <td key={j} className="px-3 py-1.5 truncate max-w-[120px]">{String(v)}</td>
+                          ))}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                  {importRows.length > 20 && (
+                    <p className="px-3 py-2 text-muted-foreground text-center">+{importRows.length - 20} more rows</p>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Errors from last import */}
+            {importErrors.length > 0 && (
+              <div className="space-y-1">
+                <p className="text-xs font-medium text-destructive flex items-center gap-1.5">
+                  <AlertCircle className="w-3.5 h-3.5" />
+                  {importErrors.length} rows had errors and were skipped
+                </p>
+                <div className="max-h-32 overflow-y-auto rounded-lg bg-destructive/5 border border-destructive/20 p-2 space-y-0.5">
+                  {importErrors.map((e, i) => (
+                    <p key={i} className="text-xs text-destructive/80">{e}</p>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Actions */}
+            <div className="flex gap-3 pt-1">
+              <Button variant="outline" className="flex-1" onClick={() => { setImportOpen(false); setImportRows([]); setImportErrors([]); }}>
+                Cancel
+              </Button>
+              <Button
+                variant="gold"
+                className="flex-1"
+                disabled={importRows.length === 0 || importing}
+                loading={importing}
+                onClick={handleImportSubmit}
+              >
+                Import {importRows.length > 0 ? `${importRows.length} leads` : ""}
+              </Button>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
+
+      {/* Auto appointment popup — triggered when lead moves to Appointment Confirmed */}
+      {(() => {
+        // Match the lead to an existing customer by phone (most unique) then by name
+        const matchedCustomer = apptLead
+          ? customers.find(
+              (c) =>
+                (apptLead.phone && c.phone && c.phone.replace(/\s/g, "") === apptLead.phone.replace(/\s/g, "")) ||
+                c.name.toLowerCase().trim() === apptLead.name.toLowerCase().trim()
+            )
+          : undefined;
+
+        const defaultTitle = apptLead
+          ? `${apptLead.interest ? apptLead.interest + " — " : ""}${apptLead.name}`
+          : "";
+
+        return (
+          <Dialog open={!!apptLead} onOpenChange={(o) => { if (!o) setApptLead(null); }}>
+            <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2">
+                  <Calendar className="w-5 h-5 text-cyan-400" />
+                  Book Appointment — {apptLead?.name}
+                </DialogTitle>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {matchedCustomer
+                    ? `Customer matched: ${matchedCustomer.name}. Fill in the appointment details below.`
+                    : "Lead moved to Appointment Confirmed. Select a customer and fill in the details below."}
+                </p>
+              </DialogHeader>
+              <AppointmentForm
+                customers={customers}
+                defaultCustomerId={matchedCustomer?.id ?? ""}
+                defaultLeadId={apptLead?.id}
+                defaultTitle={defaultTitle}
+                onSuccess={() => {
+                  toast.success("Appointment saved");
+                  setApptLead(null);
+                }}
+                onCancel={() => setApptLead(null)}
+              />
+            </DialogContent>
+          </Dialog>
+        );
+      })()}
     </div>
   );
 }

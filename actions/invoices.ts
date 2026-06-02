@@ -149,8 +149,6 @@ export async function updateInvoice(id: string, data: unknown): Promise<ApiRespo
   }
 
   try {
-    await supabase.from("InvoiceItem").delete().eq("invoiceId", id);
-
     const { error } = await supabase.from("Invoice").update({
       customerId: parsed.data.customerId,
       orderId: parsed.data.orderId || null,
@@ -171,17 +169,19 @@ export async function updateInvoice(id: string, data: unknown): Promise<ApiRespo
 
     if (error) throw error;
 
+    // Insert new items first, then delete old ones — so a failed insert never leaves the invoice itemless
+    const newItemIds: string[] = [];
     if (parsed.data.items.length > 0) {
-      await supabase.from("InvoiceItem").insert(
-        parsed.data.items.map((item) => ({
-          id: randomUUID(),
-          invoiceId: id,
-          description: item.description,
-          quantity: item.quantity,
-          unitPrice: item.unitPrice,
-          amount: item.amount,
-        }))
-      );
+      const rows = parsed.data.items.map((item) => {
+        const rowId = randomUUID();
+        newItemIds.push(rowId);
+        return { id: rowId, invoiceId: id, description: item.description, quantity: item.quantity, unitPrice: item.unitPrice, amount: item.amount };
+      });
+      const { error: itemsError } = await supabase.from("InvoiceItem").insert(rows);
+      if (itemsError) throw itemsError;
+      await supabase.from("InvoiceItem").delete().eq("invoiceId", id).not("id", "in", `(${newItemIds.map((x) => `"${x}"`).join(",")})`);
+    } else {
+      await supabase.from("InvoiceItem").delete().eq("invoiceId", id);
     }
 
     const { data: invoice } = await supabase.from("Invoice").select(INVOICE_SELECT).eq("id", id).maybeSingle();
@@ -220,7 +220,7 @@ export async function recordPayment(invoiceId: string, data: unknown): Promise<A
     const newDue = Math.max(0, existing.totalAmount - newPaid);
     const newStatus: InvoiceStatus = newDue <= 0 ? "PAID" : newPaid > 0 ? "PARTIAL" : existing.status;
 
-    await supabase.from("Payment").insert({
+    const { error: paymentError } = await supabase.from("Payment").insert({
       id: randomUUID(),
       invoiceId,
       amount: parsed.data.amount,
@@ -229,13 +229,15 @@ export async function recordPayment(invoiceId: string, data: unknown): Promise<A
       notes: parsed.data.notes ?? null,
       paidAt: new Date().toISOString(),
     });
+    if (paymentError) throw paymentError;
 
-    await supabase.from("Invoice").update({
+    const { error: updateError } = await supabase.from("Invoice").update({
       paidAmount: newPaid,
       dueAmount: newDue,
       status: newStatus,
       updatedAt: new Date().toISOString(),
     }).eq("id", invoiceId);
+    if (updateError) throw updateError;
 
     await supabase.from("ActivityLog").insert({
       id: randomUUID(),

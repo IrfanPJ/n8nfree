@@ -153,16 +153,12 @@ export async function updateAppointmentStatus(id: string, status: AppointmentSta
     const { data: appointment } = await supabase.from("Appointment").select(APPT_SELECT).eq("id", id).single();
 
     // Auto Closed Won: when appointment is completed, move linked lead to CLOSED_WON
-    if (status === "COMPLETED") {
-      const { data: apptRow } = await supabase
-        .from("Appointment").select("leadId").eq("id", id).maybeSingle();
-      const leadId = (apptRow as any)?.leadId;
-      if (leadId) {
-        await supabase.from("Lead")
-          .update({ stage: "CLOSED_WON", updatedAt: new Date().toISOString() })
-          .eq("id", leadId);
-        revalidatePath("/leads");
-      }
+    const leadId = (appointment as any)?.leadId;
+    if (status === "COMPLETED" && leadId) {
+      await supabase.from("Lead")
+        .update({ stage: "CLOSED_WON", updatedAt: new Date().toISOString() })
+        .eq("id", leadId);
+      revalidatePath("/leads");
     }
 
     revalidatePath("/appointments");

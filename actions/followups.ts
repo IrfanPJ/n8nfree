@@ -97,11 +97,19 @@ export async function updateFollowUp(id: string, data: unknown): Promise<ApiResp
   if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message };
 
   try {
+    const { data: existing } = await supabase.from("FollowUp").select("completedAt, status").eq("id", id).maybeSingle();
+    // Only set completedAt when transitioning INTO completed; preserve it if already completed; clear it if re-opened
+    const wasCompleted = existing?.status === "COMPLETED";
+    const isNowCompleted = parsed.data.status === "COMPLETED";
+    const completedAt = isNowCompleted
+      ? (wasCompleted ? existing.completedAt : new Date().toISOString())
+      : null;
+
     const { error } = await supabase.from("FollowUp").update({
       ...parsed.data,
       dueDate: parsed.data.dueDate ? new Date(parsed.data.dueDate).toISOString() : null,
       staffId: parsed.data.staffId || null,
-      completedAt: parsed.data.status === "COMPLETED" ? new Date().toISOString() : null,
+      completedAt,
       updatedAt: new Date().toISOString(),
     }).eq("id", id);
 

@@ -100,6 +100,46 @@ export async function updateLeadStage(id: string, stage: LeadStage): Promise<Api
   return { success: true, data: lead as Lead };
 }
 
+export async function bulkCreateLeads(rows: unknown[]): Promise<ApiResponse<{ imported: number; errors: string[] }>> {
+  const session = await auth();
+  if (!session?.user) return { success: false, error: "Unauthorized" };
+
+  const now = new Date().toISOString();
+  const valid: object[] = [];
+  const errors: string[] = [];
+
+  for (let i = 0; i < rows.length; i++) {
+    const parsed = leadSchema.safeParse(rows[i]);
+    if (!parsed.success) {
+      errors.push(`Row ${i + 1}: ${parsed.error.issues[0]?.message ?? "Invalid"}`);
+    } else {
+      valid.push({
+        id: randomUUID(),
+        name: parsed.data.name,
+        phone: parsed.data.phone || null,
+        email: parsed.data.email || null,
+        interest: parsed.data.interest || null,
+        stage: parsed.data.stage,
+        notes: parsed.data.notes || null,
+        value: parsed.data.value,
+        source: parsed.data.source || null,
+        branch: "Business Bay",
+        isActive: true,
+        createdAt: now,
+        updatedAt: now,
+      });
+    }
+  }
+
+  if (valid.length === 0) return { success: false, error: "No valid rows to import", data: { imported: 0, errors } };
+
+  const { error } = await supabase.from("Lead").insert(valid);
+  if (error) return { success: false, error: "Database error: " + error.message };
+
+  revalidatePath("/leads");
+  return { success: true, data: { imported: valid.length, errors }, message: `Imported ${valid.length} leads` };
+}
+
 export async function deleteLead(id: string): Promise<ApiResponse<void>> {
   const session = await auth();
   if (!session?.user) return { success: false, error: "Unauthorized" };

@@ -221,16 +221,22 @@ export function OrdersClient({
     setData(initialData);
   }, [initialData]);
 
-  // Realtime: refresh + toast whenever an Order row changes (e.g. after a QR scan)
+  // Realtime: patch local state on UPDATE, full refresh only on INSERT/DELETE
   useEffect(() => {
     const sb = getSupabaseBrowser();
     if (!sb) return;
     const channel = sb
       .channel("orders-realtime")
       .on("postgres_changes", { event: "UPDATE", schema: "public", table: "Order" }, (payload) => {
-        router.refresh();
-        const newStatus = (payload.new as any)?.status;
-        const orderNum = (payload.new as any)?.orderNumber;
+        const updated = payload.new as any;
+        setData((prev) => ({
+          ...prev,
+          data: prev.data.map((o) =>
+            o.id === updated.id ? { ...o, status: updated.status, updatedAt: updated.updatedAt } : o
+          ),
+        }));
+        const newStatus = updated?.status;
+        const orderNum = updated?.orderNumber;
         if (orderNum && newStatus) {
           toast.success(`${orderNum} status updated`, {
             description: newStatus.replace(/_/g, " "),
@@ -238,6 +244,8 @@ export function OrdersClient({
           });
         }
       })
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "Order" }, () => { router.refresh(); })
+      .on("postgres_changes", { event: "DELETE", schema: "public", table: "Order" }, () => { router.refresh(); })
       .subscribe();
     return () => { sb.removeChannel(channel); };
   }, [router]);
@@ -625,6 +633,13 @@ export function OrdersClient({
         onClose={() => setDesignOrder(null)}
         orderId={designOrder?.id}
         orderNumber={designOrder?.orderNumber}
+        order={designOrder ? {
+          customerName: (designOrder as any).customer?.name ?? "",
+          deliveryDate: designOrder.deliveryDate,
+          trialDate: designOrder.trialDate ?? "",
+          qty: (designOrder as any).items?.reduce((s: number, i: any) => s + (i.quantity ?? 1), 0) ?? 1,
+          gender: (designOrder as any).customer?.gender ?? "",
+        } : undefined}
         onSave={async (_design, specText) => {
           if (!designOrder) return;
           await updateOrderDesign(designOrder.id, specText);
@@ -853,6 +868,7 @@ function printMeasurement(measurement: Measurement, customerName: string) {
   const win = window.open("", "_blank", "width=700,height=900");
   if (!win) return;
   const u = measurement.unit === "cm" ? "cm" : "in";
+  const logoUrl = window.location.origin + "/1080_HT_BLACK.png";
   const sections = [
     { title: "Upper Body", items: [["Chest", measurement.chest], ["Waist", measurement.waist], ["Hip", measurement.hip], ["Shoulder", measurement.shoulder], ["Neck", measurement.neck], ["Sleeve", measurement.sleeve], ["Armhole", measurement.armhole]] },
     { title: "Lower Body", items: [["Inseam", measurement.inseam], ["Outseam", measurement.outseam], ["Rise", measurement.rise], ["Thigh", measurement.thigh], ["Ankle", measurement.ankle]] },
@@ -863,8 +879,8 @@ function printMeasurement(measurement: Measurement, customerName: string) {
     if (!filled.length) return "";
     return `<div class="section"><h3>${title}</h3><div class="grid">${filled.map(([l, v]) => `<div class="cell"><div class="cl">${l}</div><div class="cv">${v}${u}</div></div>`).join("")}</div></div>`;
   }).join("");
-  win.document.write(`<!DOCTYPE html><html><head><title>Measurements — ${customerName}</title><style>body{font-family:Arial,sans-serif;margin:0;padding:24px;color:#111}.hdr{text-align:center;border-bottom:2px solid #D4AF37;padding-bottom:16px;margin-bottom:20px}.hdr h1{margin:0;font-size:22px;color:#D4AF37;letter-spacing:2px}.hdr p{margin:4px 0 0;font-size:12px;color:#666}.meta{display:flex;gap:24px;flex-wrap:wrap;margin-bottom:20px;padding:12px 16px;background:#f9f9f9;border-radius:8px;border:1px solid #eee}.mi .ml{font-size:10px;color:#999;text-transform:uppercase;letter-spacing:.5px}.mi .mv{font-size:13px;font-weight:600;margin-top:2px}.section{margin-bottom:18px}.section h3{font-size:10px;text-transform:uppercase;letter-spacing:1px;color:#D4AF37;margin:0 0 8px;border-bottom:1px solid #eee;padding-bottom:4px}.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}.cell{background:#f9f9f9;border:1px solid #eee;padding:8px;border-radius:6px;text-align:center}.cl{font-size:10px;color:#999;text-transform:uppercase}.cv{font-size:15px;font-weight:bold;margin-top:2px}.notes{background:#f9f9f9;border:1px solid #eee;padding:10px;border-radius:6px;font-size:12px}.sig{display:flex;justify-content:space-between;margin-top:48px}.sl{text-align:center;width:40%}.sl .line{border-top:1px solid #ccc;padding-top:6px;font-size:11px;color:#999}@media print{body{padding:10px}}</style></head><body>
-    <div class="hdr"><h1>HOUSE OF TAILORS</h1><p>Measurement Record</p></div>
+  win.document.write(`<!DOCTYPE html><html><head><title>Measurements — ${customerName}</title><style>body{font-family:Arial,sans-serif;margin:0;padding:24px;color:#111}.hdr{text-align:center;border-bottom:2px solid #D4AF37;padding-bottom:16px;margin-bottom:20px}.hdr p{margin:0;font-size:12px;color:#666}.meta{display:flex;gap:24px;flex-wrap:wrap;margin-bottom:20px;padding:12px 16px;background:#f9f9f9;border-radius:8px;border:1px solid #eee}.mi .ml{font-size:10px;color:#999;text-transform:uppercase;letter-spacing:.5px}.mi .mv{font-size:13px;font-weight:600;margin-top:2px}.section{margin-bottom:18px}.section h3{font-size:10px;text-transform:uppercase;letter-spacing:1px;color:#D4AF37;margin:0 0 8px;border-bottom:1px solid #eee;padding-bottom:4px}.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}.cell{background:#f9f9f9;border:1px solid #eee;padding:8px;border-radius:6px;text-align:center}.cl{font-size:10px;color:#999;text-transform:uppercase}.cv{font-size:15px;font-weight:bold;margin-top:2px}.notes{background:#f9f9f9;border:1px solid #eee;padding:10px;border-radius:6px;font-size:12px}.sig{display:flex;justify-content:space-between;margin-top:48px}.sl{text-align:center;width:40%}.sl .line{border-top:1px solid #ccc;padding-top:6px;font-size:11px;color:#999}@media print{body{padding:10px}}</style></head><body>
+    <div class="hdr"><img src="${logoUrl}" style="height:70px;max-width:240px;object-fit:contain;display:block;margin:0 auto 10px" alt="House of Tailors"><p>Measurement Record</p></div>
     <div class="meta"><div class="mi"><div class="ml">Client</div><div class="mv">${customerName}</div></div><div class="mi"><div class="ml">Label</div><div class="mv">${measurement.label}</div></div><div class="mi"><div class="ml">Unit</div><div class="mv">${measurement.unit}</div></div><div class="mi"><div class="ml">Date</div><div class="mv">${new Date(measurement.takenAt).toLocaleDateString("en-AE")}</div></div>${measurement.takenBy ? `<div class="mi"><div class="ml">By</div><div class="mv">${measurement.takenBy}</div></div>` : ""}</div>
     ${html}
     ${measurement.notes ? `<div class="section"><h3>Notes</h3><div class="notes">${measurement.notes}</div></div>` : ""}

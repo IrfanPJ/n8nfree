@@ -33,6 +33,7 @@ interface AppointmentFormProps {
   defaultCustomerId?: string;
   defaultLeadId?: string;
   defaultDate?: Date;
+  defaultTitle?: string;
   onSuccess?: (appointment: AppointmentWithRelations) => void;
   onCancel?: () => void;
 }
@@ -59,6 +60,7 @@ export function AppointmentForm({
   defaultCustomerId,
   defaultLeadId,
   defaultDate,
+  defaultTitle,
   onSuccess,
   onCancel,
 }: AppointmentFormProps) {
@@ -87,7 +89,7 @@ export function AppointmentForm({
     defaultValues: {
       customerId: appointment?.customerId ?? defaultCustomerId ?? "",
       staffId: appointment?.staffId ?? "",
-      title: appointment?.title ?? "",
+      title: appointment?.title ?? defaultTitle ?? "",
       description: appointment?.description ?? "",
       type: (appointment?.type as AppointmentFormData["type"]) ?? "FITTING",
       status: appointment?.status ?? "SCHEDULED",

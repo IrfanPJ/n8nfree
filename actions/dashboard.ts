@@ -308,6 +308,153 @@ export async function getReadyOrders(_branch?: string) {
   return data ?? [];
 }
 
+// ── Role-specific dashboard data ─────────────────────────────────────────────
+
+export async function getMyAssignedOrders(userId: string) {
+  const session = await auth();
+  if (!session?.user) throw new Error("Unauthorized");
+
+  // Orders directly assigned to user
+  const { data: directOrders } = await supabase
+    .from("Order")
+    .select("id, orderNumber, garmentType, status, deliveryDate, priority, customer:Customer!customerId(name, phone)")
+    .eq("isActive", true)
+    .eq("assignedToId", userId)
+    .not("status", "in", '("DELIVERED","ORDER_CLOSED")')
+    .order("deliveryDate", { ascending: true })
+    .limit(20);
+
+  // Orders with items assigned to this user
+  const { data: itemOrders } = await supabase
+    .from("OrderItem")
+    .select("orderId, order:Order!orderId(id, orderNumber, garmentType, status, deliveryDate, priority, customer:Customer!customerId(name, phone))")
+    .eq("assignedToId", userId)
+    .limit(30);
+
+  const seen = new Set<string>();
+  const merged: any[] = [];
+  for (const o of (directOrders ?? [])) { seen.add(o.id); merged.push(o); }
+  for (const item of (itemOrders ?? [])) {
+    const o = (item as any).order;
+    if (o && !seen.has(o.id) && !["DELIVERED", "ORDER_CLOSED"].includes(o.status)) {
+      seen.add(o.id);
+      merged.push(o);
+    }
+  }
+  return merged.sort((a, b) => new Date(a.deliveryDate).getTime() - new Date(b.deliveryDate).getTime());
+}
+
+export async function getMyFollowUps(userId: string) {
+  const session = await auth();
+  if (!session?.user) throw new Error("Unauthorized");
+
+  const now = new Date().toISOString();
+
+  const [{ data: pending }, { count: overdueCount }] = await Promise.all([
+    supabase.from("FollowUp")
+      .select("id, title, dueDate, priority, status, customer:Customer!customerId(id, name, phone)")
+      .eq("isActive", true)
+      .eq("staffId", userId)
+      .eq("status", "PENDING")
+      .order("dueDate", { ascending: true })
+      .limit(10),
+    supabase.from("FollowUp")
+      .select("*", { count: "exact", head: true })
+      .eq("isActive", true)
+      .eq("staffId", userId)
+      .eq("status", "PENDING")
+      .lt("dueDate", now),
+  ]);
+
+  return { pending: pending ?? [], overdueCount: overdueCount ?? 0 };
+}
+
+export async function getMyAppointmentsToday(staffId: string) {
+  const session = await auth();
+  if (!session?.user) throw new Error("Unauthorized");
+
+  const todayStart = startOfDay(new Date()).toISOString();
+  const todayEnd = endOfDay(new Date()).toISOString();
+
+  const { data } = await supabase
+    .from("Appointment")
+    .select("id, title, type, status, startTime, endTime, location, customer:Customer!customerId(name, phone)")
+    .eq("isActive", true)
+    .eq("staffId", staffId)
+    .gte("startTime", todayStart)
+    .lte("startTime", todayEnd)
+    .order("startTime", { ascending: true });
+
+  return data ?? [];
+}
+
+export async function getSalesStats(userId: string) {
+  const session = await auth();
+  if (!session?.user) throw new Error("Unauthorized");
+
+  const now = new Date();
+  const monthStart = startOfMonth(now).toISOString();
+  const monthEnd = endOfMonth(now).toISOString();
+
+  const [
+    { count: activeLeads },
+    { count: myOpenFollowUps },
+    { count: apptToday },
+    { count: closedThisMonth },
+    { data: stageData },
+  ] = await Promise.all([
+    supabase.from("Lead").select("*", { count: "exact", head: true }).eq("isActive", true).not("stage", "in", '("CLOSED_WON","CLOSED_LOST","IRRELEVANT")'),
+    supabase.from("FollowUp").select("*", { count: "exact", head: true }).eq("isActive", true).eq("staffId", userId).eq("status", "PENDING"),
+    supabase.from("Appointment").select("*", { count: "exact", head: true }).eq("isActive", true).eq("staffId", userId).gte("startTime", startOfDay(now).toISOString()).lte("startTime", endOfDay(now).toISOString()),
+    supabase.from("Lead").select("*", { count: "exact", head: true }).eq("isActive", true).eq("stage", "CLOSED_WON").gte("updatedAt", monthStart).lte("updatedAt", monthEnd),
+    supabase.from("Lead").select("stage").eq("isActive", true).not("stage", "in", '("CLOSED_WON","CLOSED_LOST","IRRELEVANT")'),
+  ]);
+
+  const stageBreakdown: Record<string, number> = {};
+  for (const row of stageData ?? []) {
+    stageBreakdown[row.stage] = (stageBreakdown[row.stage] ?? 0) + 1;
+  }
+
+  return { activeLeads: activeLeads ?? 0, myOpenFollowUps: myOpenFollowUps ?? 0, apptToday: apptToday ?? 0, closedThisMonth: closedThisMonth ?? 0, stageBreakdown };
+}
+
+export async function getFabricDashboard() {
+  const session = await auth();
+  if (!session?.user) throw new Error("Unauthorized");
+
+  const now = new Date();
+  const monthStart = startOfMonth(now).toISOString();
+
+  const [{ data: fabrics }, { data: recentPurchases }, { data: pendingPayments }] = await Promise.all([
+    supabase.from("Fabric").select("id, name, stockQty, reorderLevel, unit").eq("isActive", true).order("stockQty", { ascending: true }),
+    supabase.from("Purchase").select("id, itemName, totalAmount, paidAmount, category, purchaseDate, supplier:Supplier!supplierId(name)").gte("purchaseDate", monthStart).order("purchaseDate", { ascending: false }).limit(8),
+    supabase.from("Purchase").select("id, itemName, totalAmount, paidAmount, supplier:Supplier!supplierId(name)").filter("paidAmount", "lt", "totalAmount").order("purchaseDate", { ascending: true }).limit(10),
+  ]);
+
+  const allFabrics = fabrics ?? [];
+  const lowStock = allFabrics.filter((f) => f.stockQty <= f.reorderLevel);
+  const totalSpendThisMonth = (recentPurchases ?? []).reduce((s, p) => s + (p.totalAmount ?? 0), 0);
+  const totalPending = (pendingPayments ?? []).reduce((s, p) => s + ((p.totalAmount ?? 0) - (p.paidAmount ?? 0)), 0);
+
+  return { fabrics: allFabrics, lowStock, recentPurchases: recentPurchases ?? [], pendingPayments: pendingPayments ?? [], totalSpendThisMonth, totalPending };
+}
+
+export async function getLogisticsDashboard() {
+  const session = await auth();
+  if (!session?.user) throw new Error("Unauthorized");
+
+  const now = new Date();
+  const weekOut = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+
+  const [{ data: readyOrders }, { data: upcomingDeliveries }, { data: overdueDeliveries }] = await Promise.all([
+    supabase.from("Order").select("id, orderNumber, garmentType, deliveryDate, status, customer:Customer!customerId(name, phone)").eq("isActive", true).eq("status", "READY_FOR_DELIVERY").order("deliveryDate", { ascending: true }),
+    supabase.from("Order").select("id, orderNumber, garmentType, deliveryDate, status, customer:Customer!customerId(name, phone)").eq("isActive", true).not("status", "in", '("DELIVERED","ORDER_CLOSED")').gte("deliveryDate", now.toISOString()).lte("deliveryDate", weekOut.toISOString()).order("deliveryDate", { ascending: true }),
+    supabase.from("Order").select("id, orderNumber, garmentType, deliveryDate, status, customer:Customer!customerId(name, phone)").eq("isActive", true).not("status", "in", '("DELIVERED","ORDER_CLOSED")').lt("deliveryDate", now.toISOString()).order("deliveryDate", { ascending: false }).limit(10),
+  ]);
+
+  return { readyOrders: readyOrders ?? [], upcomingDeliveries: upcomingDeliveries ?? [], overdueDeliveries: overdueDeliveries ?? [] };
+}
+
 export async function getRecentActivities() {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");

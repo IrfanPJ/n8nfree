@@ -1,12 +1,16 @@
 export const dynamic = "force-dynamic";
 import React, { Suspense } from "react";
 import { getLeads } from "@/actions/leads";
+import { getCustomers } from "@/actions/customers";
 import { LeadsClient } from "./leads-client";
 import { Skeleton } from "@/components/ui/skeleton";
 
 async function LeadsContent() {
-  const leads = await getLeads();
-  return <LeadsClient initialLeads={leads} />;
+  const [leads, customersResult] = await Promise.all([
+    getLeads(),
+    getCustomers({ pageSize: 500 }),
+  ]);
+  return <LeadsClient initialLeads={leads} customers={customersResult.data} />;
 }
 
 export default function LeadsPage() {

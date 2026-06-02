@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { X, Printer, Save, Sparkles, Check } from "lucide-react";
+import { Printer, Save, Sparkles, Check } from "lucide-react";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -549,9 +549,6 @@ export function BespokeDesigner({ open, onClose, orderId, orderNumber, initialDe
                 <Save className="w-3.5 h-3.5" /> Save to Order
               </Button>
             )}
-            <button type="button" onClick={onClose} className="ml-1 text-muted-foreground hover:text-foreground">
-              <X className="w-4 h-4" />
-            </button>
           </div>
         </div>
 

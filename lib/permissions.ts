@@ -24,7 +24,7 @@ export function hasPageAccess(
   pagePermissions: string[] | null | undefined,
   role: string
 ): boolean {
-  if (role === "ADMIN") return true;
-  if (!pagePermissions) return true; // null = unrestricted
+  if (role === "ADMIN" || role === "MANAGER") return true;
+  if (!pagePermissions) return false; // null = no permissions granted yet
   return pagePermissions.includes(pageKey);
 }

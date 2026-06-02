@@ -4,7 +4,8 @@ import { revalidatePath } from "next/cache";
 import { randomUUID } from "crypto";
 import { supabase } from "@/lib/supabase";
 import { auth } from "@/lib/auth";
-import { leadSchema } from "@/validators/lead";
+import { leadSchema, LEAD_STAGES } from "@/validators/lead";
+import { z } from "zod";
 import type { ApiResponse, Lead, LeadStage } from "@/types";
 
 export async function getLeads(_params: { branch?: string } = {}): Promise<Lead[]> {
@@ -90,7 +91,10 @@ export async function updateLeadStage(id: string, stage: LeadStage): Promise<Api
   const session = await auth();
   if (!session?.user) return { success: false, error: "Unauthorized" };
 
-  const { error } = await supabase.from("Lead").update({ stage, updatedAt: new Date().toISOString() }).eq("id", id);
+  const parsed = z.enum(LEAD_STAGES).safeParse(stage);
+  if (!parsed.success) return { success: false, error: "Invalid stage value" };
+
+  const { error } = await supabase.from("Lead").update({ stage: parsed.data, updatedAt: new Date().toISOString() }).eq("id", id);
   if (error) return { success: false, error: "Failed to update stage" };
 
   const { data: lead } = await supabase.from("Lead").select("*").eq("id", id).single();

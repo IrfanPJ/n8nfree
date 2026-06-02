@@ -33,7 +33,8 @@ export async function getCustomers(params: {
     .eq("isActive", true);
 
   if (search) {
-    const f = `name.ilike.%${search}%,email.ilike.%${search}%,phone.ilike.%${search}%`;
+    const safe = search.replace(/[%_,().]/g, "\\$&");
+    const f = `name.ilike.%${safe}%,email.ilike.%${safe}%,phone.ilike.%${safe}%`;
     countQ = countQ.or(f);
     dataQ = dataQ.or(f);
   }

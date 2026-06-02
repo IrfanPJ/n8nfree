@@ -39,7 +39,8 @@ export async function getOrders(params: {
   if (status) { countQ = countQ.eq("status", status); dataQ = dataQ.eq("status", status); }
   if (priority) { countQ = countQ.eq("priority", priority); dataQ = dataQ.eq("priority", priority); }
   if (search) {
-    const f = `orderNumber.ilike.%${search}%,garmentType.ilike.%${search}%,fabricName.ilike.%${search}%`;
+    const safe = search.replace(/[%_,().]/g, "\\$&");
+    const f = `orderNumber.ilike.%${safe}%,garmentType.ilike.%${safe}%,fabricName.ilike.%${safe}%`;
     countQ = countQ.or(f);
     dataQ = dataQ.or(f);
   }
@@ -402,6 +403,8 @@ export async function deleteOrder(id: string): Promise<ApiResponse<void>> {
 export async function updateOrderDesign(id: string, specText: string, design?: unknown): Promise<void> {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
+  const allowedDesignRoles = ["ADMIN","MANAGER","PRODUCTION_IN_CHARGE","MASTER","TAILOR"];
+  if (!allowedDesignRoles.includes(session.user.role)) throw new Error("Insufficient permissions");
 
   // Store full design JSON alongside spec text so the designer can reload it
   const payload = design

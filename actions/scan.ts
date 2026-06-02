@@ -7,6 +7,7 @@ import { randomUUID } from "crypto";
 import * as Sentry from "@sentry/nextjs";
 import type { OrderStatus, OrderWithRelations, ApiResponse } from "@/types";
 import { POSITION_STAGE_MAP, ALL_STAGES } from "@/lib/scan-config";
+import { orderStatusUpdateSchema } from "@/validators/order";
 
 const ORDER_SELECT = `
   *,
@@ -89,8 +90,20 @@ export async function processOrderScan(
       ? (POSITION_STAGE_MAP[position] ?? [])
       : [];
 
-  if (!allowedStages.includes(newStatus)) {
+  // Validate status is a real enum value (server action is callable over HTTP)
+  const statusParsed = orderStatusUpdateSchema.safeParse({ status: newStatus });
+  if (!statusParsed.success) return { success: false, error: "Invalid status value" };
+  const validatedStatus = statusParsed.data.status as OrderStatus;
+
+  if (!allowedStages.includes(validatedStatus)) {
     return { success: false, error: "Your position does not allow setting this stage" };
+  }
+
+  // Prevent scanning the same status twice (duplicate history entries)
+  const { data: currentOrder } = await supabase
+    .from("Order").select("status").eq("id", orderId).maybeSingle();
+  if (currentOrder?.status === validatedStatus) {
+    return { success: false, error: "Order is already in this stage" };
   }
 
   try {
@@ -98,15 +111,15 @@ export async function processOrderScan(
 
     const { error } = await supabase
       .from("Order")
-      .update({ status: newStatus, updatedAt: now })
+      .update({ status: validatedStatus, updatedAt: now })
       .eq("id", orderId);
     if (error) throw error;
 
     await supabase.from("OrderHistory").insert({
       id: randomUUID(),
       orderId,
-      status: newStatus,
-      notes: `Advanced to ${newStatus} via QR scan by ${userName}`,
+      status: validatedStatus,
+      notes: `Advanced to ${validatedStatus} via QR scan by ${userName}`,
       changedBy: session.user.id,
       changedAt: now,
     });

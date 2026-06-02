@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import {
   ArrowLeft, Edit2, Star, Phone, Mail, MapPin, Calendar, ShoppingBag,
-  Ruler, FileText, Package, MessageCircle, Plus
+  Ruler, FileText, Package, MessageCircle, Plus, Sparkles, Printer
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -15,6 +15,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { CustomerForm } from "@/components/customers/customer-form";
 import { MeasurementForm } from "@/components/measurements/measurement-form";
+import { BespokeDesigner } from "@/components/orders/bespoke-designer";
+import { parseDesignNotes } from "@/app/(dashboard)/orders/orders-client";
 import type { CustomerWithRelations } from "@/types";
 import {
   getInitials, formatDate, formatCurrency, ORDER_STATUS_CONFIG, INVOICE_STATUS_CONFIG, openWhatsApp
@@ -29,6 +31,7 @@ export function CustomerDetailClient({ customer }: CustomerDetailClientProps) {
   const router = useRouter();
   const [editOpen, setEditOpen] = useState(false);
   const [measurementOpen, setMeasurementOpen] = useState(false);
+  const [designViewOrder, setDesignViewOrder] = useState<(typeof customer.orders)[0] | null>(null);
 
   const totalRevenue = customer.invoices
     .filter((i) => i.status === "PAID")
@@ -135,6 +138,9 @@ export function CustomerDetailClient({ customer }: CustomerDetailClientProps) {
           <TabsTrigger value="measurements">
             Measurements ({customer._count?.measurements ?? 0})
           </TabsTrigger>
+          <TabsTrigger value="designs">
+            Designs ({customer.orders.filter((o) => !!(o as any).designNotes).length})
+          </TabsTrigger>
           <TabsTrigger value="invoices">
             Invoices ({customer._count?.invoices ?? 0})
           </TabsTrigger>
@@ -171,8 +177,8 @@ export function CustomerDetailClient({ customer }: CustomerDetailClientProps) {
                       </div>
                       <p className="text-xs text-muted-foreground mt-0.5">{order.garmentType}</p>
                       {(order as any).designNotes && (
-                        <p className="text-[10px] text-[#D4AF37]/70 mt-0.5 truncate max-w-xs" title={(order as any).designNotes}>
-                          ✦ {(order as any).designNotes}
+                        <p className="text-[10px] text-[#D4AF37]/70 mt-0.5 truncate max-w-xs" title={parseDesignNotes((order as any).designNotes).spec}>
+                          ✦ {parseDesignNotes((order as any).designNotes).spec}
                         </p>
                       )}
                     </div>
@@ -239,6 +245,59 @@ export function CustomerDetailClient({ customer }: CustomerDetailClientProps) {
               ))}
             </div>
           )}
+        </TabsContent>
+
+        <TabsContent value="designs" className="mt-4">
+          {(() => {
+            const ordersWithDesign = customer.orders.filter((o) => !!(o as any).designNotes);
+            if (ordersWithDesign.length === 0) {
+              return (
+                <div className="text-center py-12 text-muted-foreground border border-dashed border-border rounded-xl">
+                  <Sparkles className="w-10 h-10 mx-auto mb-3 opacity-30" />
+                  <p className="font-medium">No garment designs yet</p>
+                  <p className="text-xs mt-1">Open an order and fill in Garment Style Details to save a design</p>
+                </div>
+              );
+            }
+            return (
+              <div className="space-y-3">
+                {ordersWithDesign.map((order) => {
+                  const { spec, design } = parseDesignNotes((order as any).designNotes);
+                  const statusConfig = ORDER_STATUS_CONFIG[order.status];
+                  return (
+                    <div key={order.id} className="flex items-start gap-4 p-4 rounded-xl border border-border bg-card">
+                      <div className="w-10 h-10 rounded-lg bg-[#D4AF37]/10 flex items-center justify-center flex-shrink-0">
+                        <Sparkles className="w-5 h-5 text-[#D4AF37]" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="text-sm font-mono font-semibold">{order.orderNumber}</span>
+                          <span className={cn("text-xs px-2 py-0.5 rounded-full border", statusConfig.bg, statusConfig.color, statusConfig.border)}>
+                            {statusConfig.label}
+                          </span>
+                        </div>
+                        <p className="text-xs text-muted-foreground">{order.garmentType}</p>
+                        {spec && (
+                          <p className="text-xs text-[#D4AF37]/80 mt-1 leading-relaxed line-clamp-2">{spec}</p>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2 flex-shrink-0">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="gap-1.5 text-xs"
+                          onClick={() => setDesignViewOrder(order as any)}
+                        >
+                          <Sparkles className="w-3.5 h-3.5" />
+                          View
+                        </Button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          })()}
         </TabsContent>
 
         <TabsContent value="invoices" className="mt-4">
@@ -327,6 +386,20 @@ export function CustomerDetailClient({ customer }: CustomerDetailClientProps) {
           />
         </DialogContent>
       </Dialog>
+
+      {/* Garment Design Viewer (read-only, print-only) */}
+      <BespokeDesigner
+        open={!!designViewOrder}
+        onClose={() => setDesignViewOrder(null)}
+        orderNumber={(designViewOrder as any)?.orderNumber}
+        initialDesign={designViewOrder ? parseDesignNotes((designViewOrder as any).designNotes).design ?? undefined : undefined}
+        order={designViewOrder ? {
+          customerName: customer.name,
+          deliveryDate: (designViewOrder as any).deliveryDate,
+          trialDate: (designViewOrder as any).trialDate ?? "",
+          gender: customer.gender ?? "",
+        } : undefined}
+      />
 
       {/* Add Measurement Dialog */}
       <Dialog open={measurementOpen} onOpenChange={setMeasurementOpen}>

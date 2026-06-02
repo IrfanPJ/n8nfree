@@ -399,16 +399,20 @@ export async function deleteOrder(id: string): Promise<ApiResponse<void>> {
   }
 }
 
-export async function updateOrderDesign(id: string, specText: string): Promise<void> {
+export async function updateOrderDesign(id: string, specText: string, design?: unknown): Promise<void> {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
 
-  const trimmed = specText?.trim() ?? "";
-  if (trimmed.length > 5000) throw new Error("Design notes exceed maximum length of 5000 characters");
+  // Store full design JSON alongside spec text so the designer can reload it
+  const payload = design
+    ? JSON.stringify({ spec: specText.trim(), design })
+    : specText.trim();
+
+  if (payload.length > 20000) throw new Error("Design data exceeds maximum length");
 
   const { error } = await supabase
     .from("Order")
-    .update({ designNotes: trimmed, updatedAt: new Date().toISOString() })
+    .update({ designNotes: payload, updatedAt: new Date().toISOString() })
     .eq("id", id);
 
   if (error) {

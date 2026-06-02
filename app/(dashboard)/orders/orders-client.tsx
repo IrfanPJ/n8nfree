@@ -54,7 +54,7 @@ import {
 import { OrderForm } from "@/components/orders/order-form";
 import { OrderStatusBadge, PriorityBadge } from "@/components/orders/order-status-badge";
 import { OrderKanban } from "@/components/orders/order-kanban";
-import { BespokeDesigner } from "@/components/orders/bespoke-designer";
+import { BespokeDesigner, type GarmentDesign } from "@/components/orders/bespoke-designer";
 import { OrderQRDialog } from "@/components/orders/order-qr-dialog";
 import { deleteOrder, updateOrderStatus, updateOrderDesign } from "@/actions/orders";
 import type { OrderWithRelations, PaginatedResult, OrderStatus, Measurement } from "@/types";
@@ -150,7 +150,7 @@ function printOrderSlip(order: OrderWithRelations) {
 
     ${order.designNotes ? `<div class="section">
       <h3>Design Notes</h3>
-      <div class="notes-box">${order.designNotes}</div>
+      <div class="notes-box">${parseDesignNotes(order.designNotes).spec}</div>
     </div>` : ""}
 
     <div class="section">
@@ -198,6 +198,18 @@ const PRIORITIES = ["LOW", "NORMAL", "HIGH", "URGENT"] as const;
 interface OrdersClientProps {
   initialData: PaginatedResult<OrderWithRelations>;
   initialView?: "table" | "kanban";
+}
+
+// Parse designNotes — may be plain text (legacy) or JSON {spec, design}
+export function parseDesignNotes(raw: string | null | undefined): { spec: string; design: GarmentDesign | null } {
+  if (!raw) return { spec: "", design: null };
+  try {
+    const p = JSON.parse(raw);
+    if (p && typeof p === "object" && "spec" in p) {
+      return { spec: p.spec as string, design: (p.design as GarmentDesign) ?? null };
+    }
+  } catch { /* plain text */ }
+  return { spec: raw, design: null };
 }
 
 export function OrdersClient({
@@ -633,6 +645,7 @@ export function OrdersClient({
         onClose={() => setDesignOrder(null)}
         orderId={designOrder?.id}
         orderNumber={designOrder?.orderNumber}
+        initialDesign={designOrder ? parseDesignNotes(designOrder.designNotes).design ?? undefined : undefined}
         order={designOrder ? {
           customerName: (designOrder as any).customer?.name ?? "",
           deliveryDate: designOrder.deliveryDate,
@@ -640,13 +653,14 @@ export function OrdersClient({
           qty: (designOrder as any).items?.reduce((s: number, i: any) => s + (i.quantity ?? 1), 0) ?? 1,
           gender: (designOrder as any).customer?.gender ?? "",
         } : undefined}
-        onSave={async (_design, specText) => {
+        onSave={async (design, specText) => {
           if (!designOrder) return;
-          await updateOrderDesign(designOrder.id, specText);
+          await updateOrderDesign(designOrder.id, specText, design);
+          const payload = JSON.stringify({ spec: specText, design });
           setData((prev) => ({
             ...prev,
             data: prev.data.map((o) =>
-              o.id === designOrder.id ? { ...o, designNotes: specText } : o
+              o.id === designOrder.id ? { ...o, designNotes: payload } : o
             ),
           }));
         }}
@@ -749,8 +763,8 @@ function OrderTableRow({ order, index, deletingId, statusUpdating, onView, onEdi
         )}
         {order.fabricName && <p className="text-xs text-muted-foreground">{order.fabricName}</p>}
         {order.designNotes && (
-          <p className="text-[10px] text-[#D4AF37]/70 mt-0.5 truncate max-w-[180px]" title={order.designNotes}>
-            ✦ {order.designNotes}
+          <p className="text-[10px] text-[#D4AF37]/70 mt-0.5 truncate max-w-[180px]" title={parseDesignNotes(order.designNotes).spec}>
+            ✦ {parseDesignNotes(order.designNotes).spec}
           </p>
         )}
       </td>
@@ -1162,7 +1176,7 @@ function OrderDetailView({ order, onShowQR }: { order: OrderWithRelations; onSho
             {order.designNotes && (
               <div className="pt-1 border-t border-border/40">
                 <span className="text-xs text-muted-foreground">Design Notes</span>
-                <p className="text-sm mt-0.5 leading-relaxed">{order.designNotes}</p>
+                <p className="text-sm mt-0.5 leading-relaxed">{parseDesignNotes(order.designNotes).spec}</p>
               </div>
             )}
           </div>

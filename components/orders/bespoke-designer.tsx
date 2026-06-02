@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { X, Printer, Save, Sparkles, Check } from "lucide-react";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -480,6 +480,7 @@ interface BespokeDesignerProps {
   onClose: () => void;
   orderId?: string;
   orderNumber?: string;
+  initialDesign?: GarmentDesign;
   order?: {
     customerName?: string;
     deliveryDate?: string;
@@ -490,12 +491,22 @@ interface BespokeDesignerProps {
   onSave?: (design: GarmentDesign, specText: string) => Promise<void>;
 }
 
-export function BespokeDesigner({ open, onClose, orderId, orderNumber, order, onSave }: BespokeDesignerProps) {
+export function BespokeDesigner({ open, onClose, orderId, orderNumber, initialDesign, order, onSave }: BespokeDesignerProps) {
   const [activeTab, setActiveTab] = useState<"jacket" | "shirt" | "trouser">("jacket");
-  const [jacket, setJacket] = useState<JacketDesign>(DEFAULT_JACKET);
-  const [shirt, setShirt] = useState<ShirtDesign>(DEFAULT_SHIRT);
-  const [trouser, setTrouser] = useState<TrouserDesign>(DEFAULT_TROUSER);
+  const [jacket, setJacket] = useState<JacketDesign>(initialDesign?.jacket ?? DEFAULT_JACKET);
+  const [shirt, setShirt] = useState<ShirtDesign>(initialDesign?.shirt ?? DEFAULT_SHIRT);
+  const [trouser, setTrouser] = useState<TrouserDesign>(initialDesign?.trouser ?? DEFAULT_TROUSER);
   const [saving, setSaving] = useState(false);
+
+  // Reload design whenever a new order is opened
+  useEffect(() => {
+    if (open) {
+      setJacket(initialDesign?.jacket ?? DEFAULT_JACKET);
+      setShirt(initialDesign?.shirt ?? DEFAULT_SHIRT);
+      setTrouser(initialDesign?.trouser ?? DEFAULT_TROUSER);
+      setActiveTab("jacket");
+    }
+  }, [open, initialDesign]);
 
   const setJ = <K extends keyof JacketDesign>(k: K, v: JacketDesign[K]) => setJacket((d) => ({ ...d, [k]: v }));
   const setS = <K extends keyof ShirtDesign>(k: K, v: ShirtDesign[K]) => setShirt((d) => ({ ...d, [k]: v }));

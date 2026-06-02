@@ -226,6 +226,73 @@ export async function updateCustomer(id: string, data: unknown): Promise<ApiResp
   }
 }
 
+// Called when a lead moves to APPOINTMENT_CONFIRMED.
+// Finds an existing customer by phone/email or creates one from the lead data.
+// Returns the customer id (existing or newly created) and whether it was created.
+export async function createCustomerFromLead(
+  leadId: string
+): Promise<{ customerId: string | null; customerName: string; isNew: boolean }> {
+  const session = await auth();
+  if (!session?.user) return { customerId: null, customerName: "", isNew: false };
+
+  const { data: lead } = await supabase.from("Lead").select("*").eq("id", leadId).maybeSingle();
+  if (!lead) return { customerId: null, customerName: "", isNew: false };
+
+  // Try matching an existing customer by phone first, then email
+  if (lead.phone) {
+    const clean = lead.phone.replace(/\s/g, "");
+    const { data: byPhone } = await supabase
+      .from("Customer").select("id, name").eq("isActive", true)
+      .or(`phone.eq.${clean},phone.eq.${lead.phone}`)
+      .maybeSingle();
+    if (byPhone) return { customerId: byPhone.id, customerName: byPhone.name, isNew: false };
+  }
+  if (lead.email) {
+    const { data: byEmail } = await supabase
+      .from("Customer").select("id, name").eq("isActive", true).eq("email", lead.email).maybeSingle();
+    if (byEmail) return { customerId: byEmail.id, customerName: byEmail.name, isNew: false };
+  }
+
+  // Create a new customer from lead data
+  const id = randomUUID();
+  const now = new Date().toISOString();
+  const phone = lead.phone?.replace(/\s/g, "") || "0000000000"; // placeholder updated later
+  const { error } = await supabase.from("Customer").insert({
+    id,
+    name: lead.name,
+    phone: phone.length >= 10 ? phone : phone.padEnd(10, "0"),
+    email: lead.email || null,
+    gender: "OTHER",
+    address: null,
+    city: null,
+    notes: lead.notes ? `Lead source: ${lead.source ?? ""}. ${lead.notes}` : (lead.source ? `Lead source: ${lead.source}` : null),
+    tags: [],
+    isVIP: false,
+    branch: "Business Bay",
+    isActive: true,
+    createdAt: now,
+    updatedAt: now,
+  });
+
+  if (error) {
+    console.error("createCustomerFromLead error:", error);
+    return { customerId: null, customerName: lead.name, isNew: false };
+  }
+
+  await supabase.from("ActivityLog").insert({
+    id: randomUUID(),
+    userId: session.user.id,
+    customerId: id,
+    action: "CREATE",
+    entity: "Customer",
+    entityId: id,
+    description: `Customer "${lead.name}" auto-created from lead on appointment confirmation`,
+  });
+
+  revalidatePath("/customers");
+  return { customerId: id, customerName: lead.name, isNew: true };
+}
+
 export async function deleteCustomer(id: string): Promise<ApiResponse<void>> {
   const session = await auth();
   if (!session?.user) return { success: false, error: "Unauthorized" };

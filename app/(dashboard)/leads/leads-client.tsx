@@ -28,6 +28,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { createLead, updateLead, updateLeadStage, deleteLead, bulkCreateLeads } from "@/actions/leads";
+import { createCustomerFromLead } from "@/actions/customers";
 import { createAppointment } from "@/actions/appointments";
 import {
   leadSchema, type LeadFormData, LEAD_STAGES, LEAD_STAGE_LABELS,
@@ -348,6 +349,7 @@ export function LeadsClient({ initialLeads, customers }: LeadsClientProps) {
 
   // Appointment popup triggered when lead → APPOINTMENT_CONFIRMED
   const [apptLead, setApptLead] = useState<Lead | null>(null);
+  const [apptCustomerId, setApptCustomerId] = useState<string>("");
 
   // Import Excel/CSV
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -424,6 +426,20 @@ export function LeadsClient({ initialLeads, customers }: LeadsClientProps) {
 
     // Auto-open appointment form when moved to Appointment Confirmed
     if (stage === "APPOINTMENT_CONFIRMED") {
+      // Auto-create (or find) a customer from the lead data so the appointment form works
+      const { customerId, customerName, isNew } = await createCustomerFromLead(lead.id);
+      if (customerId) {
+        setApptCustomerId(customerId);
+        // Add to local customers list so the select displays the name correctly
+        if (isNew) {
+          const stub = { id: customerId, name: customerName, phone: lead.phone ?? "", email: lead.email ?? "" } as any;
+          // Only add if not already present (prevents duplicates on re-render)
+          customers.push(stub);
+        }
+        if (isNew) toast.info(`Customer record created for ${customerName}`);
+      } else {
+        setApptCustomerId("");
+      }
       setApptLead({ ...lead, stage });
     }
   };
@@ -929,21 +945,12 @@ export function LeadsClient({ initialLeads, customers }: LeadsClientProps) {
 
       {/* Auto appointment popup — triggered when lead moves to Appointment Confirmed */}
       {(() => {
-        // Match the lead to an existing customer by phone (most unique) then by name
-        const matchedCustomer = apptLead
-          ? customers.find(
-              (c) =>
-                (apptLead.phone && c.phone && c.phone.replace(/\s/g, "") === apptLead.phone.replace(/\s/g, "")) ||
-                c.name.toLowerCase().trim() === apptLead.name.toLowerCase().trim()
-            )
-          : undefined;
-
         const defaultTitle = apptLead
           ? `${apptLead.interest ? apptLead.interest + " — " : ""}${apptLead.name}`
           : "";
 
         return (
-          <Dialog open={!!apptLead} onOpenChange={(o) => { if (!o) setApptLead(null); }}>
+          <Dialog open={!!apptLead} onOpenChange={(o) => { if (!o) { setApptLead(null); setApptCustomerId(""); } }}>
             <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle className="flex items-center gap-2">
@@ -951,21 +958,20 @@ export function LeadsClient({ initialLeads, customers }: LeadsClientProps) {
                   Book Appointment — {apptLead?.name}
                 </DialogTitle>
                 <p className="text-xs text-muted-foreground mt-1">
-                  {matchedCustomer
-                    ? `Customer matched: ${matchedCustomer.name}. Fill in the appointment details below.`
-                    : "Lead moved to Appointment Confirmed. Select a customer and fill in the details below."}
+                  Customer record is ready. Fill in the appointment details below.
                 </p>
               </DialogHeader>
               <AppointmentForm
                 customers={customers}
-                defaultCustomerId={matchedCustomer?.id ?? ""}
+                defaultCustomerId={apptCustomerId}
                 defaultLeadId={apptLead?.id}
                 defaultTitle={defaultTitle}
                 onSuccess={() => {
                   toast.success("Appointment saved");
                   setApptLead(null);
+                  setApptCustomerId("");
                 }}
-                onCancel={() => setApptLead(null)}
+                onCancel={() => { setApptLead(null); setApptCustomerId(""); }}
               />
             </DialogContent>
           </Dialog>

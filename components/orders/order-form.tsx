@@ -19,10 +19,11 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { getCustomers, createCustomer } from "@/actions/customers";
+import { getMeasurements } from "@/actions/measurements";
 import { MeasurementForm } from "@/components/measurements/measurement-form";
 import type { OrderWithRelations, Customer, Measurement } from "@/types";
 import { formatCurrency, cn } from "@/lib/utils";
-import { UserPlus, X, Plus, Trash2, Ruler, CheckCircle2 } from "lucide-react";
+import { UserPlus, X, Plus, Trash2, Ruler, CheckCircle2, Edit2 } from "lucide-react";
 
 interface OrderFormProps {
   order?: OrderWithRelations;
@@ -69,6 +70,9 @@ export function OrderForm({
   const [savingClient, setSavingClient] = useState(false);
   const [showMeasurementForm, setShowMeasurementForm] = useState(false);
   const [savedMeasurements, setSavedMeasurements] = useState<Measurement[]>([]);
+  const [existingMeasurements, setExistingMeasurements] = useState<Measurement[]>([]);
+  const [loadingMeasurements, setLoadingMeasurements] = useState(false);
+  const [editingMeasurement, setEditingMeasurement] = useState<Measurement | null>(null);
 
   const defaultItems = order?.items?.length
     ? order.items.map((item) => ({
@@ -137,6 +141,20 @@ export function OrderForm({
     const advance = Number(advanceAmount) || 0;
     setBalanceDue(Math.max(0, total - advance));
   }, [totalAmount, advanceAmount]);
+
+  // Fetch existing measurements when customer changes
+  useEffect(() => {
+    if (!watchedCustomerId) { setExistingMeasurements([]); return; }
+    setLoadingMeasurements(true);
+    getMeasurements(watchedCustomerId)
+      .then((data) => setExistingMeasurements(data))
+      .catch(() => setExistingMeasurements([]))
+      .finally(() => setLoadingMeasurements(false));
+    // Reset form state when customer changes
+    setShowMeasurementForm(false);
+    setEditingMeasurement(null);
+    setSavedMeasurements([]);
+  }, [watchedCustomerId]); // eslint-disable-line
 
   useEffect(() => {
     async function fetchData() {
@@ -665,8 +683,13 @@ export function OrderForm({
           <h3 className="text-sm font-semibold text-[#D4AF37] uppercase tracking-wider flex items-center gap-1.5">
             <Ruler className="w-3.5 h-3.5" />
             Measurements
+            {existingMeasurements.length > 0 && (
+              <span className="text-[10px] font-normal text-muted-foreground normal-case tracking-normal">
+                ({existingMeasurements.length} on file)
+              </span>
+            )}
           </h3>
-          {!showMeasurementForm && (
+          {!showMeasurementForm && !editingMeasurement && (
             <button
               type="button"
               onClick={() => setShowMeasurementForm(true)}
@@ -674,39 +697,75 @@ export function OrderForm({
               className="flex items-center gap-1 text-xs text-[#D4AF37] hover:text-[#D4AF37]/80 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
             >
               <Plus className="w-3.5 h-3.5" />
-              Add Measurement
+              Add New
             </button>
           )}
         </div>
 
-        {/* Saved measurements this session */}
+        {!watchedCustomerId && (
+          <p className="text-xs text-muted-foreground">Select a customer above to view or add measurements</p>
+        )}
+
+        {/* Loading */}
+        {loadingMeasurements && (
+          <div className="flex items-center gap-2 text-xs text-muted-foreground py-2">
+            <div className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin" />
+            Loading measurements...
+          </div>
+        )}
+
+        {/* Existing measurements from DB */}
+        {!loadingMeasurements && existingMeasurements.length > 0 && (
+          <div className="space-y-1.5">
+            {existingMeasurements.map((m) => (
+              <div key={m.id} className="flex items-center gap-3 px-3 py-2 rounded-lg bg-secondary/30 border border-border/40 text-xs">
+                <Ruler className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <span className="font-medium">{m.label}</span>
+                  <span className="text-muted-foreground ml-2">{m.unit}</span>
+                  {m.chest && <span className="text-muted-foreground ml-2">Ch {m.chest}</span>}
+                  {m.waist && <span className="text-muted-foreground ml-1">W {m.waist}</span>}
+                  {m.shoulder && <span className="text-muted-foreground ml-1">Sh {m.shoulder}</span>}
+                  {m.sleeve && <span className="text-muted-foreground ml-1">Sl {m.sleeve}</span>}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => { setEditingMeasurement(m); setShowMeasurementForm(false); }}
+                  className="text-muted-foreground hover:text-[#D4AF37] transition-colors flex-shrink-0"
+                >
+                  <Edit2 className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Newly saved this session */}
         {savedMeasurements.length > 0 && (
           <div className="space-y-1.5">
             {savedMeasurements.map((m) => (
               <div key={m.id} className="flex items-center gap-2 px-3 py-2 rounded-lg bg-green-500/5 border border-green-500/20 text-xs">
                 <CheckCircle2 className="w-3.5 h-3.5 text-green-400 flex-shrink-0" />
                 <span className="font-medium">{m.label}</span>
-                <span className="text-muted-foreground">· {m.unit} ·</span>
-                {m.chest && <span className="text-muted-foreground">Chest {m.chest}</span>}
-                {m.waist && <span className="text-muted-foreground">Waist {m.waist}</span>}
-                {m.shoulder && <span className="text-muted-foreground">Shoulder {m.shoulder}</span>}
+                <span className="text-muted-foreground">· {m.unit}</span>
+                {m.chest && <span className="text-muted-foreground ml-1">Ch {m.chest}</span>}
+                {m.waist && <span className="text-muted-foreground ml-1">W {m.waist}</span>}
+                <span className="text-green-400 ml-auto">Saved</span>
               </div>
             ))}
           </div>
         )}
 
-        {!watchedCustomerId && !showMeasurementForm && (
-          <p className="text-xs text-muted-foreground">Select a customer above to add measurements</p>
-        )}
-
-        {/* Inline measurement form */}
-        {showMeasurementForm && watchedCustomerId && (
+        {/* Inline form — new or edit */}
+        {(showMeasurementForm || editingMeasurement) && watchedCustomerId && (
           <div className="rounded-xl border border-[#D4AF37]/20 bg-[#D4AF37]/5 overflow-hidden">
             <div className="flex items-center justify-between px-4 pt-3 pb-1">
-              <p className="text-xs font-semibold text-[#D4AF37]">New Measurement</p>
+              <p className="text-xs font-semibold text-[#D4AF37]">
+                {editingMeasurement ? `Edit — ${editingMeasurement.label}` : "New Measurement"}
+              </p>
               <button
                 type="button"
-                onClick={() => setShowMeasurementForm(false)}
+                onClick={() => { setShowMeasurementForm(false); setEditingMeasurement(null); }}
                 className="text-muted-foreground hover:text-foreground"
               >
                 <X className="w-3.5 h-3.5" />
@@ -714,12 +773,21 @@ export function OrderForm({
             </div>
             <div className="px-4 pb-4">
               <MeasurementForm
+                measurement={editingMeasurement ?? undefined}
                 defaultCustomerId={watchedCustomerId}
                 onSuccess={(m) => {
-                  setSavedMeasurements((prev) => [...prev, m]);
-                  setShowMeasurementForm(false);
+                  if (editingMeasurement) {
+                    // Update in the existing list
+                    setExistingMeasurements((prev) => prev.map((x) => x.id === m.id ? m : x));
+                    setEditingMeasurement(null);
+                  } else {
+                    // Add to both lists so it shows immediately
+                    setSavedMeasurements((prev) => [...prev, m]);
+                    setExistingMeasurements((prev) => [m, ...prev]);
+                    setShowMeasurementForm(false);
+                  }
                 }}
-                onCancel={() => setShowMeasurementForm(false)}
+                onCancel={() => { setShowMeasurementForm(false); setEditingMeasurement(null); }}
               />
             </div>
           </div>

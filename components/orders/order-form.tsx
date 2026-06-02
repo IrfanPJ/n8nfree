@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
   Select,
   SelectContent,
@@ -655,25 +656,14 @@ export function OrderForm({
         <h3 className="text-sm font-semibold text-[#D4AF37] uppercase tracking-wider">
           Notes
         </h3>
-        <div className="grid grid-cols-1 gap-4">
-          <div className="space-y-1.5">
-            <Label htmlFor="designNotes">Design Notes</Label>
-            <Textarea
-              id="designNotes"
-              placeholder="Design specifications, embroidery details, embellishments..."
-              rows={3}
-              {...register("designNotes")}
-            />
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="notes">Additional Notes</Label>
-            <Textarea
-              id="notes"
-              placeholder="Any other instructions or reminders..."
-              rows={2}
-              {...register("notes")}
-            />
-          </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="notes">Additional Notes</Label>
+          <Textarea
+            id="notes"
+            placeholder="Any other instructions or reminders..."
+            rows={2}
+            {...register("notes")}
+          />
         </div>
       </div>
 
@@ -756,43 +746,39 @@ export function OrderForm({
           </div>
         )}
 
-        {/* Inline form — new or edit */}
-        {(showMeasurementForm || editingMeasurement) && watchedCustomerId && (
-          <div className="rounded-xl border border-[#D4AF37]/20 bg-[#D4AF37]/5 overflow-hidden">
-            <div className="flex items-center justify-between px-4 pt-3 pb-1">
-              <p className="text-xs font-semibold text-[#D4AF37]">
-                {editingMeasurement ? `Edit — ${editingMeasurement.label}` : "New Measurement"}
-              </p>
-              <button
-                type="button"
-                onClick={() => { setShowMeasurementForm(false); setEditingMeasurement(null); }}
-                className="text-muted-foreground hover:text-foreground"
-              >
-                <X className="w-3.5 h-3.5" />
-              </button>
-            </div>
-            <div className="px-4 pb-4">
-              <MeasurementForm
-                measurement={editingMeasurement ?? undefined}
-                defaultCustomerId={watchedCustomerId}
-                onSuccess={(m) => {
-                  if (editingMeasurement) {
-                    // Update in the existing list
-                    setExistingMeasurements((prev) => prev.map((x) => x.id === m.id ? m : x));
-                    setEditingMeasurement(null);
-                  } else {
-                    // Add to both lists so it shows immediately
-                    setSavedMeasurements((prev) => [...prev, m]);
-                    setExistingMeasurements((prev) => [m, ...prev]);
-                    setShowMeasurementForm(false);
-                  }
-                }}
-                onCancel={() => { setShowMeasurementForm(false); setEditingMeasurement(null); }}
-              />
-            </div>
-          </div>
-        )}
       </div>
+
+      {/* Measurement Dialog — rendered in a portal to avoid nested <form> */}
+      <Dialog
+        open={showMeasurementForm || !!editingMeasurement}
+        onOpenChange={(open) => { if (!open) { setShowMeasurementForm(false); setEditingMeasurement(null); } }}
+      >
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Ruler className="w-4 h-4 text-[#D4AF37]" />
+              {editingMeasurement ? `Edit — ${editingMeasurement.label}` : "New Measurement"}
+            </DialogTitle>
+          </DialogHeader>
+          {(showMeasurementForm || editingMeasurement) && watchedCustomerId && (
+            <MeasurementForm
+              measurement={editingMeasurement ?? undefined}
+              defaultCustomerId={watchedCustomerId}
+              onSuccess={(m) => {
+                if (editingMeasurement) {
+                  setExistingMeasurements((prev) => prev.map((x) => x.id === m.id ? m : x));
+                  setEditingMeasurement(null);
+                } else {
+                  setSavedMeasurements((prev) => [...prev, m]);
+                  setExistingMeasurements((prev) => [m, ...prev]);
+                  setShowMeasurementForm(false);
+                }
+              }}
+              onCancel={() => { setShowMeasurementForm(false); setEditingMeasurement(null); }}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
 
       {/* Actions */}
       <div className="flex gap-3 pt-2 border-t border-border">

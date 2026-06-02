@@ -268,7 +268,8 @@ export async function deleteInvoice(id: string): Promise<ApiResponse<void>> {
   }
 
   try {
-    await supabase.from("Invoice").update({ isActive: false, updatedAt: new Date().toISOString() }).eq("id", id);
+    const { error } = await supabase.from("Invoice").update({ isActive: false, updatedAt: new Date().toISOString() }).eq("id", id);
+    if (error) throw error;
     revalidatePath("/invoices");
     return { success: true, message: "Invoice deleted" };
   } catch {

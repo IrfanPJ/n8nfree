@@ -23,9 +23,16 @@ vi.mock("@/lib/utils", () => ({
 import { supabase } from "@/lib/supabase";
 import { createOrder, updateOrderStatus } from "@/actions/orders";
 
+// One valid item — required by orderSchema (min 1)
+const validItem = {
+  garmentType: "Suit",
+  quantity: 1,
+  unitPrice: 2500,
+};
+
 const validOrder = {
   customerId: "cust-1",
-  garmentType: "Suit",
+  items: [validItem],
   deliveryDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
   totalAmount: 2500,
   advanceAmount: 500,
@@ -38,16 +45,22 @@ const validOrder = {
 const fakeOrder = {
   id: "ord-1",
   orderNumber: "ORD-2026-0001",
-  ...validOrder,
+  customerId: "cust-1",
+  garmentType: "Suit",
   status: "MEASUREMENT",
   statusHistory: [],
-  customer: { id: "cust-1", name: "Ali", email: null },
+  items: [{ ...validItem, id: "item-1", orderId: "ord-1", sortOrder: 0 }],
+  customer: { id: "cust-1", name: "Ali", email: null, phone: null },
   assignedTo: null,
   invoice: null,
+  deliveryDate: validOrder.deliveryDate,
+  totalAmount: 2500,
+  advanceAmount: 500,
+  priority: "NORMAL",
+  isActive: true,
+  branch: "Business Bay",
   createdAt: new Date().toISOString(),
   updatedAt: new Date().toISOString(),
-  isActive: true,
-  branch: "Main",
 };
 
 describe("createOrder", () => {
@@ -57,14 +70,22 @@ describe("createOrder", () => {
     expect(result.error).toBeTruthy();
   });
 
+  it("rejects order with no items", async () => {
+    const result = await createOrder({ ...validOrder, items: [] });
+    expect(result.success).toBe(false);
+    expect(result.error).toMatch(/item/i);
+  });
+
   it("rejects order with negative total amount", async () => {
     const result = await createOrder({ ...validOrder, totalAmount: -100 });
     expect(result.success).toBe(false);
   });
 
   it("creates order with valid data", async () => {
-    const b = makeBuilder({ singleResult: { data: { name: "Ali" }, error: null } });
-    (b.single as ReturnType<typeof vi.fn>)
+    const b = makeBuilder();
+    // First maybeSingle → customer name lookup
+    // Second maybeSingle → re-fetch full order after insert
+    b.maybeSingle = vi.fn()
       .mockResolvedValueOnce({ data: { name: "Ali" }, error: null })
       .mockResolvedValueOnce({ data: fakeOrder, error: null });
     vi.mocked(supabase.from).mockReturnValue(b as any);
@@ -90,18 +111,27 @@ describe("updateOrderStatus", () => {
   });
 
   it("accepts all valid status values", async () => {
-    const statuses = ["MEASUREMENT", "FABRIC_ORDERING", "FABRIC_COLLECTED", "CUTTING", "SEMI_STITCH", "TRIAL", "FINAL_STITCH", "READY_FOR_DELIVERY", "DELIVERED", "PENDING_ALTERATION", "READY_FINAL_DELIVERY", "ORDER_CLOSED"];
+    const statuses = [
+      "MEASUREMENT", "FABRIC_ORDERING", "FABRIC_COLLECTED", "CUTTING",
+      "SEMI_STITCH", "TRIAL", "FINAL_STITCH", "READY_FOR_DELIVERY",
+      "DELIVERED", "PENDING_ALTERATION", "READY_FINAL_DELIVERY", "ORDER_CLOSED",
+    ];
     for (const status of statuses) {
-      const b = makeBuilder({ singleResult: { data: { ...fakeOrder, status }, error: null } });
+      const b = makeBuilder();
+      b.maybeSingle = vi.fn().mockResolvedValue({ data: { ...fakeOrder, status }, error: null });
       vi.mocked(supabase.from).mockReturnValue(b as any);
       const result = await updateOrderStatus("ord-1", status);
       expect(result.success).toBe(true);
     }
   });
 
-  it("updates order status with optional notes", async () => {
-    const b = makeBuilder({ singleResult: { data: { ...fakeOrder, status: "CUTTING" }, error: null } });
+  it("updates order status and returns updated status in data", async () => {
+    const updatedOrder = { ...fakeOrder, status: "CUTTING" };
+    const b = makeBuilder();
+    // maybeSingle is called twice: once for the re-fetch, once for the ActivityLog customer lookup
+    b.maybeSingle = vi.fn().mockResolvedValue({ data: updatedOrder, error: null });
     vi.mocked(supabase.from).mockReturnValue(b as any);
+
     const result = await updateOrderStatus("ord-1", "CUTTING", "Fabric prepped");
     expect(result.success).toBe(true);
     expect(result.data?.status).toBe("CUTTING");

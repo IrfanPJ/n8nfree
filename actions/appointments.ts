@@ -176,7 +176,8 @@ export async function deleteAppointment(id: string): Promise<ApiResponse<void>> 
   }
 
   try {
-    await supabase.from("Appointment").update({ isActive: false, updatedAt: new Date().toISOString() }).eq("id", id);
+    const { error } = await supabase.from("Appointment").update({ isActive: false, updatedAt: new Date().toISOString() }).eq("id", id);
+    if (error) throw error;
     revalidatePath("/appointments");
     return { success: true, message: "Appointment cancelled" };
   } catch {

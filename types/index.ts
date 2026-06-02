@@ -273,6 +273,11 @@ export type Lead = {
   notes: string | null;
   value: number;
   source: string | null;
+  category: string | null;
+  handler: string | null;
+  transferredTo: string | null;
+  visited: boolean;
+  followup: boolean;
   isActive: boolean;
   createdAt: string;
   updatedAt: string;

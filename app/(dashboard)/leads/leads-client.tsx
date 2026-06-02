@@ -31,7 +31,7 @@ import { createLead, updateLead, updateLeadStage, deleteLead, bulkCreateLeads } 
 import { createAppointment } from "@/actions/appointments";
 import {
   leadSchema, type LeadFormData, LEAD_STAGES, LEAD_STAGE_LABELS,
-  LEAD_SOURCES, PIPELINE_STAGES,
+  LEAD_SOURCES, LEAD_CATEGORIES, PIPELINE_STAGES,
 } from "@/validators/lead";
 import { AppointmentForm } from "@/components/appointments/appointment-form";
 import type { Lead, LeadStage, Customer } from "@/types";
@@ -143,14 +143,19 @@ function LeadForm({
   const { register, handleSubmit, control, formState: { errors, isSubmitting } } = useForm<LeadFormData>({
     resolver: zodResolver(leadSchema) as any,
     defaultValues: {
-      name: lead?.name ?? "",
-      phone: lead?.phone ?? "",
-      email: lead?.email ?? "",
-      interest: lead?.interest ?? "",
-      stage: lead?.stage ?? "ENQUIRY",
-      notes: lead?.notes ?? "",
-      value: lead?.value ?? 0,
-      source: isCustomSource ? "Others" : existingSource,
+      name:          lead?.name ?? "",
+      phone:         lead?.phone ?? "",
+      email:         lead?.email ?? "",
+      interest:      lead?.interest ?? "",
+      stage:         lead?.stage ?? "ENQUIRY",
+      notes:         lead?.notes ?? "",
+      value:         lead?.value ?? 0,
+      source:        isCustomSource ? "Others" : existingSource,
+      category:      (lead?.category as any) ?? undefined,
+      handler:       lead?.handler ?? "",
+      transferredTo: lead?.transferredTo ?? "",
+      visited:       lead?.visited ?? false,
+      followup:      lead?.followup ?? false,
     },
   });
 
@@ -232,6 +237,55 @@ function LeadForm({
           <Label>Potential Value (AED)</Label>
           <Input type="number" min="0" step="100" {...register("value")} />
         </div>
+        {/* Category */}
+        <div className="space-y-1.5">
+          <Label>Category</Label>
+          <Controller name="category" control={control} render={({ field }) => (
+            <Select value={field.value ?? ""} onValueChange={(v) => field.onChange(v || undefined)}>
+              <SelectTrigger><SelectValue placeholder="A / B / C / D" /></SelectTrigger>
+              <SelectContent>
+                {LEAD_CATEGORIES.map((c) => (
+                  <SelectItem key={c} value={c}>{c}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )} />
+        </div>
+        {/* Handler */}
+        <div className="space-y-1.5">
+          <Label>Handler</Label>
+          <Input placeholder="Staff handling this lead" {...register("handler")} />
+        </div>
+        {/* Transferred To */}
+        <div className="space-y-1.5">
+          <Label>Transferred To</Label>
+          <Input placeholder="e.g. Business Bay" {...register("transferredTo")} />
+        </div>
+        {/* Visited + Followup */}
+        <div className="space-y-1.5">
+          <Label>Visited</Label>
+          <Controller name="visited" control={control} render={({ field }) => (
+            <Select value={field.value ? "YES" : "NO"} onValueChange={(v) => field.onChange(v === "YES")}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="NO">No</SelectItem>
+                <SelectItem value="YES">Yes</SelectItem>
+              </SelectContent>
+            </Select>
+          )} />
+        </div>
+        <div className="space-y-1.5">
+          <Label>Follow-up Required</Label>
+          <Controller name="followup" control={control} render={({ field }) => (
+            <Select value={field.value ? "YES" : "NO"} onValueChange={(v) => field.onChange(v === "YES")}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="NO">No</SelectItem>
+                <SelectItem value="YES">Yes</SelectItem>
+              </SelectContent>
+            </Select>
+          )} />
+        </div>
         <div className="col-span-2 space-y-1.5">
           <Label>Notes</Label>
           <Textarea rows={3} placeholder="Any details about this lead..." {...register("notes")} className="resize-none" />
@@ -248,17 +302,27 @@ function LeadForm({
 }
 
 function exportLeadsCSV(leads: Lead[]) {
-  const headers = ["Name", "Phone", "Email", "Stage", "Source", "Interest", "Value (AED)", "Notes", "Created"];
+  const headers = [
+    "DATE", "HANDLER", "SOURCE", "NAME", "EMAIL ID", "PHONE",
+    "INTEREST", "NOTES", "FOLLOWUP", "CATEGORY", "STAGE",
+    "TRANSFERRED TO", "VISITED", "INVOICE NUMBER IF CLOSED", "INVOICE VALUE",
+  ];
   const rows = leads.map((l) => [
-    l.name,
-    l.phone ?? "",
-    l.email ?? "",
-    LEAD_STAGE_LABELS[l.stage] ?? l.stage,
-    l.source ?? "",
-    l.interest ?? "",
-    l.value,
-    (l.notes ?? "").replace(/\n/g, " "),
     format(new Date(l.createdAt), "dd/MM/yyyy"),
+    l.handler ?? "",
+    l.source ?? "",
+    l.name,
+    l.email ?? "",
+    l.phone ?? "",
+    l.interest ?? "",
+    (l.notes ?? "").replace(/\n/g, " "),
+    l.followup ? "YES" : "NO",
+    l.category ?? "",
+    LEAD_STAGE_LABELS[l.stage] ?? l.stage,
+    l.transferredTo ?? "",
+    l.visited ? "YES" : "NO",
+    "",  // INVOICE NUMBER — would need a join, left blank
+    l.value > 0 ? l.value : "",
   ]);
   const csv = [headers, ...rows].map((r) => r.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(",")).join("\n");
   const blob = new Blob([csv], { type: "text/csv" });
@@ -408,25 +472,37 @@ export function LeadsClient({ initialLeads, customers }: LeadsClientProps) {
     return map[v.toLowerCase().trim()] ?? "ENQUIRY";
   };
 
+  const normaliseCategory = (v: string): string | undefined => {
+    const upper = v.toUpperCase().trim();
+    return ["A", "B", "C", "D"].includes(upper) ? upper : undefined;
+  };
+
   const handleImportSubmit = async () => {
     setImporting(true);
     const mapped = importRows.map((row) => {
       const get = (...keys: string[]) => {
         for (const k of keys) {
-          const found = Object.keys(row).find((r) => r.toLowerCase().trim() === k.toLowerCase());
+          const found = Object.keys(row).find((r) => r.toLowerCase().trim() === k.toLowerCase().trim());
           if (found) return String(row[found]).trim();
         }
         return "";
       };
+      const followupRaw = get("followup", "follow up", "follow-up");
+      const visitedRaw = get("visited");
       return {
-        name: get("name", "full name", "contact name"),
-        phone: get("phone", "mobile", "phone number"),
-        email: get("email", "email address"),
-        interest: get("interest", "service", "service interest"),
-        stage: normaliseStage(get("stage") || "enquiry"),
-        notes: get("notes", "note", "remarks"),
-        value: parseFloat(get("value", "amount", "potential value") || "0") || 0,
-        source: get("source", "lead source"),
+        name:          get("name", "full name", "contact name"),
+        phone:         get("phone", "mobile", "phone number"),
+        email:         get("email id", "email", "email address"),
+        interest:      get("interest", "service", "service interest"),
+        stage:         normaliseStage(get("stage") || "enquiry"),
+        notes:         get("notes", "note", "remarks"),
+        value:         parseFloat(get("invoice value", "value", "amount") || "0") || 0,
+        source:        get("source", "lead source"),
+        category:      normaliseCategory(get("category")),
+        handler:       get("handler"),
+        transferredTo: get("transferred to", "transferredto"),
+        visited:       ["yes", "y", "true", "1"].includes(visitedRaw.toLowerCase()),
+        followup:      ["yes", "y", "true", "1"].includes(followupRaw.toLowerCase()),
       };
     });
 
@@ -447,9 +523,19 @@ export function LeadsClient({ initialLeads, customers }: LeadsClientProps) {
   const downloadTemplate = async () => {
     const XLSX = await import("xlsx");
     const ws = XLSX.utils.aoa_to_sheet([
-      ["Name", "Phone", "Email", "Stage", "Source", "Interest", "Value", "Notes"],
-      ["John Smith", "+971501234567", "john@email.com", "Enquiry", "WhatsApp", "Wedding suit", "5000", "Interested in bespoke"],
+      // Row 1: Headers (exact match to CSV format)
+      ["DATE", "HANDLER", "SOURCE", "NAME", "EMAIL ID", "PHONE", "INTEREST", "NOTES", "FOLLOWUP", "CATEGORY", "STAGE", "TRANSFERRED TO", "VISITED", "INVOICE NUMBER IF CLOSED", "INVOICE VALUE"],
+      // Row 2: Sample data
+      ["01/06/2026", "Ahmed", "WhatsApp", "John Smith", "john@email.com", "+971501234567", "Wedding sherwani", "Interested in bespoke", "YES", "A", "Enquiry", "Business Bay", "NO", "", "5000"],
+      // Row 3: Notes on valid values
+      ["", "WHO IS HANDLING THE LEAD", "WhatsApp / Instagram / Google / Meta Ads / Referral / Walk-in / Others", "", "", "", "", "", "YES or NO", "A, B, C or D", "Enquiry / Interested / Quoted / Appointment Confirmed / Closed Won / Closed Lost", "WHICH STORE", "YES or NO", "", ""],
     ]);
+    // Style the header row
+    ws["!cols"] = [
+      { wch: 12 }, { wch: 14 }, { wch: 14 }, { wch: 20 }, { wch: 22 }, { wch: 16 },
+      { wch: 20 }, { wch: 24 }, { wch: 10 }, { wch: 10 }, { wch: 22 }, { wch: 16 },
+      { wch: 10 }, { wch: 24 }, { wch: 14 },
+    ];
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Leads");
     XLSX.writeFile(wb, "leads-import-template.xlsx");

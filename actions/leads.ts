@@ -11,10 +11,26 @@ export async function getLeads(_params: { branch?: string } = {}): Promise<Lead[
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
 
-  let q = supabase.from("Lead").select("*").eq("isActive", true);
-
-  const { data } = await q.order("createdAt", { ascending: false });
+  const { data } = await supabase.from("Lead").select("*").eq("isActive", true).order("createdAt", { ascending: false });
   return (data ?? []) as Lead[];
+}
+
+function leadFields(d: ReturnType<typeof leadSchema.parse>) {
+  return {
+    name:          d.name,
+    phone:         d.phone || null,
+    email:         d.email || null,
+    interest:      d.interest || null,
+    stage:         d.stage,
+    notes:         d.notes || null,
+    value:         d.value,
+    source:        d.source || null,
+    category:      d.category ?? null,
+    handler:       d.handler || null,
+    transferredTo: d.transferredTo || null,
+    visited:       d.visited ?? false,
+    followup:      d.followup ?? false,
+  };
 }
 
 export async function createLead(data: unknown): Promise<ApiResponse<Lead>> {
@@ -30,14 +46,7 @@ export async function createLead(data: unknown): Promise<ApiResponse<Lead>> {
 
     const { error } = await supabase.from("Lead").insert({
       id,
-      name: parsed.data.name,
-      phone: parsed.data.phone || null,
-      email: parsed.data.email || null,
-      interest: parsed.data.interest || null,
-      stage: parsed.data.stage,
-      notes: parsed.data.notes || null,
-      value: parsed.data.value,
-      source: parsed.data.source || null,
+      ...leadFields(parsed.data),
       branch: "Business Bay",
       isActive: true,
       createdAt: now,
@@ -63,14 +72,7 @@ export async function updateLead(id: string, data: unknown): Promise<ApiResponse
 
   try {
     const { error } = await supabase.from("Lead").update({
-      name: parsed.data.name,
-      phone: parsed.data.phone || null,
-      email: parsed.data.email || null,
-      interest: parsed.data.interest || null,
-      stage: parsed.data.stage,
-      notes: parsed.data.notes || null,
-      value: parsed.data.value,
-      source: parsed.data.source || null,
+      ...leadFields(parsed.data),
       updatedAt: new Date().toISOString(),
     }).eq("id", id);
 
@@ -88,11 +90,7 @@ export async function updateLeadStage(id: string, stage: LeadStage): Promise<Api
   const session = await auth();
   if (!session?.user) return { success: false, error: "Unauthorized" };
 
-  const { error } = await supabase.from("Lead").update({
-    stage,
-    updatedAt: new Date().toISOString(),
-  }).eq("id", id);
-
+  const { error } = await supabase.from("Lead").update({ stage, updatedAt: new Date().toISOString() }).eq("id", id);
   if (error) return { success: false, error: "Failed to update stage" };
 
   const { data: lead } = await supabase.from("Lead").select("*").eq("id", id).single();
@@ -115,14 +113,7 @@ export async function bulkCreateLeads(rows: unknown[]): Promise<ApiResponse<{ im
     } else {
       valid.push({
         id: randomUUID(),
-        name: parsed.data.name,
-        phone: parsed.data.phone || null,
-        email: parsed.data.email || null,
-        interest: parsed.data.interest || null,
-        stage: parsed.data.stage,
-        notes: parsed.data.notes || null,
-        value: parsed.data.value,
-        source: parsed.data.source || null,
+        ...leadFields(parsed.data),
         branch: "Business Bay",
         isActive: true,
         createdAt: now,

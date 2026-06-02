@@ -38,15 +38,30 @@ export const LEAD_SOURCES = [
   "Others",
 ] as const;
 
+export const LEAD_CATEGORIES = ["A", "B", "C", "D"] as const;
+export type LeadCategory = typeof LEAD_CATEGORIES[number];
+
+export const LEAD_CATEGORY_LABELS: Record<LeadCategory, string> = {
+  A: "A — High Priority",
+  B: "B — Medium Priority",
+  C: "C — Low Priority",
+  D: "D — Cold",
+};
+
 export const leadSchema = z.object({
-  name: z.string().min(1, "Name is required"),
-  phone: z.string().optional().or(z.literal("")),
-  email: z.string().email("Invalid email").optional().or(z.literal("")),
-  interest: z.string().optional().or(z.literal("")),
-  stage: z.enum(LEAD_STAGES).default("ENQUIRY"),
-  notes: z.string().optional().or(z.literal("")),
-  value: z.coerce.number().min(0).default(0),
-  source: z.string().optional().or(z.literal("")),
+  name:           z.string().min(1, "Name is required"),
+  phone:          z.string().optional().or(z.literal("")),
+  email:          z.string().email("Invalid email").optional().or(z.literal("")),
+  interest:       z.string().optional().or(z.literal("")),
+  stage:          z.enum(LEAD_STAGES).default("ENQUIRY"),
+  notes:          z.string().optional().or(z.literal("")),
+  value:          z.coerce.number().min(0).default(0),
+  source:         z.string().optional().or(z.literal("")),
+  category:       z.enum(LEAD_CATEGORIES).optional(),
+  handler:        z.string().optional().or(z.literal("")),
+  transferredTo:  z.string().optional().or(z.literal("")),
+  visited:        z.boolean().optional().default(false),
+  followup:       z.boolean().optional().default(false),
 });
 
 export type LeadFormData = z.infer<typeof leadSchema>;

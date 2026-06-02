@@ -544,43 +544,6 @@ export function OrderForm({
         </div>
       </div>
 
-      {/* Fabric Details */}
-      <div className="space-y-4">
-        <h3 className="text-sm font-semibold text-[#D4AF37] uppercase tracking-wider">
-          Fabric Details
-        </h3>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <div className="space-y-1.5">
-            <Label htmlFor="fabricName">Fabric Name</Label>
-            <Input
-              id="fabricName"
-              placeholder="e.g. Italian Wool"
-              {...register("fabricName")}
-            />
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="fabricColor">Fabric Color</Label>
-            <Input
-              id="fabricColor"
-              placeholder="e.g. Navy Blue"
-              {...register("fabricColor")}
-            />
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="fabricQuantity">Quantity (meters)</Label>
-            <Input
-              id="fabricQuantity"
-              type="number"
-              step="0.1"
-              min="0"
-              placeholder="2.5"
-              {...register("fabricQuantity", { valueAsNumber: true })}
-            />
-            <FieldError message={errors.fabricQuantity?.message} />
-          </div>
-        </div>
-      </div>
-
       {/* Schedule */}
       <div className="space-y-4">
         <h3 className="text-sm font-semibold text-[#D4AF37] uppercase tracking-wider">

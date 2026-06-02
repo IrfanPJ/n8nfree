@@ -19,9 +19,10 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { getCustomers, createCustomer } from "@/actions/customers";
-import type { OrderWithRelations, Customer } from "@/types";
+import { MeasurementForm } from "@/components/measurements/measurement-form";
+import type { OrderWithRelations, Customer, Measurement } from "@/types";
 import { formatCurrency, cn } from "@/lib/utils";
-import { UserPlus, X, Plus, Trash2 } from "lucide-react";
+import { UserPlus, X, Plus, Trash2, Ruler, CheckCircle2 } from "lucide-react";
 
 interface OrderFormProps {
   order?: OrderWithRelations;
@@ -66,6 +67,8 @@ export function OrderForm({
   const [newClientPhone, setNewClientPhone] = useState("");
   const [newClientEmail, setNewClientEmail] = useState("");
   const [savingClient, setSavingClient] = useState(false);
+  const [showMeasurementForm, setShowMeasurementForm] = useState(false);
+  const [savedMeasurements, setSavedMeasurements] = useState<Measurement[]>([]);
 
   const defaultItems = order?.items?.length
     ? order.items.map((item) => ({
@@ -119,6 +122,7 @@ export function OrderForm({
   const watchedItems = watch("items");
   const totalAmount = watch("totalAmount");
   const advanceAmount = watch("advanceAmount");
+  const watchedCustomerId = watch("customerId");
 
   // Auto-calculate total from items
   useEffect(() => {
@@ -653,6 +657,73 @@ export function OrderForm({
             />
           </div>
         </div>
+      </div>
+
+      {/* Measurements */}
+      <div className="space-y-3">
+        <div className="flex items-center justify-between">
+          <h3 className="text-sm font-semibold text-[#D4AF37] uppercase tracking-wider flex items-center gap-1.5">
+            <Ruler className="w-3.5 h-3.5" />
+            Measurements
+          </h3>
+          {!showMeasurementForm && (
+            <button
+              type="button"
+              onClick={() => setShowMeasurementForm(true)}
+              disabled={!watchedCustomerId}
+              className="flex items-center gap-1 text-xs text-[#D4AF37] hover:text-[#D4AF37]/80 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              Add Measurement
+            </button>
+          )}
+        </div>
+
+        {/* Saved measurements this session */}
+        {savedMeasurements.length > 0 && (
+          <div className="space-y-1.5">
+            {savedMeasurements.map((m) => (
+              <div key={m.id} className="flex items-center gap-2 px-3 py-2 rounded-lg bg-green-500/5 border border-green-500/20 text-xs">
+                <CheckCircle2 className="w-3.5 h-3.5 text-green-400 flex-shrink-0" />
+                <span className="font-medium">{m.label}</span>
+                <span className="text-muted-foreground">· {m.unit} ·</span>
+                {m.chest && <span className="text-muted-foreground">Chest {m.chest}</span>}
+                {m.waist && <span className="text-muted-foreground">Waist {m.waist}</span>}
+                {m.shoulder && <span className="text-muted-foreground">Shoulder {m.shoulder}</span>}
+              </div>
+            ))}
+          </div>
+        )}
+
+        {!watchedCustomerId && !showMeasurementForm && (
+          <p className="text-xs text-muted-foreground">Select a customer above to add measurements</p>
+        )}
+
+        {/* Inline measurement form */}
+        {showMeasurementForm && watchedCustomerId && (
+          <div className="rounded-xl border border-[#D4AF37]/20 bg-[#D4AF37]/5 overflow-hidden">
+            <div className="flex items-center justify-between px-4 pt-3 pb-1">
+              <p className="text-xs font-semibold text-[#D4AF37]">New Measurement</p>
+              <button
+                type="button"
+                onClick={() => setShowMeasurementForm(false)}
+                className="text-muted-foreground hover:text-foreground"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+            <div className="px-4 pb-4">
+              <MeasurementForm
+                defaultCustomerId={watchedCustomerId}
+                onSuccess={(m) => {
+                  setSavedMeasurements((prev) => [...prev, m]);
+                  setShowMeasurementForm(false);
+                }}
+                onCancel={() => setShowMeasurementForm(false)}
+              />
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Actions */}

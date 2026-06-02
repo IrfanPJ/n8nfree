@@ -346,6 +346,8 @@ export type OrderItem = {
   assignedTo?: Pick<User, "id" | "name" | "role"> | null;
   notes: string | null;
   sortOrder: number;
+  fabricName: string | null;
+  fabricColor: string | null;
   createdAt: string;
 };
 

@@ -4,7 +4,7 @@ import React, { useEffect, useState } from "react";
 import { useForm, Controller, useFieldArray } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
-import { orderSchema, type OrderFormData } from "@/validators/order";
+import { orderSchema, type OrderFormData, FABRIC_OPTIONS } from "@/validators/order";
 import { createOrder, updateOrder } from "@/actions/orders";
 import { getAssignableStaff } from "@/actions/users";
 import { Button } from "@/components/ui/button";
@@ -76,8 +76,10 @@ export function OrderForm({
         assignedToId: item.assignedToId ?? "",
         notes: item.notes ?? "",
         sortOrder: item.sortOrder,
+        fabricName: item.fabricName ?? "",
+        fabricColor: item.fabricColor ?? "",
       }))
-    : [{ garmentType: "", quantity: 1, unitPrice: 0, assignedToId: "", notes: "", sortOrder: 0 }];
+    : [{ garmentType: "", quantity: 1, unitPrice: 0, assignedToId: "", notes: "", sortOrder: 0, fabricName: "", fabricColor: "" }];
 
   const {
     register,
@@ -366,7 +368,7 @@ export function OrderForm({
           <button
             type="button"
             onClick={() =>
-              append({ garmentType: "", quantity: 1, unitPrice: 0, assignedToId: "", notes: "", sortOrder: fields.length })
+              append({ garmentType: "", quantity: 1, unitPrice: 0, assignedToId: "", notes: "", sortOrder: fields.length, fabricName: "", fabricColor: "" })
             }
             className="flex items-center gap-1 text-xs text-[#D4AF37] hover:text-[#D4AF37]/80 transition-colors"
           >
@@ -480,6 +482,54 @@ export function OrderForm({
                   <FieldError message={errors.items?.[index]?.unitPrice?.message} />
                 </div>
               </div>
+
+              {/* Fabric details per garment */}
+              {(() => {
+                const currentFabric = watchedItems?.[index]?.fabricName ?? "";
+                const isCustomFabric = currentFabric !== "" && !(FABRIC_OPTIONS as readonly string[]).includes(currentFabric);
+                const dropdownValue = isCustomFabric ? "Others" : currentFabric;
+                return (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="space-y-1.5">
+                      <Label className="text-xs">Fabric</Label>
+                      <Select
+                        value={dropdownValue}
+                        onValueChange={(v) =>
+                          setValue(`items.${index}.fabricName`, v === "" ? "" : v === "Others" ? "Others" : v)
+                        }
+                      >
+                        <SelectTrigger className="h-9 text-sm">
+                          <SelectValue placeholder="Select fabric" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="">— None —</SelectItem>
+                          {FABRIC_OPTIONS.map((fabric) => (
+                            <SelectItem key={fabric} value={fabric}>{fabric}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      {/* Custom fabric text box — visible when "Others" is selected or value is already custom */}
+                      {(currentFabric === "Others" || isCustomFabric) && (
+                        <Input
+                          placeholder="e.g. Japanese Cotton, Custom blend..."
+                          className="h-8 text-sm"
+                          value={isCustomFabric ? currentFabric : ""}
+                          onChange={(e) => setValue(`items.${index}.fabricName`, e.target.value || "Others")}
+                        />
+                      )}
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <Label className="text-xs">Fabric Color</Label>
+                      <Input
+                        placeholder="e.g. Navy Blue, Charcoal..."
+                        className="h-9 text-sm"
+                        {...register(`items.${index}.fabricColor`)}
+                      />
+                    </div>
+                  </div>
+                );
+              })()}
 
               <div className="space-y-1.5">
                 <Label className="text-xs">Item Notes</Label>

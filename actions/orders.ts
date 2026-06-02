@@ -154,6 +154,8 @@ export async function createOrder(data: unknown): Promise<ApiResponse<OrderWithR
         assignedToId: item.assignedToId || null,
         notes: item.notes || null,
         sortOrder: item.sortOrder ?? idx,
+        fabricName: (item as any).fabricName || null,
+        fabricColor: (item as any).fabricColor || null,
         createdAt: now,
         updatedAt: now,
       }))
@@ -258,6 +260,8 @@ export async function updateOrder(id: string, data: unknown): Promise<ApiRespons
           assignedToId: item.assignedToId || null,
           notes: item.notes || null,
           sortOrder: item.sortOrder ?? idx,
+          fabricName: (item as any).fabricName || null,
+          fabricColor: (item as any).fabricColor || null,
           createdAt: now,
           updatedAt: now,
         };

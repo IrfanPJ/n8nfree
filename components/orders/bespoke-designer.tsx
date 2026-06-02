@@ -138,7 +138,7 @@ function printSpec(
   orderNumber?: string,
   order?: { customerName?: string; deliveryDate?: string; trialDate?: string; qty?: number; gender?: string }
 ) {
-  const win = window.open("", "_blank", "width=1100,height=1400");
+  const win = window.open("", "_blank", "width=1200,height=900");
   if (!win) return;
   const logoUrl = window.location.origin + "/1080_HT_BLACK.png";
   const j = design.jacket;
@@ -330,7 +330,7 @@ function printSpec(
     @media print{
       body{padding:4px}
       .section-wrap{margin-bottom:8px}
-      @page{margin:8mm;size:A4}
+      @page{margin:8mm;size:A4 landscape}
     }`;
 
   win.document.write(`<!DOCTYPE html><html><head>

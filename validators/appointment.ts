@@ -33,6 +33,7 @@ export const appointmentSchema = z
     location: z.string().optional(),
     notes: z.string().optional(),
     reminderAt: z.string().optional(),
+    leadId: z.string().optional(),
   })
   .refine(
     (data) => new Date(data.startTime) < new Date(data.endTime),

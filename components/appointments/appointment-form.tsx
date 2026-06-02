@@ -31,6 +31,7 @@ interface AppointmentFormProps {
   customers?: Customer[];
   staff?: User[];
   defaultCustomerId?: string;
+  defaultLeadId?: string;
   defaultDate?: Date;
   onSuccess?: (appointment: AppointmentWithRelations) => void;
   onCancel?: () => void;
@@ -56,6 +57,7 @@ export function AppointmentForm({
   customers,
   staff,
   defaultCustomerId,
+  defaultLeadId,
   defaultDate,
   onSuccess,
   onCancel,
@@ -100,7 +102,7 @@ export function AppointmentForm({
   const onSubmit = async (data: AppointmentFormData) => {
     const result = isEditing
       ? await updateAppointment(appointment.id, data)
-      : await createAppointment(data);
+      : await createAppointment({ ...data, leadId: defaultLeadId });
 
     if (result.success) {
       toast.success(result.message ?? "Appointment saved");

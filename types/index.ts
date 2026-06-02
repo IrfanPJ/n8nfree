@@ -261,7 +261,7 @@ export type ActivityLog = {
   createdAt: string;
 };
 
-export type LeadStage = "ENQUIRY" | "INTERESTED" | "QUOTED" | "CLOSED_WON" | "CLOSED_LOST";
+export type LeadStage = "ENQUIRY" | "INTERESTED" | "QUOTED" | "APPOINTMENT_CONFIRMED" | "CLOSED_WON" | "CLOSED_LOST" | "IRRELEVANT";
 
 export type Lead = {
   id: string;

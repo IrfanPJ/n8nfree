@@ -69,6 +69,7 @@ export async function createAppointment(data: unknown): Promise<ApiResponse<Appo
       location: parsed.data.location || null,
       notes: parsed.data.notes || null,
       reminderAt: parsed.data.reminderAt ? new Date(parsed.data.reminderAt).toISOString() : null,
+      leadId: parsed.data.leadId || null,
       branch: "Business Bay",
       createdAt: now,
       updatedAt: now,
@@ -150,6 +151,20 @@ export async function updateAppointmentStatus(id: string, status: AppointmentSta
   try {
     await supabase.from("Appointment").update({ status, updatedAt: new Date().toISOString() }).eq("id", id);
     const { data: appointment } = await supabase.from("Appointment").select(APPT_SELECT).eq("id", id).single();
+
+    // Auto Closed Won: when appointment is completed, move linked lead to CLOSED_WON
+    if (status === "COMPLETED") {
+      const { data: apptRow } = await supabase
+        .from("Appointment").select("leadId").eq("id", id).maybeSingle();
+      const leadId = (apptRow as any)?.leadId;
+      if (leadId) {
+        await supabase.from("Lead")
+          .update({ stage: "CLOSED_WON", updatedAt: new Date().toISOString() })
+          .eq("id", leadId);
+        revalidatePath("/leads");
+      }
+    }
+
     revalidatePath("/appointments");
     return { success: true, data: appointment as AppointmentWithRelations, message: "Status updated" };
   } catch {

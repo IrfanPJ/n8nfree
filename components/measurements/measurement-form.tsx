@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useEffect, useRef } from "react";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
@@ -108,6 +108,27 @@ export function MeasurementForm({
   });
 
   const unit = watch("unit");
+  const prevUnitRef = useRef<string>(unit);
+
+  const measurementFields: Array<keyof MeasurementFormData> = [
+    "chest","waist","hip","shoulder","neck","sleeve","armhole",
+    "inseam","outseam","rise","thigh","ankle","backLength","frontLength","jacketLength","shirtLength",
+  ];
+
+  // Auto-convert all values when unit toggles
+  useEffect(() => {
+    const prev = prevUnitRef.current;
+    if (prev === unit) return;
+    prevUnitRef.current = unit;
+    const factor = unit === "cm" ? 2.54 : 1 / 2.54;
+    for (const field of measurementFields) {
+      const val = (watch as any)(field);
+      if (val !== undefined && val !== null && val !== "") {
+        const converted = Math.round(parseFloat(val) * factor * 10) / 10;
+        setValue(field as any, converted as any);
+      }
+    }
+  }, [unit]); // eslint-disable-line
 
   const onSubmit = async (data: MeasurementFormData) => {
     const result = isEditing

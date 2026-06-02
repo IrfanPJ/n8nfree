@@ -7,7 +7,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import {
   Plus, Edit2, Trash2, Phone, Mail, DollarSign,
   TrendingUp, X, GripVertical, Target, Star,
-  List, Calendar, ChevronLeft, ChevronRight,
+  List, Calendar, ChevronLeft, ChevronRight, Download,
 } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -27,9 +27,12 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { createLead, updateLead, updateLeadStage, deleteLead } from "@/actions/leads";
+import { createAppointment } from "@/actions/appointments";
 import {
   leadSchema, type LeadFormData, LEAD_STAGES, LEAD_STAGE_LABELS,
+  LEAD_SOURCES, PIPELINE_STAGES,
 } from "@/validators/lead";
+import { AppointmentForm } from "@/components/appointments/appointment-form";
 import type { Lead, LeadStage } from "@/types";
 import { cn } from "@/lib/utils";
 
@@ -40,20 +43,19 @@ interface LeadsClientProps {
 type ViewMode = "kanban" | "month" | "week" | "day";
 
 const STAGE_CONFIG: Record<LeadStage, { color: string; bg: string; border: string; dot: string }> = {
-  ENQUIRY:    { color: "text-blue-400",   bg: "bg-blue-400/10",   border: "border-blue-400/30",   dot: "bg-blue-400" },
-  INTERESTED: { color: "text-purple-400", bg: "bg-purple-400/10", border: "border-purple-400/30", dot: "bg-purple-400" },
-  QUOTED:     { color: "text-yellow-400", bg: "bg-yellow-400/10", border: "border-yellow-400/30", dot: "bg-yellow-400" },
-  CLOSED_WON: { color: "text-green-400",  bg: "bg-green-400/10",  border: "border-green-400/30",  dot: "bg-green-400" },
-  CLOSED_LOST:{ color: "text-red-400",    bg: "bg-red-400/10",    border: "border-red-400/30",    dot: "bg-red-400" },
+  ENQUIRY:               { color: "text-blue-400",   bg: "bg-blue-400/10",   border: "border-blue-400/30",   dot: "bg-blue-400" },
+  INTERESTED:            { color: "text-purple-400", bg: "bg-purple-400/10", border: "border-purple-400/30", dot: "bg-purple-400" },
+  QUOTED:                { color: "text-yellow-400", bg: "bg-yellow-400/10", border: "border-yellow-400/30", dot: "bg-yellow-400" },
+  APPOINTMENT_CONFIRMED: { color: "text-cyan-400",   bg: "bg-cyan-400/10",   border: "border-cyan-400/30",   dot: "bg-cyan-400" },
+  CLOSED_WON:            { color: "text-green-400",  bg: "bg-green-400/10",  border: "border-green-400/30",  dot: "bg-green-400" },
+  CLOSED_LOST:           { color: "text-red-400",    bg: "bg-red-400/10",    border: "border-red-400/30",    dot: "bg-red-400" },
+  IRRELEVANT:            { color: "text-muted-foreground", bg: "bg-secondary/40", border: "border-border/40", dot: "bg-muted-foreground/40" },
 };
 
 const DAY_HEADERS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
 function LeadCard({
-  lead,
-  onEdit,
-  onDelete,
-  onDragStart,
+  lead, onEdit, onDelete, onDragStart,
 }: {
   lead: Lead;
   onEdit: (l: Lead) => void;
@@ -90,29 +92,28 @@ function LeadCard({
         <p className="text-xs text-muted-foreground mb-2 truncate">{lead.interest}</p>
       )}
 
+      {lead.source && (
+        <span className={cn("text-[10px] px-1.5 py-0.5 rounded-full font-medium mb-2 inline-block", cfg.bg, cfg.color)}>
+          {lead.source}
+        </span>
+      )}
+
       <div className="space-y-1">
         {lead.phone && (
-          <a
-            href={`tel:${lead.phone}`}
-            className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <Phone className="w-3 h-3" />
-            {lead.phone}
+          <a href={`tel:${lead.phone}`} className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors" onClick={(e) => e.stopPropagation()}>
+            <Phone className="w-3 h-3" />{lead.phone}
           </a>
         )}
         {lead.email && (
           <p className="flex items-center gap-1.5 text-xs text-muted-foreground truncate">
-            <Mail className="w-3 h-3 flex-shrink-0" />
-            {lead.email}
+            <Mail className="w-3 h-3 flex-shrink-0" />{lead.email}
           </p>
         )}
       </div>
 
       {lead.value > 0 && (
         <div className="mt-3 pt-2 border-t border-border/40 flex items-center gap-1 text-xs font-medium text-[#D4AF37]">
-          <DollarSign className="w-3 h-3" />
-          {lead.value.toLocaleString("en-AE")}
+          <DollarSign className="w-3 h-3" />{lead.value.toLocaleString("en-AE")}
         </div>
       )}
 
@@ -124,9 +125,7 @@ function LeadCard({
 }
 
 function LeadForm({
-  lead,
-  onSuccess,
-  onCancel,
+  lead, onSuccess, onCancel,
 }: {
   lead?: Lead;
   onSuccess: (l: Lead) => void;
@@ -169,7 +168,7 @@ function LeadForm({
         </div>
         <div className="space-y-1.5">
           <Label>Phone</Label>
-          <Input placeholder="+91 98765 43210" {...register("phone")} />
+          <Input placeholder="+971 50 123 4567" {...register("phone")} />
         </div>
         <div className="space-y-1.5">
           <Label>Email</Label>
@@ -193,12 +192,21 @@ function LeadForm({
           )} />
         </div>
         <div className="space-y-1.5">
+          <Label>Source</Label>
+          <Controller name="source" control={control} render={({ field }) => (
+            <Select value={field.value || ""} onValueChange={field.onChange}>
+              <SelectTrigger><SelectValue placeholder="How did they find us?" /></SelectTrigger>
+              <SelectContent>
+                {LEAD_SOURCES.map((s) => (
+                  <SelectItem key={s} value={s}>{s}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )} />
+        </div>
+        <div className="space-y-1.5">
           <Label>Potential Value (AED)</Label>
           <Input type="number" min="0" step="100" {...register("value")} />
-        </div>
-        <div className="col-span-2 space-y-1.5">
-          <Label>Source</Label>
-          <Input placeholder="e.g. Walk-in, Instagram, Referral" {...register("source")} />
         </div>
         <div className="col-span-2 space-y-1.5">
           <Label>Notes</Label>
@@ -215,6 +223,29 @@ function LeadForm({
   );
 }
 
+function exportLeadsCSV(leads: Lead[]) {
+  const headers = ["Name", "Phone", "Email", "Stage", "Source", "Interest", "Value (AED)", "Notes", "Created"];
+  const rows = leads.map((l) => [
+    l.name,
+    l.phone ?? "",
+    l.email ?? "",
+    LEAD_STAGE_LABELS[l.stage] ?? l.stage,
+    l.source ?? "",
+    l.interest ?? "",
+    l.value,
+    (l.notes ?? "").replace(/\n/g, " "),
+    format(new Date(l.createdAt), "dd/MM/yyyy"),
+  ]);
+  const csv = [headers, ...rows].map((r) => r.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(",")).join("\n");
+  const blob = new Blob([csv], { type: "text/csv" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `leads-${format(new Date(), "yyyy-MM-dd")}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
 export function LeadsClient({ initialLeads }: LeadsClientProps) {
   const [leads, setLeads] = useState<Lead[]>(initialLeads);
   const [modalOpen, setModalOpen] = useState(false);
@@ -227,10 +258,12 @@ export function LeadsClient({ initialLeads }: LeadsClientProps) {
   const [currentWeekStart, setCurrentWeekStart] = useState(() => startOfWeek(new Date(), { weekStartsOn: 1 }));
   const [selectedDay, setSelectedDay] = useState(() => new Date());
 
+  // Appointment popup triggered when lead → APPOINTMENT_CONFIRMED
+  const [apptLead, setApptLead] = useState<Lead | null>(null);
+
   const byStage = useMemo(() => {
-    const map: Record<LeadStage, Lead[]> = {
-      ENQUIRY: [], INTERESTED: [], QUOTED: [], CLOSED_WON: [], CLOSED_LOST: [],
-    };
+    const map = {} as Record<LeadStage, Lead[]>;
+    for (const s of LEAD_STAGES) map[s] = [];
     for (const lead of leads) map[lead.stage].push(lead);
     return map;
   }, [leads]);
@@ -239,9 +272,8 @@ export function LeadsClient({ initialLeads }: LeadsClientProps) {
     () => leads.filter((l) => l.stage === "CLOSED_WON").reduce((s, l) => s + l.value, 0),
     [leads]
   );
-
   const pipelineValue = useMemo(
-    () => leads.filter((l) => !["CLOSED_WON", "CLOSED_LOST"].includes(l.stage)).reduce((s, l) => s + l.value, 0),
+    () => leads.filter((l) => !["CLOSED_WON", "CLOSED_LOST", "IRRELEVANT"].includes(l.stage)).reduce((s, l) => s + l.value, 0),
     [leads]
   );
 
@@ -262,13 +294,9 @@ export function LeadsClient({ initialLeads }: LeadsClientProps) {
     leads.filter((l) => isSameDay(new Date(l.createdAt), day));
 
   const navigate = (dir: -1 | 1) => {
-    if (viewMode === "month") {
-      setCurrentMonth((d) => dir === 1 ? addMonths(d, 1) : subMonths(d, 1));
-    } else if (viewMode === "week") {
-      setCurrentWeekStart((d) => dir === 1 ? addWeeks(d, 1) : subWeeks(d, 1));
-    } else if (viewMode === "day") {
-      setSelectedDay((d) => dir === 1 ? addDays(d, 1) : subDays(d, 1));
-    }
+    if (viewMode === "month") setCurrentMonth((d) => dir === 1 ? addMonths(d, 1) : subMonths(d, 1));
+    else if (viewMode === "week") setCurrentWeekStart((d) => dir === 1 ? addWeeks(d, 1) : subWeeks(d, 1));
+    else if (viewMode === "day") setSelectedDay((d) => dir === 1 ? addDays(d, 1) : subDays(d, 1));
   };
 
   const periodLabel = () => {
@@ -284,7 +312,7 @@ export function LeadsClient({ initialLeads }: LeadsClientProps) {
   };
 
   const handleDrop = async (stage: LeadStage) => {
-    if (!dragId || dragId === "") return;
+    if (!dragId) return;
     const lead = leads.find((l) => l.id === dragId);
     if (!lead || lead.stage === stage) { setDragId(null); setDragOver(null); return; }
 
@@ -296,6 +324,12 @@ export function LeadsClient({ initialLeads }: LeadsClientProps) {
     if (!result.success) {
       toast.error("Failed to move lead");
       setLeads((prev) => prev.map((l) => (l.id === dragId ? { ...l, stage: lead.stage } : l)));
+      return;
+    }
+
+    // Auto-open appointment form when moved to Appointment Confirmed
+    if (stage === "APPOINTMENT_CONFIRMED") {
+      setApptLead({ ...lead, stage });
     }
   };
 
@@ -303,9 +337,7 @@ export function LeadsClient({ initialLeads }: LeadsClientProps) {
     if (!confirm("Delete this lead?")) return;
     setLeads((prev) => prev.filter((l) => l.id !== id));
     const result = await deleteLead(id);
-    if (!result.success) {
-      toast.error("Failed to delete");
-    }
+    if (!result.success) toast.error("Failed to delete");
   };
 
   const handleSuccess = (lead: Lead) => {
@@ -329,7 +361,6 @@ export function LeadsClient({ initialLeads }: LeadsClientProps) {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          {/* View toggle */}
           <div className="flex items-center gap-1 bg-secondary/50 rounded-lg p-1">
             {(["kanban", "month", "week", "day"] as ViewMode[]).map((v) => (
               <Button
@@ -344,6 +375,10 @@ export function LeadsClient({ initialLeads }: LeadsClientProps) {
               </Button>
             ))}
           </div>
+          <Button variant="outline" size="sm" onClick={() => exportLeadsCSV(leads)}>
+            <Download className="w-3.5 h-3.5 mr-1.5" />
+            Export
+          </Button>
           <Button variant="gold" onClick={() => { setEditLead(null); setDefaultStage("ENQUIRY"); setModalOpen(true); }}>
             <Plus className="w-4 h-4 mr-2" />
             Add Lead
@@ -360,9 +395,9 @@ export function LeadsClient({ initialLeads }: LeadsClientProps) {
         </div>
       )}
 
-      {/* Pipeline summary (always visible) */}
+      {/* Pipeline summary — main stages only */}
       <div className="grid grid-cols-5 gap-3">
-        {LEAD_STAGES.map((stage) => {
+        {PIPELINE_STAGES.map((stage) => {
           const cfg = STAGE_CONFIG[stage];
           const count = byStage[stage].length;
           const val = byStage[stage].reduce((s, l) => s + l.value, 0);
@@ -393,36 +428,23 @@ export function LeadsClient({ initialLeads }: LeadsClientProps) {
               return (
                 <div
                   key={day.toISOString()}
-                  className={cn(
-                    "min-h-[90px] border-b border-r border-border p-1.5 transition-colors cursor-pointer hover:bg-secondary/30",
-                    !inMonth && "bg-secondary/20",
-                    isToday(day) && "bg-[#D4AF37]/5"
-                  )}
+                  className={cn("min-h-[90px] border-b border-r border-border p-1.5 transition-colors cursor-pointer hover:bg-secondary/30", !inMonth && "bg-secondary/20", isToday(day) && "bg-[#D4AF37]/5")}
                   onClick={() => { setSelectedDay(day); setViewMode("day"); }}
                 >
-                  <div className={cn(
-                    "text-xs font-medium w-6 h-6 flex items-center justify-center rounded-full mb-1",
-                    isToday(day) ? "bg-[#D4AF37] text-black" : inMonth ? "text-foreground" : "text-muted-foreground/40"
-                  )}>
+                  <div className={cn("text-xs font-medium w-6 h-6 flex items-center justify-center rounded-full mb-1", isToday(day) ? "bg-[#D4AF37] text-black" : inMonth ? "text-foreground" : "text-muted-foreground/40")}>
                     {format(day, "d")}
                   </div>
                   <div className="space-y-0.5">
                     {dayLeads.slice(0, 3).map((l) => {
                       const cfg = STAGE_CONFIG[l.stage];
                       return (
-                        <div
-                          key={l.id}
-                          className={cn("flex items-center gap-1 text-[10px] px-1 py-0.5 rounded truncate cursor-pointer hover:opacity-80", cfg.bg, cfg.color)}
-                          onClick={(e) => { e.stopPropagation(); setEditLead(l); setModalOpen(true); }}
-                        >
+                        <div key={l.id} className={cn("flex items-center gap-1 text-[10px] px-1 py-0.5 rounded truncate cursor-pointer hover:opacity-80", cfg.bg, cfg.color)} onClick={(e) => { e.stopPropagation(); setEditLead(l); setModalOpen(true); }}>
                           <span className={cn("w-1.5 h-1.5 rounded-full flex-shrink-0", cfg.dot)} />
                           <span className="truncate">{l.name}</span>
                         </div>
                       );
                     })}
-                    {dayLeads.length > 3 && (
-                      <p className="text-[10px] text-muted-foreground pl-1">+{dayLeads.length - 3} more</p>
-                    )}
+                    {dayLeads.length > 3 && <p className="text-[10px] text-muted-foreground pl-1">+{dayLeads.length - 3} more</p>}
                   </div>
                 </div>
               );
@@ -436,11 +458,7 @@ export function LeadsClient({ initialLeads }: LeadsClientProps) {
         <div className="border border-border rounded-xl overflow-hidden">
           <div className="grid grid-cols-7 border-b border-border bg-secondary/30">
             {weekDays.map((day) => (
-              <div
-                key={day.toISOString()}
-                className={cn("text-center py-2 cursor-pointer hover:bg-secondary/50 transition-colors", isToday(day) && "bg-[#D4AF37]/10")}
-                onClick={() => { setSelectedDay(day); setViewMode("day"); }}
-              >
+              <div key={day.toISOString()} className={cn("text-center py-2 cursor-pointer hover:bg-secondary/50 transition-colors", isToday(day) && "bg-[#D4AF37]/10")} onClick={() => { setSelectedDay(day); setViewMode("day"); }}>
                 <p className="text-xs text-muted-foreground">{format(day, "EEE")}</p>
                 <p className={cn("text-sm font-semibold mt-0.5", isToday(day) && "text-[#D4AF37]")}>{format(day, "d")}</p>
               </div>
@@ -451,26 +469,18 @@ export function LeadsClient({ initialLeads }: LeadsClientProps) {
               const dayLeads = getLeadsForDay(day);
               return (
                 <div key={day.toISOString()} className={cn("p-2 space-y-1", isToday(day) && "bg-[#D4AF37]/5")}>
-                  {dayLeads.length === 0 ? (
-                    <p className="text-[10px] text-muted-foreground/30 text-center mt-4">—</p>
-                  ) : (
-                    dayLeads.map((l) => {
-                      const cfg = STAGE_CONFIG[l.stage];
-                      return (
-                        <div
-                          key={l.id}
-                          className={cn("text-[10px] px-1.5 py-1 rounded truncate cursor-pointer hover:opacity-80", cfg.bg, cfg.color)}
-                          onClick={() => { setEditLead(l); setModalOpen(true); }}
-                        >
-                          <div className="flex items-center gap-1">
-                            <span className={cn("w-1.5 h-1.5 rounded-full flex-shrink-0", cfg.dot)} />
-                            <span className="truncate font-medium">{l.name}</span>
-                          </div>
-                          <p className="text-muted-foreground/70 truncate pl-2.5">{LEAD_STAGE_LABELS[l.stage]}</p>
+                  {dayLeads.length === 0 ? <p className="text-[10px] text-muted-foreground/30 text-center mt-4">—</p> : dayLeads.map((l) => {
+                    const cfg = STAGE_CONFIG[l.stage];
+                    return (
+                      <div key={l.id} className={cn("text-[10px] px-1.5 py-1 rounded truncate cursor-pointer hover:opacity-80", cfg.bg, cfg.color)} onClick={() => { setEditLead(l); setModalOpen(true); }}>
+                        <div className="flex items-center gap-1">
+                          <span className={cn("w-1.5 h-1.5 rounded-full flex-shrink-0", cfg.dot)} />
+                          <span className="truncate font-medium">{l.name}</span>
                         </div>
-                      );
-                    })
-                  )}
+                        <p className="text-muted-foreground/70 truncate pl-2.5">{LEAD_STAGE_LABELS[l.stage]}</p>
+                      </div>
+                    );
+                  })}
                 </div>
               );
             })}
@@ -505,9 +515,7 @@ export function LeadsClient({ initialLeads }: LeadsClientProps) {
                             <div className="flex items-center gap-2 mb-1">
                               <span className={cn("w-2 h-2 rounded-full", cfg.dot)} />
                               <p className="font-medium text-sm truncate">{l.name}</p>
-                              <span className={cn("text-[10px] px-1.5 py-0.5 rounded-full font-medium", cfg.bg, cfg.color)}>
-                                {LEAD_STAGE_LABELS[l.stage]}
-                              </span>
+                              <span className={cn("text-[10px] px-1.5 py-0.5 rounded-full font-medium", cfg.bg, cfg.color)}>{LEAD_STAGE_LABELS[l.stage]}</span>
                             </div>
                             {l.interest && <p className="text-xs text-muted-foreground truncate">{l.interest}</p>}
                             <div className="flex items-center gap-3 mt-2 text-xs text-muted-foreground">
@@ -536,66 +544,88 @@ export function LeadsClient({ initialLeads }: LeadsClientProps) {
 
       {/* Kanban board */}
       {viewMode === "kanban" && (
-        <div className="flex gap-4 overflow-x-auto pb-4">
-          {LEAD_STAGES.map((stage) => {
-            const cfg = STAGE_CONFIG[stage];
-            const stageLeads = byStage[stage];
-            const isDragTarget = dragOver === stage;
-
-            return (
-              <div
-                key={stage}
-                className={cn(
-                  "flex-shrink-0 w-72 rounded-xl border transition-all",
-                  isDragTarget ? "border-primary/50 bg-primary/5 scale-[1.01]" : "border-border/50 bg-secondary/20"
-                )}
-                onDragOver={(e) => { e.preventDefault(); setDragOver(stage); }}
-                onDragLeave={() => setDragOver(null)}
-                onDrop={() => handleDrop(stage)}
-              >
-                <div className={cn("flex items-center justify-between px-4 py-3 border-b border-border/40")}>
-                  <div className="flex items-center gap-2">
-                    <span className={cn("w-2 h-2 rounded-full", cfg.dot)} />
-                    <span className="text-sm font-semibold">{LEAD_STAGE_LABELS[stage]}</span>
-                    <span className={cn("text-xs px-1.5 py-0.5 rounded-full font-medium", cfg.bg, cfg.color)}>
-                      {stageLeads.length}
-                    </span>
-                  </div>
-                  <Button
-                    variant="ghost"
-                    size="icon-sm"
-                    className="h-6 w-6"
-                    onClick={() => { setDefaultStage(stage); setEditLead(null); setModalOpen(true); }}
-                  >
-                    <Plus className="w-3.5 h-3.5" />
-                  </Button>
-                </div>
-
-                <div className="p-2 space-y-2 min-h-[300px]">
-                  <AnimatePresence>
-                    {stageLeads.map((lead) => (
-                      <LeadCard
-                        key={lead.id}
-                        lead={lead}
-                        onEdit={(l) => { setEditLead(l); setModalOpen(true); }}
-                        onDelete={handleDelete}
-                        onDragStart={handleDragStart}
-                      />
-                    ))}
-                  </AnimatePresence>
-                  {stageLeads.length === 0 && !isDragTarget && (
-                    <div className="flex items-center justify-center h-20 text-xs text-muted-foreground/40">
-                      Drop leads here
+        <div className="space-y-4">
+          {/* Main pipeline */}
+          <div className="flex gap-4 overflow-x-auto pb-2">
+            {PIPELINE_STAGES.map((stage) => {
+              const cfg = STAGE_CONFIG[stage];
+              const stageLeads = byStage[stage];
+              const isDragTarget = dragOver === stage;
+              return (
+                <div
+                  key={stage}
+                  className={cn("flex-shrink-0 w-72 rounded-xl border transition-all", isDragTarget ? "border-primary/50 bg-primary/5 scale-[1.01]" : "border-border/50 bg-secondary/20")}
+                  onDragOver={(e) => { e.preventDefault(); setDragOver(stage); }}
+                  onDragLeave={() => setDragOver(null)}
+                  onDrop={() => handleDrop(stage)}
+                >
+                  <div className="flex items-center justify-between px-4 py-3 border-b border-border/40">
+                    <div className="flex items-center gap-2">
+                      <span className={cn("w-2 h-2 rounded-full", cfg.dot)} />
+                      <span className="text-sm font-semibold">{LEAD_STAGE_LABELS[stage]}</span>
+                      <span className={cn("text-xs px-1.5 py-0.5 rounded-full font-medium", cfg.bg, cfg.color)}>{stageLeads.length}</span>
                     </div>
-                  )}
+                    <Button variant="ghost" size="icon-sm" className="h-6 w-6" onClick={() => { setDefaultStage(stage); setEditLead(null); setModalOpen(true); }}>
+                      <Plus className="w-3.5 h-3.5" />
+                    </Button>
+                  </div>
+                  <div className="p-2 space-y-2 min-h-[300px]">
+                    <AnimatePresence>
+                      {stageLeads.map((lead) => (
+                        <LeadCard key={lead.id} lead={lead} onEdit={(l) => { setEditLead(l); setModalOpen(true); }} onDelete={handleDelete} onDragStart={handleDragStart} />
+                      ))}
+                    </AnimatePresence>
+                    {stageLeads.length === 0 && !isDragTarget && (
+                      <div className="flex items-center justify-center h-20 text-xs text-muted-foreground/40">Drop leads here</div>
+                    )}
+                  </div>
                 </div>
-              </div>
-            );
-          })}
+              );
+            })}
+          </div>
+
+          {/* Separate section — Irrelevant + Closed Lost */}
+          <div className="border-t border-border/50 pt-4">
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-widest mb-3">Closed / Irrelevant</p>
+            <div className="flex gap-4 overflow-x-auto pb-2">
+              {(["IRRELEVANT", "CLOSED_LOST"] as LeadStage[]).map((stage) => {
+                const cfg = STAGE_CONFIG[stage];
+                const stageLeads = byStage[stage];
+                const isDragTarget = dragOver === stage;
+                return (
+                  <div
+                    key={stage}
+                    className={cn("flex-shrink-0 w-72 rounded-xl border opacity-70 transition-all", isDragTarget ? "border-primary/50 opacity-100" : "border-border/40 bg-secondary/10")}
+                    onDragOver={(e) => { e.preventDefault(); setDragOver(stage); }}
+                    onDragLeave={() => setDragOver(null)}
+                    onDrop={() => handleDrop(stage)}
+                  >
+                    <div className="flex items-center justify-between px-4 py-3 border-b border-border/30">
+                      <div className="flex items-center gap-2">
+                        <span className={cn("w-2 h-2 rounded-full", cfg.dot)} />
+                        <span className="text-sm font-semibold text-muted-foreground">{LEAD_STAGE_LABELS[stage]}</span>
+                        <span className="text-xs px-1.5 py-0.5 rounded-full font-medium bg-secondary text-muted-foreground">{stageLeads.length}</span>
+                      </div>
+                    </div>
+                    <div className="p-2 space-y-2 min-h-[120px]">
+                      <AnimatePresence>
+                        {stageLeads.map((lead) => (
+                          <LeadCard key={lead.id} lead={lead} onEdit={(l) => { setEditLead(l); setModalOpen(true); }} onDelete={handleDelete} onDragStart={handleDragStart} />
+                        ))}
+                      </AnimatePresence>
+                      {stageLeads.length === 0 && !isDragTarget && (
+                        <div className="flex items-center justify-center h-10 text-xs text-muted-foreground/30">Drop here</div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
         </div>
       )}
 
-      {/* Modal */}
+      {/* Lead form modal */}
       <Dialog open={modalOpen} onOpenChange={(o) => { setModalOpen(o); if (!o) setEditLead(null); }}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
@@ -608,6 +638,30 @@ export function LeadsClient({ initialLeads }: LeadsClientProps) {
             lead={editLead ?? undefined}
             onSuccess={handleSuccess}
             onCancel={() => { setModalOpen(false); setEditLead(null); }}
+          />
+        </DialogContent>
+      </Dialog>
+
+      {/* Auto appointment popup — triggered when lead moves to Appointment Confirmed */}
+      <Dialog open={!!apptLead} onOpenChange={(o) => { if (!o) setApptLead(null); }}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Calendar className="w-5 h-5 text-cyan-400" />
+              Book Appointment — {apptLead?.name}
+            </DialogTitle>
+            <p className="text-xs text-muted-foreground mt-1">
+              Lead moved to Appointment Confirmed. Fill in the appointment details below.
+            </p>
+          </DialogHeader>
+          <AppointmentForm
+            defaultCustomerId=""
+            defaultLeadId={apptLead?.id}
+            onSuccess={() => {
+              toast.success("Appointment saved");
+              setApptLead(null);
+            }}
+            onCancel={() => setApptLead(null)}
           />
         </DialogContent>
       </Dialog>

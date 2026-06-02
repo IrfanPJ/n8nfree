@@ -98,10 +98,10 @@ export function OrderForm({
           ? order.fabricQuantity
           : undefined,
       deliveryDate: order?.deliveryDate
-        ? new Date(order.deliveryDate).toISOString().split("T")[0]
+        ? new Date(order.deliveryDate).toISOString().slice(0, 16)
         : "",
       trialDate: order?.trialDate
-        ? new Date(order.trialDate).toISOString().split("T")[0]
+        ? new Date(order.trialDate).toISOString().slice(0, 16)
         : "",
       totalAmount: order?.totalAmount ?? 0,
       advanceAmount: order?.advanceAmount ?? 0,
@@ -538,18 +538,38 @@ export function OrderForm({
         </h3>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div className="space-y-1.5">
-            <Label htmlFor="deliveryDate">Delivery Date *</Label>
-            <Input
-              id="deliveryDate"
-              type="date"
-              {...register("deliveryDate")}
-              className={cn(errors.deliveryDate ? "border-destructive" : "")}
-            />
-            <FieldError message={errors.deliveryDate?.message} />
+            <Label htmlFor="trialDate">Trial Date</Label>
+            <Input id="trialDate" type="datetime-local" {...register("trialDate")} />
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="trialDate">Trial Date</Label>
-            <Input id="trialDate" type="date" {...register("trialDate")} />
+            <Label htmlFor="deliveryDate">Delivery Date &amp; Time *</Label>
+            <Input
+              id="deliveryDate"
+              type="datetime-local"
+              {...register("deliveryDate")}
+              className={cn(errors.deliveryDate ? "border-destructive" : "")}
+              onChange={async (e) => {
+                register("deliveryDate").onChange(e);
+                const date = e.target.value;
+                if (!date) return;
+                const day = date.split("T")[0];
+                const { data } = await (await import("@/lib/supabase-browser")).getSupabaseBrowser()
+                  ?.from("Order")
+                  .select("orderNumber, garmentType")
+                  .gte("deliveryDate", `${day}T00:00:00`)
+                  .lte("deliveryDate", `${day}T23:59:59`)
+                  .eq("isActive", true)
+                  .not("status", "in", '("DELIVERED","ORDER_CLOSED")')
+                  .limit(3) ?? { data: null };
+                if (data && data.length > 0) {
+                  toast(`⚠️ ${data.length} order${data.length > 1 ? "s" : ""} already scheduled this day`, {
+                    description: data.map((o: any) => `${o.orderNumber} — ${o.garmentType}`).join(", "),
+                    duration: 5000,
+                  });
+                }
+              }}
+            />
+            <FieldError message={errors.deliveryDate?.message} />
           </div>
         </div>
       </div>

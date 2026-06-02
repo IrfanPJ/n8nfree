@@ -29,6 +29,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { MeasurementForm } from "@/components/measurements/measurement-form";
+import { CustomerForm } from "@/components/customers/customer-form";
 import { deleteMeasurement } from "@/actions/measurements";
 import type { Measurement, Customer } from "@/types";
 import { cn } from "@/lib/utils";
@@ -351,9 +352,12 @@ export function MeasurementsClient({
   const [viewMeasurement, setViewMeasurement] = useState<Measurement | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [filterCustomer, setFilterCustomer] = useState<string>("");
+  const [allCustomers, setAllCustomers] = useState<Customer[]>(customers);
+  const [newCustomerOpen, setNewCustomerOpen] = useState(false);
+  const [preselectedCustomerId, setPreselectedCustomerId] = useState<string | undefined>();
 
   const filtered = measurements.filter((m) => {
-    const customer = customers.find((c) => c.id === m.customerId);
+    const customer = allCustomers.find((c) => c.id === m.customerId);
     const matchesSearch =
       !search ||
       m.label.toLowerCase().includes(search.toLowerCase()) ||
@@ -414,7 +418,7 @@ export function MeasurementsClient({
             className="pl-9"
           />
         </div>
-        {customers.length > 0 && (
+        {allCustomers.length > 0 && (
           <select
             value={filterCustomer}
             onChange={(e) => setFilterCustomer(e.target.value)}
@@ -425,7 +429,7 @@ export function MeasurementsClient({
             )}
           >
             <option value="">All Customers</option>
-            {customers.map((c) => (
+            {allCustomers.map((c) => (
               <option key={c.id} value={c.id}>
                 {c.name}
               </option>
@@ -498,15 +502,47 @@ export function MeasurementsClient({
       <Dialog open={createOpen} onOpenChange={setCreateOpen}>
         <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Ruler className="w-5 h-5 text-[#D4AF37]" />
-              New Measurement
-            </DialogTitle>
+            <div className="flex items-center justify-between">
+              <DialogTitle className="flex items-center gap-2">
+                <Ruler className="w-5 h-5 text-[#D4AF37]" />
+                New Measurement
+              </DialogTitle>
+              <button
+                type="button"
+                onClick={() => setNewCustomerOpen(true)}
+                className="text-xs text-[#D4AF37] hover:text-[#D4AF37]/80 flex items-center gap-1 mr-6"
+              >
+                <User className="w-3.5 h-3.5" />
+                + New Customer
+              </button>
+            </div>
           </DialogHeader>
           <MeasurementForm
-            customers={customers}
+            customers={allCustomers}
+            defaultCustomerId={preselectedCustomerId}
             onSuccess={handleCreateSuccess}
-            onCancel={() => setCreateOpen(false)}
+            onCancel={() => { setCreateOpen(false); setPreselectedCustomerId(undefined); }}
+          />
+        </DialogContent>
+      </Dialog>
+
+      {/* New Customer Dialog (nested from measurements) */}
+      <Dialog open={newCustomerOpen} onOpenChange={setNewCustomerOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <User className="w-5 h-5 text-[#D4AF37]" />
+              Add New Customer
+            </DialogTitle>
+          </DialogHeader>
+          <CustomerForm
+            onSuccess={(newCustomer) => {
+              setAllCustomers((prev) => [newCustomer, ...prev]);
+              setPreselectedCustomerId(newCustomer.id);
+              setNewCustomerOpen(false);
+              toast.success(`${newCustomer.name} added — now select them for this measurement`);
+            }}
+            onCancel={() => setNewCustomerOpen(false)}
           />
         </DialogContent>
       </Dialog>

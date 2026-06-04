@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { User, Bell, Palette, Building2, Save, Users, ShieldCheck, ChevronDown, Lock, Trash2, Scissors } from "lucide-react";
+import { User, Bell, Palette, Building2, Save, Users, ShieldCheck, ChevronDown, Lock, Trash2, Scissors, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -18,7 +18,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { getInitials } from "@/lib/utils";
 import { updateTeamMember, updateUserPermissions, deleteTeamMember } from "@/actions/users";
 import { updateBusinessSettings, type BusinessSettings } from "@/actions/business-settings";
-import { deleteFabricHistoryEntry, type FabricHistoryEntry } from "@/actions/fabric-history";
+import { addFabricHistoryEntry, deleteFabricHistoryEntry, type FabricHistoryEntry, type FabricHistoryType } from "@/actions/fabric-history";
 import type { StaffPosition, UserRole } from "@/types";
 import { PAGE_PERMISSIONS } from "@/lib/permissions";
 import { cn } from "@/lib/utils";
@@ -171,6 +171,97 @@ function MemberPermissionsRow({ member, onUpdate }: {
   );
 }
 
+
+const FABRIC_SECTIONS: { key: keyof NonNullable<SettingsClientProps["fabricHistory"]>; type: FabricHistoryType; label: string; placeholder: string }[] = [
+  { key: "codes",        type: "code",        label: "Fabric Codes",        placeholder: "e.g. WL-001" },
+  { key: "compositions", type: "composition", label: "Fabric Compositions", placeholder: "e.g. 100% Wool" },
+  { key: "prices",       type: "price",       label: "Fabric Prices (AED)", placeholder: "e.g. 250" },
+  { key: "colors",       type: "color",       label: "Fabric Colors",       placeholder: "e.g. Navy Blue" },
+];
+
+function FabricHistoryTab({ initialHistory }: { initialHistory?: SettingsClientProps["fabricHistory"] }) {
+  const [history, setHistory] = useState<NonNullable<SettingsClientProps["fabricHistory"]>>(
+    initialHistory ?? { codes: [], compositions: [], prices: [], colors: [] }
+  );
+  const [inputs, setInputs] = useState<Record<string, string>>({ code: "", composition: "", price: "", color: "" });
+  const [saving, setSaving] = useState<Record<string, boolean>>({});
+
+  const handleAdd = async (type: FabricHistoryType, key: string) => {
+    const value = inputs[type]?.trim();
+    if (!value) return;
+    setSaving((p) => ({ ...p, [type]: true }));
+    const entry = await addFabricHistoryEntry(type, value);
+    if (entry) {
+      setHistory((prev) => ({ ...prev, [key]: [entry, ...prev[key as keyof typeof prev]] }));
+      setInputs((p) => ({ ...p, [type]: "" }));
+    }
+    setSaving((p) => ({ ...p, [type]: false }));
+  };
+
+  const handleDelete = async (type: FabricHistoryType, key: string, id: string) => {
+    await deleteFabricHistoryEntry(id);
+    setHistory((prev) => ({ ...prev, [key]: (prev[key as keyof typeof prev] as FabricHistoryEntry[]).filter((e) => e.id !== id) }));
+  };
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2 text-base">
+          <Scissors className="w-4 h-4 text-primary" />
+          Fabric History
+        </CardTitle>
+        <CardDescription>Manage the dropdown suggestions shown in the order form. Add or delete entries freely.</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-6">
+        {FABRIC_SECTIONS.map(({ key, type, label, placeholder }) => {
+          const entries = history[key] as FabricHistoryEntry[];
+          return (
+            <div key={key}>
+              <p className="text-sm font-semibold mb-2">{label}</p>
+              <div className="flex gap-2 mb-3">
+                <Input
+                  placeholder={placeholder}
+                  value={inputs[type] ?? ""}
+                  onChange={(e) => setInputs((p) => ({ ...p, [type]: e.target.value }))}
+                  onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleAdd(type, key); } }}
+                  className="h-8 text-sm"
+                />
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-8 px-3 flex-shrink-0"
+                  disabled={saving[type] || !inputs[type]?.trim()}
+                  onClick={() => handleAdd(type, key)}
+                >
+                  <Plus className="w-3.5 h-3.5 mr-1" />
+                  Add
+                </Button>
+              </div>
+              {entries.length === 0 ? (
+                <p className="text-xs text-muted-foreground">No entries yet. Add one above.</p>
+              ) : (
+                <div className="flex flex-wrap gap-2">
+                  {entries.map((entry) => (
+                    <div key={entry.id} className="flex items-center gap-1.5 bg-secondary/60 border border-border/40 rounded-full px-3 py-1 text-xs">
+                      <span>{entry.value}</span>
+                      <button
+                        onClick={() => handleDelete(type, key, entry.id)}
+                        className="text-muted-foreground hover:text-destructive transition-colors ml-1"
+                      >
+                        <Trash2 className="w-3 h-3" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <Separator className="mt-4" />
+            </div>
+          );
+        })}
+      </CardContent>
+    </Card>
+  );
+}
 
 function TeamTab({ teamMembers, currentUserId }: { teamMembers: TeamMember[]; currentUserId: string }) {
   const [members, setMembers] = useState(teamMembers);
@@ -561,47 +652,8 @@ export function SettingsClient({ user, teamMembers = [], businessSettings, fabri
           </Card>
         </TabsContent>
 
-        <TabsContent value="fabric" className="mt-6 space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-base">
-                <Scissors className="w-4 h-4 text-primary" />
-                Fabric History
-              </CardTitle>
-              <CardDescription>All fabric values ever saved across orders. Delete any entry to remove it from dropdown suggestions.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-5">
-              {(["codes", "compositions", "prices", "colors"] as const).map((key) => {
-                const labels: Record<string, string> = { codes: "Fabric Codes", compositions: "Fabric Compositions", prices: "Fabric Prices", colors: "Fabric Colors" };
-                const entries = fabricHistory?.[key] ?? [];
-                return (
-                  <div key={key}>
-                    <p className="text-sm font-semibold mb-2">{labels[key]}</p>
-                    {entries.length === 0 ? (
-                      <p className="text-xs text-muted-foreground">No entries yet.</p>
-                    ) : (
-                      <div className="flex flex-wrap gap-2">
-                        {entries.map((entry) => (
-                          <div key={entry.id} className="flex items-center gap-1.5 bg-secondary/60 border border-border/40 rounded-full px-3 py-1 text-xs">
-                            <span>{entry.value}</span>
-                            <button
-                              onClick={async () => {
-                                await deleteFabricHistoryEntry(entry.id);
-                              }}
-                              className="text-muted-foreground hover:text-destructive transition-colors ml-1"
-                            >
-                              <Trash2 className="w-3 h-3" />
-                            </button>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                    <Separator className="mt-4" />
-                  </div>
-                );
-              })}
-            </CardContent>
-          </Card>
+        <TabsContent value="fabric" className="mt-6">
+          <FabricHistoryTab initialHistory={fabricHistory} />
         </TabsContent>
 
         {isAdmin && (

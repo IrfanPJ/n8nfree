@@ -65,6 +65,25 @@ export async function upsertFabricValues(values: { type: FabricHistoryType; valu
   await supabase.from("FabricHistory").upsert(rows, { onConflict: "type,value", ignoreDuplicates: true });
 }
 
+export async function addFabricHistoryEntry(type: FabricHistoryType, value: string): Promise<FabricHistoryEntry | null> {
+  const session = await auth();
+  if (!session?.user) return null;
+
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+
+  const id = randomUUID();
+  const { data, error } = await supabase
+    .from("FabricHistory")
+    .upsert({ id, type, value: trimmed }, { onConflict: "type,value", ignoreDuplicates: false })
+    .select()
+    .single();
+
+  if (error) return null;
+  revalidatePath("/settings");
+  return data as FabricHistoryEntry;
+}
+
 export async function deleteFabricHistoryEntry(id: string): Promise<void> {
   const session = await auth();
   if (!session?.user) return;

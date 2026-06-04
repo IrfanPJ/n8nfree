@@ -5,6 +5,7 @@ import { randomUUID } from "crypto";
 import { supabase } from "@/lib/supabase";
 import { auth } from "@/lib/auth";
 import { orderSchema, orderStatusUpdateSchema } from "@/validators/order";
+import { upsertFabricValues } from "@/actions/fabric-history";
 import { generateOrderNumber } from "@/lib/utils";
 import * as Sentry from "@sentry/nextjs";
 import { sendOrderStatusUpdate } from "@/lib/email";
@@ -164,6 +165,15 @@ export async function createOrder(data: unknown): Promise<ApiResponse<OrderWithR
     );
     if (itemsError) throw itemsError;
 
+    // Save new fabric values to global history
+    const fabricEntries = items.flatMap((item: any) => [
+      { type: "code" as const,        value: item.fabricCode },
+      { type: "composition" as const, value: item.fabricComposition },
+      { type: "price" as const,       value: item.fabricPrice != null ? String(item.fabricPrice) : "" },
+      { type: "color" as const,       value: item.fabricColor },
+    ]);
+    upsertFabricValues(fabricEntries).catch(() => {});
+
     await supabase.from("OrderHistory").insert({
       id: historyId,
       orderId,
@@ -274,6 +284,15 @@ export async function updateOrder(id: string, data: unknown): Promise<ApiRespons
       if (itemsError) throw itemsError;
       // Only delete old rows after new ones are confirmed saved
       await supabase.from("OrderItem").delete().eq("orderId", id).not("id", "in", `(${newItemIds.map((x) => `"${x}"`).join(",")})`);
+
+      // Save new fabric values to global history
+      const fabricEntries = parsed.data.items.flatMap((item: any) => [
+        { type: "code" as const,        value: item.fabricCode },
+        { type: "composition" as const, value: item.fabricComposition },
+        { type: "price" as const,       value: item.fabricPrice != null ? String(item.fabricPrice) : "" },
+        { type: "color" as const,       value: item.fabricColor },
+      ]);
+      upsertFabricValues(fabricEntries).catch(() => {});
     } else {
       await supabase.from("OrderItem").delete().eq("orderId", id);
     }
@@ -435,29 +454,6 @@ export async function updateOrderDesign(id: string, specText: string, design?: u
   revalidatePath(`/orders/${id}`);
 }
 
-export async function getFabricHistory(): Promise<{
-  codes: string[];
-  compositions: string[];
-  prices: string[];
-  colors: string[];
-}> {
-  const session = await auth();
-  if (!session?.user) return { codes: [], compositions: [], prices: [], colors: [] };
-
-  const { data: items } = await supabase
-    .from("OrderItem")
-    .select("fabricCode, fabricComposition, fabricPrice, fabricColor");
-
-  const uniq = (arr: (string | null | undefined)[]) =>
-    [...new Set(arr.filter(Boolean) as string[])];
-
-  return {
-    codes:        uniq((items ?? []).map((i: any) => i.fabricCode)),
-    compositions: uniq((items ?? []).map((i: any) => i.fabricComposition)),
-    prices:       uniq((items ?? []).map((i: any) => i.fabricPrice != null ? String(i.fabricPrice) : null)),
-    colors:       uniq((items ?? []).map((i: any) => i.fabricColor)),
-  };
-}
 
 export async function getOrdersForKanban(): Promise<OrderWithRelations[]> {
   const session = await auth();

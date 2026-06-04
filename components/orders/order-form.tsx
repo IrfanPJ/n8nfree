@@ -5,7 +5,8 @@ import { useForm, Controller, useFieldArray } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
 import { orderSchema, type OrderFormData } from "@/validators/order";
-import { createOrder, updateOrder, getFabricHistory } from "@/actions/orders";
+import { createOrder, updateOrder } from "@/actions/orders";
+import { getFabricHistoryValues } from "@/actions/fabric-history";
 import { getAssignableStaff } from "@/actions/users";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -149,7 +150,7 @@ export function OrderForm({
 
   // Fetch global fabric history once on mount
   useEffect(() => {
-    getFabricHistory().then(setFabricHistory).catch(() => {});
+    getFabricHistoryValues().then(setFabricHistory).catch(() => {});
   }, []); // eslint-disable-line
 
   // Fetch existing measurements when customer changes

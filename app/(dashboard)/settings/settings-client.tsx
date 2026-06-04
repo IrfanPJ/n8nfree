@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { User, Bell, Palette, Building2, Save, Users, ShieldCheck, ChevronDown, Lock, Trash2 } from "lucide-react";
+import { User, Bell, Palette, Building2, Save, Users, ShieldCheck, ChevronDown, Lock, Trash2, Scissors } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -18,6 +18,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { getInitials } from "@/lib/utils";
 import { updateTeamMember, updateUserPermissions, deleteTeamMember } from "@/actions/users";
 import { updateBusinessSettings, type BusinessSettings } from "@/actions/business-settings";
+import { deleteFabricHistoryEntry, type FabricHistoryEntry } from "@/actions/fabric-history";
 import type { StaffPosition, UserRole } from "@/types";
 import { PAGE_PERMISSIONS } from "@/lib/permissions";
 import { cn } from "@/lib/utils";
@@ -59,6 +60,12 @@ interface SettingsClientProps {
   };
   teamMembers?: TeamMember[];
   businessSettings?: BusinessSettings;
+  fabricHistory?: {
+    codes: FabricHistoryEntry[];
+    compositions: FabricHistoryEntry[];
+    prices: FabricHistoryEntry[];
+    colors: FabricHistoryEntry[];
+  };
 }
 
 function MemberPermissionsRow({ member, onUpdate }: {
@@ -306,7 +313,7 @@ function TeamTab({ teamMembers, currentUserId }: { teamMembers: TeamMember[]; cu
   );
 }
 
-export function SettingsClient({ user, teamMembers = [], businessSettings }: SettingsClientProps) {
+export function SettingsClient({ user, teamMembers = [], businessSettings, fabricHistory }: SettingsClientProps) {
   const { theme, setTheme } = useTheme();
   const [notifications, setNotifications] = useState({
     orderUpdates: true,
@@ -348,6 +355,7 @@ export function SettingsClient({ user, teamMembers = [], businessSettings }: Set
           <TabsTrigger value="business">Business</TabsTrigger>
           <TabsTrigger value="notifications">Notifications</TabsTrigger>
           <TabsTrigger value="appearance">Appearance</TabsTrigger>
+          <TabsTrigger value="fabric">Fabric History</TabsTrigger>
           {isAdmin && <TabsTrigger value="team">Team</TabsTrigger>}
         </TabsList>
 
@@ -549,6 +557,49 @@ export function SettingsClient({ user, teamMembers = [], businessSettings }: Set
                   </button>
                 </div>
               </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="fabric" className="mt-6 space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-base">
+                <Scissors className="w-4 h-4 text-primary" />
+                Fabric History
+              </CardTitle>
+              <CardDescription>All fabric values ever saved across orders. Delete any entry to remove it from dropdown suggestions.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-5">
+              {(["codes", "compositions", "prices", "colors"] as const).map((key) => {
+                const labels: Record<string, string> = { codes: "Fabric Codes", compositions: "Fabric Compositions", prices: "Fabric Prices", colors: "Fabric Colors" };
+                const entries = fabricHistory?.[key] ?? [];
+                return (
+                  <div key={key}>
+                    <p className="text-sm font-semibold mb-2">{labels[key]}</p>
+                    {entries.length === 0 ? (
+                      <p className="text-xs text-muted-foreground">No entries yet.</p>
+                    ) : (
+                      <div className="flex flex-wrap gap-2">
+                        {entries.map((entry) => (
+                          <div key={entry.id} className="flex items-center gap-1.5 bg-secondary/60 border border-border/40 rounded-full px-3 py-1 text-xs">
+                            <span>{entry.value}</span>
+                            <button
+                              onClick={async () => {
+                                await deleteFabricHistoryEntry(entry.id);
+                              }}
+                              className="text-muted-foreground hover:text-destructive transition-colors ml-1"
+                            >
+                              <Trash2 className="w-3 h-3" />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    <Separator className="mt-4" />
+                  </div>
+                );
+              })}
             </CardContent>
           </Card>
         </TabsContent>

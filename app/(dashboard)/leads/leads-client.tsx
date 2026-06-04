@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo, useRef } from "react";
+import React, { useState, useMemo, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useForm, Controller, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -27,7 +27,7 @@ import {
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
-import { createLead, updateLead, updateLeadStage, deleteLead, bulkCreateLeads } from "@/actions/leads";
+import { createLead, updateLead, updateLeadStage, deleteLead, bulkCreateLeads, syncClosedWonLeads } from "@/actions/leads";
 import { createCustomerFromLead } from "@/actions/customers";
 import { createAppointment } from "@/actions/appointments";
 import {
@@ -356,6 +356,9 @@ export function LeadsClient({ initialLeads, customers }: LeadsClientProps) {
   // Appointment popup triggered when lead → APPOINTMENT_CONFIRMED
   const [apptLead, setApptLead] = useState<Lead | null>(null);
   const [apptCustomerId, setApptCustomerId] = useState<string>("");
+
+  // Backfill existing Closed Won leads into Client Book on mount
+  useEffect(() => { syncClosedWonLeads(); }, []);
 
   // Export date filter
   const [exportDialogOpen, setExportDialogOpen] = useState(false);

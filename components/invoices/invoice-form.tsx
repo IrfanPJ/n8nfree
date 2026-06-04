@@ -351,10 +351,6 @@ export function InvoiceForm({
                   type="text"
                   inputMode="decimal"
                   {...register(`items.${i}.quantity`)}
-                  onChange={(e) => {
-                    register(`items.${i}.quantity`).onChange(e);
-                    setTimeout(recalculate, 0);
-                  }}
                   className="text-sm h-8 text-right"
                 />
               </div>
@@ -363,10 +359,6 @@ export function InvoiceForm({
                   type="text"
                   inputMode="decimal"
                   {...register(`items.${i}.unitPrice`)}
-                  onChange={(e) => {
-                    register(`items.${i}.unitPrice`).onChange(e);
-                    setTimeout(recalculate, 0);
-                  }}
                   className="text-sm h-8 text-right"
                 />
               </div>
@@ -379,10 +371,7 @@ export function InvoiceForm({
                     type="button"
                     variant="ghost"
                     size="icon-sm"
-                    onClick={() => {
-                      remove(i);
-                      setTimeout(recalculate, 0);
-                    }}
+                    onClick={() => remove(i)}
                     className="h-7 w-7 text-destructive hover:text-destructive"
                   >
                     <Trash2 className="w-3.5 h-3.5" />
@@ -426,10 +415,6 @@ export function InvoiceForm({
             type="text"
             inputMode="decimal"
             {...register("discountValue")}
-            onChange={(e) => {
-              register("discountValue").onChange(e);
-              setTimeout(recalculate, 0);
-            }}
             disabled={!watchedValues.discountType}
           />
         </div>
@@ -483,10 +468,6 @@ export function InvoiceForm({
               type="text"
               inputMode="decimal"
               {...register("paidAmount")}
-              onChange={(e) => {
-                register("paidAmount").onChange(e);
-                setTimeout(recalculate, 0);
-              }}
             />
           </div>
           <div className="space-y-1.5">

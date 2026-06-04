@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useForm, Controller, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
-  Plus, Edit2, Trash2, Phone, Mail, DollarSign,
+  Plus, Edit2, Trash2, Phone, Mail,
   TrendingUp, X, GripVertical, Target, Star,
   List, Calendar, ChevronLeft, ChevronRight, Download, Upload,
   AlertCircle, CheckCircle2, FileSpreadsheet,
@@ -117,7 +117,7 @@ function LeadCard({
 
       {lead.value > 0 && (
         <div className="mt-3 pt-2 border-t border-border/40 flex items-center gap-1 text-xs font-medium text-[#D4AF37]">
-          <DollarSign className="w-3 h-3" />{lead.value.toLocaleString("en-AE")}
+          AED {lead.value.toLocaleString("en-AE")}
         </div>
       )}
 
@@ -739,7 +739,7 @@ export function LeadsClient({ initialLeads, customers }: LeadsClientProps) {
                             {l.interest && <p className="text-xs text-muted-foreground truncate">{l.interest}</p>}
                             <div className="flex items-center gap-3 mt-2 text-xs text-muted-foreground">
                               {l.phone && <span className="flex items-center gap-1"><Phone className="w-3 h-3" />{l.phone}</span>}
-                              {l.value > 0 && <span className="flex items-center gap-1 text-[#D4AF37]"><DollarSign className="w-3 h-3" />AED {l.value.toLocaleString("en-AE")}</span>}
+                              {l.value > 0 && <span className="flex items-center gap-1 text-[#D4AF37]">AED {l.value.toLocaleString("en-AE")}</span>}
                             </div>
                           </div>
                           <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">

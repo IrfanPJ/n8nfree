@@ -435,9 +435,14 @@ export async function updateOrderDesign(id: string, specText: string, design?: u
   revalidatePath(`/orders/${id}`);
 }
 
-export async function getCustomerFabricCodes(customerId: string): Promise<string[]> {
+export async function getCustomerFabricHistory(customerId: string): Promise<{
+  codes: string[];
+  compositions: string[];
+  prices: string[];
+  colors: string[];
+}> {
   const session = await auth();
-  if (!session?.user) return [];
+  if (!session?.user) return { codes: [], compositions: [], prices: [], colors: [] };
 
   const { data: orders } = await supabase
     .from("Order")
@@ -445,15 +450,24 @@ export async function getCustomerFabricCodes(customerId: string): Promise<string
     .eq("customerId", customerId)
     .eq("isActive", true);
 
-  if (!orders?.length) return [];
+  if (!orders?.length) return { codes: [], compositions: [], prices: [], colors: [] };
+
+  const orderIds = orders.map((o) => o.id);
 
   const { data: items } = await supabase
     .from("OrderItem")
-    .select("fabricCode")
-    .in("orderId", orders.map((o) => o.id))
-    .not("fabricCode", "is", null);
+    .select("fabricCode, fabricComposition, fabricPrice, fabricColor")
+    .in("orderId", orderIds);
 
-  return [...new Set((items ?? []).map((i: any) => i.fabricCode).filter(Boolean) as string[])];
+  const uniq = (arr: (string | null | undefined)[]) =>
+    [...new Set(arr.filter(Boolean) as string[])];
+
+  return {
+    codes:        uniq((items ?? []).map((i: any) => i.fabricCode)),
+    compositions: uniq((items ?? []).map((i: any) => i.fabricComposition)),
+    prices:       uniq((items ?? []).map((i: any) => i.fabricPrice != null ? String(i.fabricPrice) : null)),
+    colors:       uniq((items ?? []).map((i: any) => i.fabricColor)),
+  };
 }
 
 export async function getOrdersForKanban(): Promise<OrderWithRelations[]> {

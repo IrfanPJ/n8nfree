@@ -5,7 +5,7 @@ import { useForm, Controller, useFieldArray } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
 import { orderSchema, type OrderFormData } from "@/validators/order";
-import { createOrder, updateOrder, getCustomerFabricCodes } from "@/actions/orders";
+import { createOrder, updateOrder, getCustomerFabricHistory } from "@/actions/orders";
 import { getAssignableStaff } from "@/actions/users";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -75,7 +75,7 @@ export function OrderForm({
   const [existingMeasurements, setExistingMeasurements] = useState<Measurement[]>([]);
   const [loadingMeasurements, setLoadingMeasurements] = useState(false);
   const [editingMeasurement, setEditingMeasurement] = useState<Measurement | null>(null);
-  const [fabricCodes, setFabricCodes] = useState<string[]>([]);
+  const [fabricHistory, setFabricHistory] = useState<{ codes: string[]; compositions: string[]; prices: string[]; colors: string[] }>({ codes: [], compositions: [], prices: [], colors: [] });
 
   const defaultItems = order?.items?.length
     ? order.items.map((item) => ({
@@ -147,10 +147,10 @@ export function OrderForm({
     setBalanceDue(Math.max(0, total - advance));
   }, [totalAmount, advanceAmount]);
 
-  // Fetch previously used fabric codes for this customer
+  // Fetch fabric field history for this customer
   useEffect(() => {
-    if (!watchedCustomerId) { setFabricCodes([]); return; }
-    getCustomerFabricCodes(watchedCustomerId).then(setFabricCodes).catch(() => setFabricCodes([]));
+    if (!watchedCustomerId) { setFabricHistory({ codes: [], compositions: [], prices: [], colors: [] }); return; }
+    getCustomerFabricHistory(watchedCustomerId).then(setFabricHistory).catch(() => {});
   }, [watchedCustomerId]); // eslint-disable-line
 
   // Fetch existing measurements when customer changes
@@ -524,43 +524,23 @@ export function OrderForm({
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                 <div className="space-y-1.5">
                   <Label className="text-xs">Fabric Code</Label>
-                  <Input
-                    list={`fabric-codes-${index}`}
-                    placeholder="e.g. WL-001"
-                    className="h-9 text-sm"
-                    {...register(`items.${index}.fabricCode`)}
-                  />
-                  <datalist id={`fabric-codes-${index}`}>
-                    {fabricCodes.map((code) => (
-                      <option key={code} value={code} />
-                    ))}
-                  </datalist>
+                  <Input list={`fab-code-${index}`} placeholder="e.g. WL-001" className="h-9 text-sm" {...register(`items.${index}.fabricCode`)} />
+                  <datalist id={`fab-code-${index}`}>{fabricHistory.codes.map((v) => <option key={v} value={v} />)}</datalist>
                 </div>
                 <div className="space-y-1.5">
                   <Label className="text-xs">Fabric Composition</Label>
-                  <Input
-                    placeholder="e.g. 100% Wool"
-                    className="h-9 text-sm"
-                    {...register(`items.${index}.fabricComposition`)}
-                  />
+                  <Input list={`fab-comp-${index}`} placeholder="e.g. 100% Wool" className="h-9 text-sm" {...register(`items.${index}.fabricComposition`)} />
+                  <datalist id={`fab-comp-${index}`}>{fabricHistory.compositions.map((v) => <option key={v} value={v} />)}</datalist>
                 </div>
                 <div className="space-y-1.5">
                   <Label className="text-xs">Fabric Price (AED)</Label>
-                  <Input
-                    type="text"
-                    inputMode="decimal"
-                    placeholder="0"
-                    className="h-9 text-sm"
-                    {...register(`items.${index}.fabricPrice`)}
-                  />
+                  <Input list={`fab-price-${index}`} type="text" inputMode="decimal" placeholder="0" className="h-9 text-sm" {...register(`items.${index}.fabricPrice`)} />
+                  <datalist id={`fab-price-${index}`}>{fabricHistory.prices.map((v) => <option key={v} value={v} />)}</datalist>
                 </div>
                 <div className="space-y-1.5">
                   <Label className="text-xs">Fabric Color</Label>
-                  <Input
-                    placeholder="e.g. Navy Blue"
-                    className="h-9 text-sm"
-                    {...register(`items.${index}.fabricColor`)}
-                  />
+                  <Input list={`fab-color-${index}`} placeholder="e.g. Navy Blue" className="h-9 text-sm" {...register(`items.${index}.fabricColor`)} />
+                  <datalist id={`fab-color-${index}`}>{fabricHistory.colors.map((v) => <option key={v} value={v} />)}</datalist>
                 </div>
               </div>
 

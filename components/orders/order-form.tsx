@@ -5,7 +5,7 @@ import { useForm, Controller, useFieldArray } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
 import { orderSchema, type OrderFormData } from "@/validators/order";
-import { createOrder, updateOrder, getCustomerFabricHistory } from "@/actions/orders";
+import { createOrder, updateOrder, getFabricHistory } from "@/actions/orders";
 import { getAssignableStaff } from "@/actions/users";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -147,11 +147,10 @@ export function OrderForm({
     setBalanceDue(Math.max(0, total - advance));
   }, [totalAmount, advanceAmount]);
 
-  // Fetch fabric field history for this customer
+  // Fetch global fabric history once on mount
   useEffect(() => {
-    if (!watchedCustomerId) { setFabricHistory({ codes: [], compositions: [], prices: [], colors: [] }); return; }
-    getCustomerFabricHistory(watchedCustomerId).then(setFabricHistory).catch(() => {});
-  }, [watchedCustomerId]); // eslint-disable-line
+    getFabricHistory().then(setFabricHistory).catch(() => {});
+  }, []); // eslint-disable-line
 
   // Fetch existing measurements when customer changes
   useEffect(() => {

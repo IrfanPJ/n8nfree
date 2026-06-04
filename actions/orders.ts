@@ -435,7 +435,7 @@ export async function updateOrderDesign(id: string, specText: string, design?: u
   revalidatePath(`/orders/${id}`);
 }
 
-export async function getCustomerFabricHistory(customerId: string): Promise<{
+export async function getFabricHistory(): Promise<{
   codes: string[];
   compositions: string[];
   prices: string[];
@@ -444,20 +444,9 @@ export async function getCustomerFabricHistory(customerId: string): Promise<{
   const session = await auth();
   if (!session?.user) return { codes: [], compositions: [], prices: [], colors: [] };
 
-  const { data: orders } = await supabase
-    .from("Order")
-    .select("id")
-    .eq("customerId", customerId)
-    .eq("isActive", true);
-
-  if (!orders?.length) return { codes: [], compositions: [], prices: [], colors: [] };
-
-  const orderIds = orders.map((o) => o.id);
-
   const { data: items } = await supabase
     .from("OrderItem")
-    .select("fabricCode, fabricComposition, fabricPrice, fabricColor")
-    .in("orderId", orderIds);
+    .select("fabricCode, fabricComposition, fabricPrice, fabricColor");
 
   const uniq = (arr: (string | null | undefined)[]) =>
     [...new Set(arr.filter(Boolean) as string[])];

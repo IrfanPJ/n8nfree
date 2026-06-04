@@ -350,7 +350,7 @@ export function OrderForm({
           </div>
 
           <div className="space-y-1.5">
-            <Label>Responsible Tailor</Label>
+            <Label>Responsible Master</Label>
             <Controller
               name="assignedToId"
               control={control}
@@ -360,7 +360,7 @@ export function OrderForm({
                   onValueChange={(v) => field.onChange(v === "__none__" ? "" : v)}
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder="Assign overall tailor" />
+                    <SelectValue placeholder="Assign overall master" />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="__none__">— Unassigned —</SelectItem>

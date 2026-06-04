@@ -53,6 +53,7 @@ const STAGE_CONFIG: Record<LeadStage, { color: string; bg: string; border: strin
   CLOSED_WON:            { color: "text-green-400",  bg: "bg-green-400/10",  border: "border-green-400/30",  dot: "bg-green-400" },
   CLOSED_LOST:           { color: "text-red-400",    bg: "bg-red-400/10",    border: "border-red-400/30",    dot: "bg-red-400" },
   IRRELEVANT:            { color: "text-muted-foreground", bg: "bg-secondary/40", border: "border-border/40", dot: "bg-muted-foreground/40" },
+  NO_REPLY:              { color: "text-orange-400", bg: "bg-orange-400/10", border: "border-orange-400/30", dot: "bg-orange-400" },
 };
 
 const DAY_HEADERS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
@@ -236,7 +237,7 @@ function LeadForm({
         )}
         <div className="space-y-1.5">
           <Label>Potential Value (AED)</Label>
-          <Input type="number" min="0" step="100" {...register("value")} />
+          <Input type="number" min="0" step="any" {...register("value")} />
         </div>
         {/* Category */}
         <div className="space-y-1.5">
@@ -350,6 +351,11 @@ export function LeadsClient({ initialLeads, customers }: LeadsClientProps) {
   // Appointment popup triggered when lead → APPOINTMENT_CONFIRMED
   const [apptLead, setApptLead] = useState<Lead | null>(null);
   const [apptCustomerId, setApptCustomerId] = useState<string>("");
+
+  // Export date filter
+  const [exportDialogOpen, setExportDialogOpen] = useState(false);
+  const [exportFrom, setExportFrom] = useState("");
+  const [exportTo, setExportTo] = useState("");
 
   // Import Excel/CSV
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -484,6 +490,7 @@ export function LeadsClient({ initialLeads, customers }: LeadsClientProps) {
       "closed won": "CLOSED_WON", closed_won: "CLOSED_WON",
       "closed lost": "CLOSED_LOST", closed_lost: "CLOSED_LOST",
       irrelevant: "IRRELEVANT",
+      "no reply": "NO_REPLY", no_reply: "NO_REPLY",
     };
     return map[v.toLowerCase().trim()] ?? "ENQUIRY";
   };
@@ -582,7 +589,7 @@ export function LeadsClient({ initialLeads, customers }: LeadsClientProps) {
               </Button>
             ))}
           </div>
-          <Button variant="outline" size="sm" onClick={() => exportLeadsCSV(leads)}>
+          <Button variant="outline" size="sm" onClick={() => setExportDialogOpen(true)}>
             <Download className="w-3.5 h-3.5 mr-1.5" />
             Export
           </Button>
@@ -800,7 +807,7 @@ export function LeadsClient({ initialLeads, customers }: LeadsClientProps) {
           <div className="border-t border-border/50 pt-4">
             <p className="text-xs font-semibold text-muted-foreground uppercase tracking-widest mb-3">Closed / Irrelevant</p>
             <div className="flex gap-4 overflow-x-auto pb-2">
-              {(["IRRELEVANT", "CLOSED_LOST"] as LeadStage[]).map((stage) => {
+              {(["IRRELEVANT", "CLOSED_LOST", "NO_REPLY"] as LeadStage[]).map((stage) => {
                 const cfg = STAGE_CONFIG[stage];
                 const stageLeads = byStage[stage];
                 const isDragTarget = dragOver === stage;
@@ -851,6 +858,57 @@ export function LeadsClient({ initialLeads, customers }: LeadsClientProps) {
             onSuccess={handleSuccess}
             onCancel={() => { setModalOpen(false); setEditLead(null); }}
           />
+        </DialogContent>
+      </Dialog>
+
+      {/* Export date-range dialog */}
+      <Dialog open={exportDialogOpen} onOpenChange={(o) => { setExportDialogOpen(o); if (!o) { setExportFrom(""); setExportTo(""); } }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Download className="w-5 h-5 text-[#D4AF37]" />
+              Export Leads
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 pt-1">
+            <p className="text-xs text-muted-foreground">Filter by lead creation date, or leave blank to export all.</p>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label className="text-xs">From</Label>
+                <Input type="date" value={exportFrom} onChange={(e) => setExportFrom(e.target.value)} className="text-sm" />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">To</Label>
+                <Input type="date" value={exportTo} onChange={(e) => setExportTo(e.target.value)} className="text-sm" />
+              </div>
+            </div>
+            <div className="flex gap-3 pt-1">
+              <Button variant="outline" className="flex-1" onClick={() => { setExportDialogOpen(false); setExportFrom(""); setExportTo(""); }}>
+                Cancel
+              </Button>
+              <Button
+                variant="gold"
+                className="flex-1"
+                onClick={() => {
+                  const from = exportFrom ? new Date(exportFrom + "T00:00:00") : null;
+                  const to = exportTo ? new Date(exportTo + "T23:59:59") : null;
+                  const filtered = leads.filter((l) => {
+                    const d = new Date(l.createdAt);
+                    if (from && d < from) return false;
+                    if (to && d > to) return false;
+                    return true;
+                  });
+                  exportLeadsCSV(filtered);
+                  setExportDialogOpen(false);
+                  setExportFrom("");
+                  setExportTo("");
+                  toast.success(`Exported ${filtered.length} lead${filtered.length !== 1 ? "s" : ""}`);
+                }}
+              >
+                Export
+              </Button>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
 

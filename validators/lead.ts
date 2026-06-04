@@ -8,6 +8,7 @@ export const LEAD_STAGES = [
   "CLOSED_WON",
   "CLOSED_LOST",
   "IRRELEVANT",
+  "NO_REPLY",
 ] as const;
 
 export const PIPELINE_STAGES = [
@@ -26,6 +27,7 @@ export const LEAD_STAGE_LABELS: Record<string, string> = {
   CLOSED_WON:            "Closed Won",
   CLOSED_LOST:           "Closed Lost",
   IRRELEVANT:            "Irrelevant",
+  NO_REPLY:              "No Reply",
 };
 
 export const LEAD_SOURCES = [

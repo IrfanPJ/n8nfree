@@ -1,10 +1,10 @@
 "use client";
 
-import React, { useEffect, useCallback } from "react";
+import React, { useEffect, useCallback, useState } from "react";
 import { useForm, useFieldArray, Controller, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
-import { Plus, Trash2 } from "lucide-react";
+import { Plus, Trash2, X } from "lucide-react";
 import { invoiceSchema, type InvoiceFormData } from "@/validators/invoice";
 import { createInvoice, updateInvoice } from "@/actions/invoices";
 import { Button } from "@/components/ui/button";
@@ -30,6 +30,24 @@ interface InvoiceFormProps {
   onSuccess?: (invoice: InvoiceWithRelations) => void;
   onCancel?: () => void;
 }
+
+const ITEM_DESCRIPTIONS = [
+  "Custom 2 piece suit",
+  "Custom 3 piece suit",
+  "Custom shirt",
+  "Custom vest coat",
+  "Custom Trouser",
+  "Custom pocket square",
+  "Custom Tie",
+  "Ready made pocket square",
+  "Ready made Tie",
+  "Stud button set",
+  "Cufflink",
+  "Shirt Alteration",
+  "Trouser Alteration",
+  "T shirt Alteration",
+  "Skirt Alteration",
+];
 
 const STATUS_OPTIONS = [
   { value: "DRAFT", label: "Draft" },
@@ -95,6 +113,7 @@ export function InvoiceForm({
   });
 
   const { fields, append, remove } = useFieldArray({ control, name: "items" });
+  const [customItems, setCustomItems] = useState<Record<string, boolean>>({});
 
   const items = useWatch({ control, name: "items" });
   const discountType = useWatch({ control, name: "discountType" });
@@ -277,14 +296,55 @@ export function InvoiceForm({
               className="grid grid-cols-12 gap-2 px-3 py-2 border-t border-border/30 items-center"
             >
               <div className="col-span-5">
-                <Input
-                  placeholder="Item description"
-                  {...register(`items.${i}.description`)}
-                  className={cn(
-                    "text-sm h-8",
-                    errors.items?.[i]?.description ? "border-destructive" : ""
-                  )}
-                />
+                {customItems[field.id] ? (
+                  <div className="flex gap-1">
+                    <Input
+                      placeholder="Type description..."
+                      {...register(`items.${i}.description`)}
+                      className={cn("text-sm h-8 flex-1", errors.items?.[i]?.description ? "border-destructive" : "")}
+                    />
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon-sm"
+                      className="h-8 w-8 flex-shrink-0 text-muted-foreground"
+                      onClick={() => {
+                        setValue(`items.${i}.description`, "");
+                        setCustomItems((prev) => { const next = { ...prev }; delete next[field.id]; return next; });
+                      }}
+                    >
+                      <X className="w-3 h-3" />
+                    </Button>
+                  </div>
+                ) : (
+                  <Controller
+                    name={`items.${i}.description`}
+                    control={control}
+                    render={({ field: f }) => (
+                      <Select
+                        value={f.value || ""}
+                        onValueChange={(v) => {
+                          if (v === "__other__") {
+                            f.onChange("");
+                            setCustomItems((prev) => ({ ...prev, [field.id]: true }));
+                          } else {
+                            f.onChange(v);
+                          }
+                        }}
+                      >
+                        <SelectTrigger className={cn("h-8 text-sm", errors.items?.[i]?.description ? "border-destructive" : "")}>
+                          <SelectValue placeholder="Select item..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {ITEM_DESCRIPTIONS.map((d) => (
+                            <SelectItem key={d} value={d}>{d}</SelectItem>
+                          ))}
+                          <SelectItem value="__other__">Other (type manually)</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    )}
+                  />
+                )}
               </div>
               <div className="col-span-2">
                 <Input

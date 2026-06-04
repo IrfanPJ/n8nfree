@@ -121,7 +121,7 @@ export function InvoiceForm({
       dt === "PERCENTAGE" ? (subtotal * dv) / 100 : dv;
 
     const taxableAmount = Math.max(0, subtotal - discountAmt);
-    const tr = getValues("taxRate") ?? 18;
+    const tr = getValues("taxRate") ?? 5;
     const taxAmt = (taxableAmount * tr) / 100;
     const total = taxableAmount + taxAmt;
     const paid = getValues("paidAmount") ?? 0;
@@ -380,6 +380,7 @@ export function InvoiceForm({
         <div className="space-y-1.5">
           <Label>VAT</Label>
           <Input value="5% (Fixed)" readOnly className="bg-secondary/40 text-muted-foreground cursor-default" />
+          <input type="hidden" {...register("taxRate")} value={5} />
         </div>
       </div>
 

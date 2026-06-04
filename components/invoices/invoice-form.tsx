@@ -1,7 +1,7 @@
 "use client";
 
-import React, { useEffect, useCallback, useState } from "react";
-import { useForm, useFieldArray, Controller, useWatch } from "react-hook-form";
+import React, { useCallback, useState } from "react";
+import { useForm, useFieldArray, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
 import { Plus, Trash2, X } from "lucide-react";
@@ -95,7 +95,7 @@ export function InvoiceForm({
             unitPrice: item.unitPrice,
             amount: item.amount,
           }))
-        : [{ description: "", quantity: 1, unitPrice: 0, amount: 0 }],
+        : [{ description: "", quantity: "", unitPrice: "", amount: 0 }],
       subtotal: invoice?.subtotal ?? 0,
       discountType: (invoice?.discountType as "PERCENTAGE" | "FIXED") ?? undefined,
       discountValue: invoice?.discountValue ?? 0,
@@ -114,12 +114,6 @@ export function InvoiceForm({
 
   const { fields, append, remove } = useFieldArray({ control, name: "items" });
   const [customItems, setCustomItems] = useState<Record<string, boolean>>({});
-
-  const items = useWatch({ control, name: "items" });
-  const discountType = useWatch({ control, name: "discountType" });
-  const discountValue = useWatch({ control, name: "discountValue" });
-  const taxRate = useWatch({ control, name: "taxRate" });
-  const paidAmount = useWatch({ control, name: "paidAmount" });
 
   // Auto-calculate item amounts and totals
   const recalculate = useCallback(() => {
@@ -150,16 +144,6 @@ export function InvoiceForm({
     setValue("dueAmount", Math.max(0, Math.round((total - paid) * 100) / 100));
   }, [getValues, setValue]);
 
-  // Recalculate when items, discount, tax, or paid amount changes
-  useEffect(() => {
-    recalculate();
-  }, [
-    JSON.stringify(items?.map((i) => ({ q: i.quantity, p: i.unitPrice }))),
-    discountType,
-    discountValue,
-    taxRate,
-    paidAmount,
-  ]);
 
   const onSubmit = async (data: InvoiceFormData) => {
     const result = isEditing
@@ -351,6 +335,7 @@ export function InvoiceForm({
                   type="text"
                   inputMode="decimal"
                   {...register(`items.${i}.quantity`)}
+                  onBlur={recalculate}
                   className="text-sm h-8 text-right"
                 />
               </div>
@@ -359,6 +344,7 @@ export function InvoiceForm({
                   type="text"
                   inputMode="decimal"
                   {...register(`items.${i}.unitPrice`)}
+                  onBlur={recalculate}
                   className="text-sm h-8 text-right"
                 />
               </div>
@@ -371,7 +357,7 @@ export function InvoiceForm({
                     type="button"
                     variant="ghost"
                     size="icon-sm"
-                    onClick={() => remove(i)}
+                    onClick={() => { remove(i); recalculate(); }}
                     className="h-7 w-7 text-destructive hover:text-destructive"
                   >
                     <Trash2 className="w-3.5 h-3.5" />
@@ -391,7 +377,7 @@ export function InvoiceForm({
             name="discountType"
             control={control}
             render={({ field }) => (
-              <Select value={field.value || "none"} onValueChange={(v) => field.onChange(v === "none" ? "" : v)}>
+              <Select value={field.value || "none"} onValueChange={(v) => { field.onChange(v === "none" ? "" : v); recalculate(); }}>
                 <SelectTrigger>
                   <SelectValue placeholder="No discount" />
                 </SelectTrigger>
@@ -415,6 +401,7 @@ export function InvoiceForm({
             type="text"
             inputMode="decimal"
             {...register("discountValue")}
+            onBlur={recalculate}
             disabled={!watchedValues.discountType}
           />
         </div>
@@ -468,6 +455,7 @@ export function InvoiceForm({
               type="text"
               inputMode="decimal"
               {...register("paidAmount")}
+              onBlur={recalculate}
             />
           </div>
           <div className="space-y-1.5">

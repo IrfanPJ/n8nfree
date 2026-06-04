@@ -7,7 +7,6 @@ import { auth } from "@/lib/auth";
 import { leadSchema, LEAD_STAGES } from "@/validators/lead";
 import { z } from "zod";
 import type { ApiResponse, Lead, LeadStage } from "@/types";
-import { createCustomerFromLead } from "@/actions/customers";
 
 export async function getLeads(_params: { branch?: string } = {}): Promise<Lead[]> {
   const session = await auth();
@@ -137,22 +136,6 @@ export async function bulkCreateLeads(rows: unknown[]): Promise<ApiResponse<{ im
   return { success: true, data: { imported: valid.length, errors }, message: `Imported ${valid.length} leads` };
 }
 
-export async function syncClosedWonLeads(): Promise<void> {
-  const session = await auth();
-  if (!session?.user) return;
-
-  const { data: leads } = await supabase
-    .from("Lead")
-    .select("id")
-    .eq("stage", "CLOSED_WON")
-    .eq("isActive", true);
-
-  if (!leads?.length) return;
-
-  for (const lead of leads) {
-    await createCustomerFromLead(lead.id);
-  }
-}
 
 export async function deleteLead(id: string): Promise<ApiResponse<void>> {
   const session = await auth();

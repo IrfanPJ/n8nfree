@@ -519,7 +519,7 @@ export function OrdersClient({
                     <th className="text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide px-4 py-3">Order</th>
                     <th className="text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide px-3 py-3">Customer</th>
                     <th className="text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide px-3 py-3 hidden md:table-cell">Garment</th>
-                    <th className="text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide px-3 py-3 hidden sm:table-cell">Status</th>
+                    <th className="text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide px-3 py-3">Status</th>
                     <th className="text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide px-3 py-3 hidden lg:table-cell">Delivery</th>
                     <th className="text-right text-xs font-semibold text-muted-foreground uppercase tracking-wide px-3 py-3 hidden lg:table-cell">Amount</th>
                     <th className="text-right text-xs font-semibold text-muted-foreground uppercase tracking-wide px-4 py-3">Actions</th>
@@ -770,7 +770,7 @@ function OrderTableRow({ order, index, deletingId, statusUpdating, onView, onEdi
       </td>
 
       {/* Status */}
-      <td className="px-3 py-3 hidden sm:table-cell">
+      <td className="px-3 py-3">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <button disabled={statusUpdating === order.id} className="flex items-center gap-1 group/status">

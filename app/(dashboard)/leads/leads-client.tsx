@@ -588,40 +588,40 @@ export function LeadsClient({ initialLeads, customers }: LeadsClientProps) {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between flex-wrap gap-3">
+      <div className="flex items-start justify-between flex-wrap gap-3">
         <div>
-          <h1 className="text-2xl font-bold">Sales Pipeline</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">
+          <h1 className="text-xl sm:text-2xl font-bold">Sales Pipeline</h1>
+          <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">
             {leads.length} leads · Pipeline: AED {pipelineValue.toLocaleString("en-AE")} · Won: AED {totalValue.toLocaleString("en-AE")}
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center flex-wrap gap-2">
           <div className="flex items-center gap-1 bg-secondary/50 rounded-lg p-1">
             {(["kanban", "month", "week", "day"] as ViewMode[]).map((v) => (
               <Button
                 key={v}
                 variant="ghost"
                 size="sm"
-                className={cn("h-7 px-3 text-xs capitalize", viewMode === v && "bg-background shadow-sm text-foreground")}
+                className={cn("h-7 px-2 sm:px-3 text-xs capitalize", viewMode === v && "bg-background shadow-sm text-foreground")}
                 onClick={() => setViewMode(v)}
               >
                 {v === "kanban" ? <List className="w-3.5 h-3.5" /> : v === "month" ? <Calendar className="w-3.5 h-3.5" /> : null}
-                <span className={v === "kanban" || v === "month" ? "ml-1" : ""}>{v}</span>
+                <span className={cn("hidden sm:inline", (v === "kanban" || v === "month") && "sm:ml-1")}>{v}</span>
               </Button>
             ))}
           </div>
           <Button variant="outline" size="sm" onClick={() => setExportDialogOpen(true)}>
-            <Download className="w-3.5 h-3.5 mr-1.5" />
-            Export
+            <Download className="w-3.5 h-3.5 sm:mr-1.5" />
+            <span className="hidden sm:inline">Export</span>
           </Button>
           <Button variant="outline" size="sm" onClick={() => fileInputRef.current?.click()}>
-            <Upload className="w-3.5 h-3.5 mr-1.5" />
-            Import
+            <Upload className="w-3.5 h-3.5 sm:mr-1.5" />
+            <span className="hidden sm:inline">Import</span>
           </Button>
           <input ref={fileInputRef} type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={handleFileChange} />
-          <Button variant="gold" onClick={() => { setEditLead(null); setDefaultStage("ENQUIRY"); setModalOpen(true); }}>
-            <Plus className="w-4 h-4 mr-2" />
-            Add Lead
+          <Button variant="gold" size="sm" onClick={() => { setEditLead(null); setDefaultStage("ENQUIRY"); setModalOpen(true); }}>
+            <Plus className="w-4 h-4 sm:mr-2" />
+            <span className="hidden sm:inline">Add Lead</span>
           </Button>
         </div>
       </div>
@@ -636,7 +636,7 @@ export function LeadsClient({ initialLeads, customers }: LeadsClientProps) {
       )}
 
       {/* Pipeline summary — main stages only */}
-      <div className="grid grid-cols-5 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
         {PIPELINE_STAGES.map((stage) => {
           const cfg = STAGE_CONFIG[stage];
           const count = byStage[stage].length;
@@ -655,10 +655,11 @@ export function LeadsClient({ initialLeads, customers }: LeadsClientProps) {
 
       {/* Month view */}
       {viewMode === "month" && (
-        <div className="border border-border rounded-xl overflow-hidden">
+        <div className="border border-border rounded-xl overflow-hidden overflow-x-auto">
+          <div className="min-w-[320px]">
           <div className="grid grid-cols-7 border-b border-border bg-secondary/30">
             {DAY_HEADERS.map((d) => (
-              <div key={d} className="text-center text-xs font-medium text-muted-foreground py-2">{d}</div>
+              <div key={d} className="text-center text-[10px] sm:text-xs font-medium text-muted-foreground py-2">{d}</div>
             ))}
           </div>
           <div className="grid grid-cols-7">
@@ -668,7 +669,7 @@ export function LeadsClient({ initialLeads, customers }: LeadsClientProps) {
               return (
                 <div
                   key={day.toISOString()}
-                  className={cn("min-h-[90px] border-b border-r border-border p-1.5 transition-colors cursor-pointer hover:bg-secondary/30", !inMonth && "bg-secondary/20", isToday(day) && "bg-[#D4AF37]/5")}
+                  className={cn("min-h-[60px] sm:min-h-[90px] border-b border-r border-border p-1 sm:p-1.5 transition-colors cursor-pointer hover:bg-secondary/30", !inMonth && "bg-secondary/20", isToday(day) && "bg-[#D4AF37]/5")}
                   onClick={() => { setSelectedDay(day); setViewMode("day"); }}
                 >
                   <div className={cn("text-xs font-medium w-6 h-6 flex items-center justify-center rounded-full mb-1", isToday(day) ? "bg-[#D4AF37] text-black" : inMonth ? "text-foreground" : "text-muted-foreground/40")}>
@@ -690,12 +691,14 @@ export function LeadsClient({ initialLeads, customers }: LeadsClientProps) {
               );
             })}
           </div>
+          </div>
         </div>
       )}
 
       {/* Week view */}
       {viewMode === "week" && (
-        <div className="border border-border rounded-xl overflow-hidden">
+        <div className="border border-border rounded-xl overflow-hidden overflow-x-auto">
+          <div className="min-w-[420px]">
           <div className="grid grid-cols-7 border-b border-border bg-secondary/30">
             {weekDays.map((day) => (
               <div key={day.toISOString()} className={cn("text-center py-2 cursor-pointer hover:bg-secondary/50 transition-colors", isToday(day) && "bg-[#D4AF37]/10")} onClick={() => { setSelectedDay(day); setViewMode("day"); }}>
@@ -724,6 +727,7 @@ export function LeadsClient({ initialLeads, customers }: LeadsClientProps) {
                 </div>
               );
             })}
+          </div>
           </div>
         </div>
       )}

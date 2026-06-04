@@ -264,8 +264,8 @@ export function InvoiceForm({
         )}
 
         <div className="rounded-lg border border-border/60 overflow-hidden">
-          {/* Header */}
-          <div className="grid grid-cols-12 gap-2 px-3 py-2 bg-secondary/40 text-xs font-medium text-muted-foreground uppercase tracking-wide">
+          {/* Header — hidden on mobile, shown on sm+ */}
+          <div className="hidden sm:grid grid-cols-12 gap-2 px-3 py-2 bg-secondary/40 text-xs font-medium text-muted-foreground uppercase tracking-wide">
             <div className="col-span-5">Description</div>
             <div className="col-span-2 text-right">Qty</div>
             <div className="col-span-2 text-right">Unit Price</div>
@@ -277,7 +277,7 @@ export function InvoiceForm({
           {fields.map((field, i) => (
             <div
               key={field.id}
-              className="grid grid-cols-12 gap-2 px-3 py-2 border-t border-border/30 items-center"
+              className="flex flex-col sm:grid sm:grid-cols-12 gap-2 px-3 py-3 border-t border-border/30 sm:items-center"
             >
               <div className="col-span-5">
                 {customItems[field.id] ? (
@@ -330,28 +330,42 @@ export function InvoiceForm({
                   />
                 )}
               </div>
-              <div className="col-span-2">
+              <div className="col-span-2 flex sm:block items-center gap-2">
+                <label className="text-xs text-muted-foreground sm:hidden w-20 flex-shrink-0">Qty</label>
                 <Input
                   type="text"
                   inputMode="decimal"
                   {...register(`items.${i}.quantity`)}
                   onBlur={recalculate}
-                  className="text-sm h-8 text-right"
+                  className="text-sm h-8 sm:text-right flex-1"
                 />
               </div>
-              <div className="col-span-2">
+              <div className="col-span-2 flex sm:block items-center gap-2">
+                <label className="text-xs text-muted-foreground sm:hidden w-20 flex-shrink-0">Unit Price</label>
                 <Input
                   type="text"
                   inputMode="decimal"
                   {...register(`items.${i}.unitPrice`)}
                   onBlur={recalculate}
-                  className="text-sm h-8 text-right"
+                  className="text-sm h-8 sm:text-right flex-1"
                 />
               </div>
-              <div className="col-span-2 text-right text-sm font-medium text-[#D4AF37]">
-                {formatCurrency(watchedValues.items?.[i]?.amount ?? 0)}
+              <div className="col-span-2 flex sm:block items-center justify-between sm:justify-end gap-2">
+                <span className="text-xs text-muted-foreground sm:hidden">Amount</span>
+                <span className="text-sm font-medium text-[#D4AF37]">{formatCurrency(watchedValues.items?.[i]?.amount ?? 0)}</span>
+                {fields.length > 1 && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-sm"
+                    onClick={() => { remove(i); recalculate(); }}
+                    className="h-7 w-7 text-destructive hover:text-destructive sm:hidden"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </Button>
+                )}
               </div>
-              <div className="col-span-1 flex justify-center">
+              <div className="col-span-1 sm:flex justify-center hidden">
                 {fields.length > 1 && (
                   <Button
                     type="button"

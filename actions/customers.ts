@@ -239,7 +239,7 @@ export async function createCustomerFromLead(
   const { data: lead } = await supabase.from("Lead").select("*").eq("id", leadId).maybeSingle();
   if (!lead) return { customerId: null, customerName: "", isNew: false };
 
-  // Try matching an existing customer by phone first, then email
+  // Try matching an existing customer by phone, then email, then name
   if (lead.phone) {
     const clean = lead.phone.replace(/\s/g, "");
     const { data: byPhone } = await supabase
@@ -253,6 +253,10 @@ export async function createCustomerFromLead(
       .from("Customer").select("id, name").eq("isActive", true).eq("email", lead.email).maybeSingle();
     if (byEmail) return { customerId: byEmail.id, customerName: byEmail.name, isNew: false };
   }
+  // Fallback: match by exact name to prevent duplicates when phone/email are absent
+  const { data: byName } = await supabase
+    .from("Customer").select("id, name").eq("isActive", true).ilike("name", lead.name.trim()).maybeSingle();
+  if (byName) return { customerId: byName.id, customerName: byName.name, isNew: false };
 
   // Create a new customer from lead data
   const id = randomUUID();

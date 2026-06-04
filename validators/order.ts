@@ -1,20 +1,5 @@
 import { z } from "zod";
 
-export const FABRIC_OPTIONS = [
-  "Italian Wool",
-  "Cashmere Wool",
-  "Merino Wool",
-  "Tweed",
-  "Linen",
-  "Cotton",
-  "Silk",
-  "Satin",
-  "Velvet",
-  "Polyester Blend",
-  "Suiting Fabric",
-  "Others",
-] as const;
-
 export const orderItemInputSchema = z.object({
   id: z.string().optional(),
   garmentType: z.string().min(1, "Garment type is required"),
@@ -23,8 +8,10 @@ export const orderItemInputSchema = z.object({
   assignedToId: z.string().optional().transform((v) => v || undefined),
   notes: z.string().optional(),
   sortOrder: z.coerce.number().int().optional(),
-  fabricName: z.string().optional().or(z.literal("")),
-  fabricColor: z.string().optional().or(z.literal("")),
+  fabricCode:        z.string().optional().or(z.literal("")),
+  fabricComposition: z.string().optional().or(z.literal("")),
+  fabricPrice:       z.coerce.number().min(0).optional(),
+  fabricColor:       z.string().optional().or(z.literal("")),
 });
 
 export const orderSchema = z.object({

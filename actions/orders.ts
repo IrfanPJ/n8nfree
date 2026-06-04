@@ -154,8 +154,10 @@ export async function createOrder(data: unknown): Promise<ApiResponse<OrderWithR
         assignedToId: item.assignedToId || null,
         notes: item.notes || null,
         sortOrder: item.sortOrder ?? idx,
-        fabricName: (item as any).fabricName || null,
-        fabricColor: (item as any).fabricColor || null,
+        fabricCode:        (item as any).fabricCode || null,
+        fabricComposition: (item as any).fabricComposition || null,
+        fabricPrice:       (item as any).fabricPrice ?? null,
+        fabricColor:       (item as any).fabricColor || null,
         createdAt: now,
         updatedAt: now,
       }))
@@ -260,8 +262,10 @@ export async function updateOrder(id: string, data: unknown): Promise<ApiRespons
           assignedToId: item.assignedToId || null,
           notes: item.notes || null,
           sortOrder: item.sortOrder ?? idx,
-          fabricName: (item as any).fabricName || null,
-          fabricColor: (item as any).fabricColor || null,
+          fabricCode:        (item as any).fabricCode || null,
+          fabricComposition: (item as any).fabricComposition || null,
+          fabricPrice:       (item as any).fabricPrice ?? null,
+          fabricColor:       (item as any).fabricColor || null,
           createdAt: now,
           updatedAt: now,
         };
@@ -429,6 +433,27 @@ export async function updateOrderDesign(id: string, specText: string, design?: u
 
   revalidatePath("/orders");
   revalidatePath(`/orders/${id}`);
+}
+
+export async function getCustomerFabricCodes(customerId: string): Promise<string[]> {
+  const session = await auth();
+  if (!session?.user) return [];
+
+  const { data: orders } = await supabase
+    .from("Order")
+    .select("id")
+    .eq("customerId", customerId)
+    .eq("isActive", true);
+
+  if (!orders?.length) return [];
+
+  const { data: items } = await supabase
+    .from("OrderItem")
+    .select("fabricCode")
+    .in("orderId", orders.map((o) => o.id))
+    .not("fabricCode", "is", null);
+
+  return [...new Set((items ?? []).map((i: any) => i.fabricCode).filter(Boolean) as string[])];
 }
 
 export async function getOrdersForKanban(): Promise<OrderWithRelations[]> {

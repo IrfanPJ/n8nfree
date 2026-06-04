@@ -435,6 +435,12 @@ export function LeadsClient({ initialLeads, customers }: LeadsClientProps) {
       return;
     }
 
+    // Auto-add to client book when moved to Closed Won
+    if (stage === "CLOSED_WON") {
+      const { customerName, isNew } = await createCustomerFromLead(lead.id);
+      if (isNew) toast.success(`${customerName} added to Client Book`);
+    }
+
     // Auto-open appointment form when moved to Appointment Confirmed
     if (stage === "APPOINTMENT_CONFIRMED") {
       // Auto-create (or find) a customer from the lead data so the appointment form works
@@ -465,8 +471,18 @@ export function LeadsClient({ initialLeads, customers }: LeadsClientProps) {
   const handleSuccess = (lead: Lead) => {
     if (editLead) {
       setLeads((prev) => prev.map((l) => (l.id === lead.id ? lead : l)));
+      if (lead.stage === "CLOSED_WON" && editLead.stage !== "CLOSED_WON") {
+        createCustomerFromLead(lead.id).then(({ customerName, isNew }) => {
+          if (isNew) toast.success(`${customerName} added to Client Book`);
+        });
+      }
     } else {
       setLeads((prev) => [lead, ...prev]);
+      if (lead.stage === "CLOSED_WON") {
+        createCustomerFromLead(lead.id).then(({ customerName, isNew }) => {
+          if (isNew) toast.success(`${customerName} added to Client Book`);
+        });
+      }
     }
     setModalOpen(false);
     setEditLead(null);

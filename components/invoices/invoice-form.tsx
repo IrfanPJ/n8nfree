@@ -95,7 +95,7 @@ export function InvoiceForm({
             unitPrice: item.unitPrice,
             amount: item.amount,
           }))
-        : [{ description: "", quantity: "", unitPrice: "", amount: 0 }],
+        : [{ description: "", quantity: "" as unknown as number, unitPrice: "" as unknown as number, amount: 0 }],
       subtotal: invoice?.subtotal ?? 0,
       discountType: (invoice?.discountType as "PERCENTAGE" | "FIXED") ?? undefined,
       discountValue: invoice?.discountValue ?? 0,
@@ -252,7 +252,7 @@ export function InvoiceForm({
             type="button"
             variant="gold-outline"
             size="sm"
-            onClick={() => append({ description: "", quantity: "", unitPrice: "", amount: 0 })}
+            onClick={() => append({ description: "", quantity: "" as unknown as number, unitPrice: "" as unknown as number, amount: 0 })}
           >
             <Plus className="w-3.5 h-3.5 mr-1.5" />
             Add Item

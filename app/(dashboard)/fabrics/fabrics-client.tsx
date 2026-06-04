@@ -95,7 +95,7 @@ function FabricForm({
         <div className="space-y-1.5">
           <Label>Stock Quantity *</Label>
           <div className="flex gap-2">
-            <Input type="number" min="0" step="0.5" {...register("stockQty")} />
+            <Input type="text" inputMode="decimal"{...register("stockQty")} />
             <Controller name="unit" control={control} render={({ field }) => (
               <Select value={field.value} onValueChange={field.onChange}>
                 <SelectTrigger className="w-20"><SelectValue /></SelectTrigger>
@@ -109,11 +109,11 @@ function FabricForm({
         </div>
         <div className="space-y-1.5">
           <Label>Reorder Level</Label>
-          <Input type="number" min="0" step="0.5" {...register("reorderLevel")} />
+          <Input type="text" inputMode="decimal"{...register("reorderLevel")} />
         </div>
         <div className="space-y-1.5">
           <Label>Price per Unit (AED)</Label>
-          <Input type="number" min="0" step="0.01" {...register("pricePerUnit")} />
+          <Input type="text" inputMode="decimal"{...register("pricePerUnit")} />
         </div>
         <div className="space-y-1.5">
           <Label>Supplier</Label>

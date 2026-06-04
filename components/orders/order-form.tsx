@@ -483,11 +483,10 @@ export function OrderForm({
                 <div className="space-y-1.5">
                   <Label className="text-xs">Quantity</Label>
                   <Input
-                    type="number"
-                    min="1"
-                    step="1"
+                    type="text"
+                    inputMode="decimal"
                     className="h-9 text-sm"
-                    {...register(`items.${index}.quantity`, { valueAsNumber: true })}
+                    {...register(`items.${index}.quantity`)}
                   />
                   <FieldError message={errors.items?.[index]?.quantity?.message} />
                 </div>
@@ -495,12 +494,11 @@ export function OrderForm({
                 <div className="space-y-1.5">
                   <Label className="text-xs">Unit Price (AED)</Label>
                   <Input
-                    type="number"
-                    min="0"
-                    step="1"
+                    type="text"
+                    inputMode="decimal"
                     placeholder="0"
                     className="h-9 text-sm"
-                    {...register(`items.${index}.unitPrice`, { valueAsNumber: true })}
+                    {...register(`items.${index}.unitPrice`)}
                   />
                   <FieldError message={errors.items?.[index]?.unitPrice?.message} />
                 </div>
@@ -620,11 +618,10 @@ export function OrderForm({
             <Label htmlFor="totalAmount">Total Amount (AED) *</Label>
             <Input
               id="totalAmount"
-              type="number"
-              min="0"
-              step="1"
+              type="text"
+              inputMode="decimal"
               placeholder="0"
-              {...register("totalAmount", { valueAsNumber: true })}
+              {...register("totalAmount")}
               className={cn(errors.totalAmount ? "border-destructive" : "")}
             />
             <FieldError message={errors.totalAmount?.message} />
@@ -633,11 +630,10 @@ export function OrderForm({
             <Label htmlFor="advanceAmount">Advance Amount (AED)</Label>
             <Input
               id="advanceAmount"
-              type="number"
-              min="0"
-              step="1"
+              type="text"
+              inputMode="decimal"
               placeholder="0"
-              {...register("advanceAmount", { valueAsNumber: true })}
+              {...register("advanceAmount")}
               className={cn(errors.advanceAmount ? "border-destructive" : "")}
             />
             <FieldError message={errors.advanceAmount?.message} />

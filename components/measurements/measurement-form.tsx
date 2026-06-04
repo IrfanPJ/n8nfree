@@ -44,9 +44,8 @@ function MeasurementField({ label, name, register, error }: Omit<MeasurementFiel
       </Label>
       <Input
         id={name}
-        type="number"
-        step="0.1"
-        min="0"
+        type="text"
+        inputMode="decimal"
         placeholder="0.0"
         {...register(name)}
         className={cn(

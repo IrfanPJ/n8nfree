@@ -214,7 +214,7 @@ export function PurchasesClient({ initialData, stats, suppliers }: PurchasesClie
             <div className="grid grid-cols-3 gap-3">
               <div className="space-y-1.5">
                 <Label>Quantity *</Label>
-                <Input type="number" step="0.01" {...register("quantity")} />
+                <Input type="text" inputMode="decimal" {...register("quantity")} />
               </div>
               <div className="space-y-1.5">
                 <Label>Unit</Label>
@@ -222,18 +222,18 @@ export function PurchasesClient({ initialData, stats, suppliers }: PurchasesClie
               </div>
               <div className="space-y-1.5">
                 <Label>Unit Price (AED) *</Label>
-                <Input type="number" step="0.01" {...register("unitPrice")} />
+                <Input type="text" inputMode="decimal" {...register("unitPrice")} />
               </div>
             </div>
 
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <Label>Total Amount (AED)</Label>
-                <Input type="number" step="0.01" {...register("totalAmount")} />
+                <Input type="text" inputMode="decimal" {...register("totalAmount")} />
               </div>
               <div className="space-y-1.5">
                 <Label>Amount Paid (AED)</Label>
-                <Input type="number" step="0.01" {...register("paidAmount")} />
+                <Input type="text" inputMode="decimal" {...register("paidAmount")} />
               </div>
             </div>
 

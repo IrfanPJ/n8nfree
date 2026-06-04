@@ -348,9 +348,8 @@ export function InvoiceForm({
               </div>
               <div className="col-span-2">
                 <Input
-                  type="number"
-                  step="0.01"
-                  min="0"
+                  type="text"
+                  inputMode="decimal"
                   {...register(`items.${i}.quantity`)}
                   onChange={(e) => {
                     register(`items.${i}.quantity`).onChange(e);
@@ -361,9 +360,8 @@ export function InvoiceForm({
               </div>
               <div className="col-span-2">
                 <Input
-                  type="number"
-                  step="0.01"
-                  min="0"
+                  type="text"
+                  inputMode="decimal"
                   {...register(`items.${i}.unitPrice`)}
                   onChange={(e) => {
                     register(`items.${i}.unitPrice`).onChange(e);
@@ -425,9 +423,8 @@ export function InvoiceForm({
           <Label htmlFor="discountValue">Discount Value</Label>
           <Input
             id="discountValue"
-            type="number"
-            step="0.01"
-            min="0"
+            type="text"
+            inputMode="decimal"
             {...register("discountValue")}
             onChange={(e) => {
               register("discountValue").onChange(e);
@@ -483,9 +480,8 @@ export function InvoiceForm({
             <Label htmlFor="paidAmount">Amount Paid (AED)</Label>
             <Input
               id="paidAmount"
-              type="number"
-              step="0.01"
-              min="0"
+              type="text"
+              inputMode="decimal"
               {...register("paidAmount")}
               onChange={(e) => {
                 register("paidAmount").onChange(e);

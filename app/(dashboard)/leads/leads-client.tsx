@@ -238,7 +238,7 @@ function LeadForm({
         )}
         <div className="space-y-1.5">
           <Label>Potential Value (AED)</Label>
-          <Input type="number" min="0" step="any" {...register("value")} />
+          <Input type="text" inputMode="decimal" {...register("value")} />
         </div>
         <div className="space-y-1.5">
           <Label>Lead Date</Label>

@@ -108,9 +108,8 @@ function PaymentForm({
         <div className="space-y-1.5">
           <label className="text-sm font-medium">Amount (AED) *</label>
           <Input
-            type="number"
-            step="0.01"
-            min="0.01"
+            type="text"
+            inputMode="decimal"
             max={maxAmount}
             {...register("amount")}
             className={errors.amount ? "border-destructive" : ""}

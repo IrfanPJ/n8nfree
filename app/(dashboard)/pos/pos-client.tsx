@@ -142,9 +142,8 @@ function AddProductDialog({ onClose }: { onClose: () => void }) {
           <div className="space-y-1.5">
             <Label>Price (AED) *</Label>
             <Input
-              type="number"
-              min="0.01"
-              step="0.01"
+              type="text"
+              inputMode="decimal"
               placeholder="0.00"
               value={price}
               onChange={(e) => setPrice(e.target.value)}

@@ -64,6 +64,7 @@ export const leadSchema = z.object({
   transferredTo:  z.string().optional().or(z.literal("")),
   visited:        z.boolean().optional().default(false),
   followup:       z.boolean().optional().default(false),
+  leadDate:       z.string().optional().or(z.literal("")),
 });
 
 export type LeadFormData = z.infer<typeof leadSchema>;

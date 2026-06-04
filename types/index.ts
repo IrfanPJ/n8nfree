@@ -279,6 +279,7 @@ export type Lead = {
   visited: boolean;
   followup: boolean;
   isActive: boolean;
+  leadDate: string | null;
   createdAt: string;
   updatedAt: string;
 };

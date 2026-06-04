@@ -31,6 +31,7 @@ function leadFields(d: ReturnType<typeof leadSchema.parse>) {
     transferredTo: d.transferredTo || null,
     visited:       d.visited ?? false,
     followup:      d.followup ?? false,
+    leadDate:      d.leadDate || null,
   };
 }
 

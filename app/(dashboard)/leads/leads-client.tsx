@@ -158,6 +158,7 @@ function LeadForm({
       transferredTo: lead?.transferredTo ?? "",
       visited:       lead?.visited ?? false,
       followup:      lead?.followup ?? false,
+      leadDate:      lead?.leadDate ?? format(new Date(), "yyyy-MM-dd"),
     },
   });
 
@@ -239,6 +240,10 @@ function LeadForm({
           <Label>Potential Value (AED)</Label>
           <Input type="number" min="0" step="any" {...register("value")} />
         </div>
+        <div className="space-y-1.5">
+          <Label>Lead Date</Label>
+          <Input type="date" {...register("leadDate")} />
+        </div>
         {/* Category */}
         <div className="space-y-1.5">
           <Label>Category</Label>
@@ -310,7 +315,7 @@ function exportLeadsCSV(leads: Lead[]) {
     "TRANSFERRED TO", "VISITED", "INVOICE NUMBER IF CLOSED", "INVOICE VALUE",
   ];
   const rows = leads.map((l) => [
-    format(new Date(l.createdAt), "dd/MM/yyyy"),
+    format(new Date(l.leadDate ?? l.createdAt), "dd/MM/yyyy"),
     l.handler ?? "",
     l.source ?? "",
     l.name,
@@ -394,7 +399,7 @@ export function LeadsClient({ initialLeads, customers }: LeadsClientProps) {
   );
 
   const getLeadsForDay = (day: Date) =>
-    leads.filter((l) => isSameDay(new Date(l.createdAt), day));
+    leads.filter((l) => isSameDay(new Date(l.leadDate ?? l.createdAt), day));
 
   const navigate = (dir: -1 | 1) => {
     if (viewMode === "month") setCurrentMonth((d) => dir === 1 ? addMonths(d, 1) : subMonths(d, 1));
@@ -893,7 +898,7 @@ export function LeadsClient({ initialLeads, customers }: LeadsClientProps) {
                   const from = exportFrom ? new Date(exportFrom + "T00:00:00") : null;
                   const to = exportTo ? new Date(exportTo + "T23:59:59") : null;
                   const filtered = leads.filter((l) => {
-                    const d = new Date(l.createdAt);
+                    const d = new Date(l.leadDate ?? l.createdAt);
                     if (from && d < from) return false;
                     if (to && d > to) return false;
                     return true;

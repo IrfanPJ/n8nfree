@@ -21,8 +21,7 @@ const COMPANY = {
   city: "Mumbai – 400050, Maharashtra",
   phone: "+91 98765 43210",
   email: "info@houseoftailors.com",
-  gstin: "27AABCH1234R1ZB",
-  pan: "AABCH1234R",
+  trn: "100123456700003",
 } as const;
 
 function StatusChip({ status }: { status: keyof typeof INVOICE_STATUS_CONFIG }) {
@@ -315,10 +314,7 @@ export function InvoiceView({ invoice, showActions = true }: InvoiceViewProps) {
             }}
           >
             <p style={{ fontSize: "11px", color: "#666" }}>
-              <strong style={{ color: "#333" }}>GSTIN:</strong> {COMPANY.gstin}
-            </p>
-            <p style={{ fontSize: "11px", color: "#666" }}>
-              <strong style={{ color: "#333" }}>PAN:</strong> {COMPANY.pan}
+              <strong style={{ color: "#333" }}>TRN:</strong> {COMPANY.trn}
             </p>
             <p style={{ fontSize: "11px", color: "#666" }}>
               <strong style={{ color: "#333" }}>Tax Invoice</strong>
@@ -587,19 +583,11 @@ export function InvoiceView({ invoice, showActions = true }: InvoiceViewProps) {
                   </td>
                 </tr>
                 <tr>
-                  <td style={{ color: "#666", paddingBottom: "8px", paddingRight: "20px" }}>
-                    CGST ({invoice.taxRate / 2}%)
-                  </td>
-                  <td style={{ textAlign: "right", color: "#1a1a1a", paddingBottom: "8px" }}>
-                    {formatCurrency(invoice.taxAmount / 2)}
-                  </td>
-                </tr>
-                <tr>
                   <td style={{ color: "#666", paddingBottom: "12px", paddingRight: "20px" }}>
-                    SGST ({invoice.taxRate / 2}%)
+                    VAT (5%)
                   </td>
                   <td style={{ textAlign: "right", color: "#1a1a1a", paddingBottom: "12px" }}>
-                    {formatCurrency(invoice.taxAmount / 2)}
+                    {formatCurrency(invoice.taxAmount)}
                   </td>
                 </tr>
                 <tr style={{ borderTop: "2px solid #D4AF37" }}>

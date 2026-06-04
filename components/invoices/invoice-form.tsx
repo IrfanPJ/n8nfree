@@ -81,7 +81,7 @@ export function InvoiceForm({
       subtotal: invoice?.subtotal ?? 0,
       discountType: (invoice?.discountType as "PERCENTAGE" | "FIXED") ?? undefined,
       discountValue: invoice?.discountValue ?? 0,
-      taxRate: invoice?.taxRate ?? 18,
+      taxRate: 5,
       taxAmount: invoice?.taxAmount ?? 0,
       totalAmount: invoice?.totalAmount ?? 0,
       paidAmount: invoice?.paidAmount ?? 0,
@@ -378,19 +378,8 @@ export function InvoiceForm({
         </div>
 
         <div className="space-y-1.5">
-          <Label htmlFor="taxRate">GST Rate (%)</Label>
-          <Input
-            id="taxRate"
-            type="number"
-            step="0.01"
-            min="0"
-            max="100"
-            {...register("taxRate")}
-            onChange={(e) => {
-              register("taxRate").onChange(e);
-              setTimeout(recalculate, 0);
-            }}
-          />
+          <Label>VAT</Label>
+          <Input value="5% (Fixed)" readOnly className="bg-secondary/40 text-muted-foreground cursor-default" />
         </div>
       </div>
 
@@ -419,7 +408,7 @@ export function InvoiceForm({
           </div>
         )}
         <div className="flex justify-between text-sm">
-          <span className="text-muted-foreground">GST ({watchedValues.taxRate ?? 18}%)</span>
+          <span className="text-muted-foreground">VAT (5%)</span>
           <span>{formatCurrency(watchedValues.taxAmount ?? 0)}</span>
         </div>
         <div className="h-px bg-border/50 my-1" />

@@ -7,6 +7,56 @@ import { auth } from "@/lib/auth";
 import { measurementSchema } from "@/validators/measurement";
 import type { ApiResponse, Measurement } from "@/types";
 
+function measurementFields(d: ReturnType<typeof measurementSchema.parse>) {
+  return {
+    label: d.label,
+    unit: d.unit,
+    // Upper body
+    shirtLength: d.shirtLength ?? null,
+    shoulder: d.shoulder ?? null,
+    armhole: d.armhole ?? null,
+    sleeve: d.sleeve ?? null,
+    bicep: d.bicep ?? null,
+    chest: d.chest ?? null,
+    lowerChest: d.lowerChest ?? null,
+    stomach: d.stomach ?? null,
+    hip: d.hip ?? null,
+    neck: d.neck ?? null,
+    backLength: d.backLength ?? null,
+    frontLength: d.frontLength ?? null,
+    // Jacket
+    jacketSleeve: d.jacketSleeve ?? null,
+    jacketLength: d.jacketLength ?? null,
+    // Waistcoat
+    waistcoatHalfShoulder: d.waistcoatHalfShoulder ?? null,
+    waistcoatLength: d.waistcoatLength ?? null,
+    // Long Coat
+    longCoatSleeve: d.longCoatSleeve ?? null,
+    longCoatLength: d.longCoatLength ?? null,
+    // Trouser
+    kneeLength: d.kneeLength ?? null,
+    outseam: d.outseam ?? null,
+    inseam: d.inseam ?? null,
+    waist: d.waist ?? null,
+    thigh: d.thigh ?? null,
+    kneeLose: d.kneeLose ?? null,
+    ankle: d.ankle ?? null,
+    rise: d.rise ?? null,
+    // Skirt
+    skirtLength: d.skirtLength ?? null,
+    skirtBottomHem: d.skirtBottomHem ?? null,
+    // Meta
+    department: d.department ?? null,
+    trialDate: d.trialDate ?? null,
+    deliveryDate: d.deliveryDate ?? null,
+    // Remarks
+    upperRemarks: d.upperRemarks ?? null,
+    lowerRemarks: d.lowerRemarks ?? null,
+    fabricNotes: d.fabricNotes ?? null,
+    notes: d.notes ?? null,
+  };
+}
+
 export async function getMeasurements(customerId?: string): Promise<Measurement[]> {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
@@ -49,29 +99,11 @@ export async function createMeasurement(data: unknown): Promise<ApiResponse<Meas
     const { data: measurement, error } = await supabase.from("Measurement").insert({
       id,
       customerId: parsed.data.customerId,
-      label: parsed.data.label,
-      unit: parsed.data.unit,
-      chest: parsed.data.chest ?? null,
-      waist: parsed.data.waist ?? null,
-      hip: parsed.data.hip ?? null,
-      shoulder: parsed.data.shoulder ?? null,
-      neck: parsed.data.neck ?? null,
-      sleeve: parsed.data.sleeve ?? null,
-      armhole: parsed.data.armhole ?? null,
-      inseam: parsed.data.inseam ?? null,
-      outseam: parsed.data.outseam ?? null,
-      rise: parsed.data.rise ?? null,
-      thigh: parsed.data.thigh ?? null,
-      ankle: parsed.data.ankle ?? null,
-      backLength: parsed.data.backLength ?? null,
-      frontLength: parsed.data.frontLength ?? null,
-      jacketLength: parsed.data.jacketLength ?? null,
-      shirtLength: parsed.data.shirtLength ?? null,
       takenBy: parsed.data.takenBy ?? session.user.name ?? null,
-      notes: parsed.data.notes ?? null,
       takenAt: now,
       createdAt: now,
       updatedAt: now,
+      ...measurementFields(parsed.data),
     }).select().single();
 
     if (error) throw error;
@@ -106,27 +138,9 @@ export async function updateMeasurement(id: string, data: unknown): Promise<ApiR
 
   try {
     const { data: measurement, error } = await supabase.from("Measurement").update({
-      label: parsed.data.label,
-      unit: parsed.data.unit,
-      chest: parsed.data.chest ?? null,
-      waist: parsed.data.waist ?? null,
-      hip: parsed.data.hip ?? null,
-      shoulder: parsed.data.shoulder ?? null,
-      neck: parsed.data.neck ?? null,
-      sleeve: parsed.data.sleeve ?? null,
-      armhole: parsed.data.armhole ?? null,
-      inseam: parsed.data.inseam ?? null,
-      outseam: parsed.data.outseam ?? null,
-      rise: parsed.data.rise ?? null,
-      thigh: parsed.data.thigh ?? null,
-      ankle: parsed.data.ankle ?? null,
-      backLength: parsed.data.backLength ?? null,
-      frontLength: parsed.data.frontLength ?? null,
-      jacketLength: parsed.data.jacketLength ?? null,
-      shirtLength: parsed.data.shirtLength ?? null,
       takenBy: parsed.data.takenBy ?? null,
-      notes: parsed.data.notes ?? null,
       updatedAt: new Date().toISOString(),
+      ...measurementFields(parsed.data),
     }).eq("id", id).select().single();
 
     if (error) throw error;

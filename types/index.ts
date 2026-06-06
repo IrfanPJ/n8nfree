@@ -70,23 +70,49 @@ export type Measurement = {
   id: string;
   customerId: string;
   label: string;
-  chest: number | null;
-  waist: number | null;
-  hip: number | null;
-  shoulder: number | null;
-  neck: number | null;
-  sleeve: number | null;
-  armhole: number | null;
-  inseam: number | null;
-  outseam: number | null;
-  rise: number | null;
-  thigh: number | null;
-  ankle: number | null;
-  backLength: number | null;
-  frontLength: number | null;
-  jacketLength: number | null;
-  shirtLength: number | null;
   unit: string;
+  // Upper body
+  shirtLength: number | null;   // Full Length (upper)
+  shoulder: number | null;
+  armhole: number | null;
+  sleeve: number | null;
+  bicep: number | null;
+  chest: number | null;
+  lowerChest: number | null;
+  stomach: number | null;
+  hip: number | null;
+  neck: number | null;          // Collar
+  backLength: number | null;    // Cross Back
+  frontLength: number | null;   // Cross Front
+  // Jacket
+  jacketSleeve: number | null;
+  jacketLength: number | null;
+  // Waistcoat
+  waistcoatHalfShoulder: number | null;
+  waistcoatLength: number | null;
+  // Long Coat
+  longCoatSleeve: number | null;
+  longCoatLength: number | null;
+  // Trouser
+  kneeLength: number | null;
+  outseam: number | null;       // Trouser Full Length
+  inseam: number | null;
+  waist: number | null;
+  thigh: number | null;         // Thigh Loose
+  kneeLose: number | null;
+  ankle: number | null;         // Bottom Hem
+  rise: number | null;          // U-Round
+  // Skirt
+  skirtLength: number | null;
+  skirtBottomHem: number | null;
+  // Meta
+  department: string | null;
+  trialDate: string | null;
+  deliveryDate: string | null;
+  // Remarks
+  upperRemarks: string | null;
+  lowerRemarks: string | null;
+  fabricNotes: string | null;
   notes: string | null;
   takenAt: string;
   takenBy: string | null;

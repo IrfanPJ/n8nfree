@@ -13,24 +13,50 @@ export const measurementSchema = z.object({
   customerId: z.string().min(1, "Customer is required"),
   label: z.string().min(1, "Label is required").max(100),
   unit: z.enum(["inches", "cm"]),
-  chest: optionalFloat,
-  waist: optionalFloat,
-  hip: optionalFloat,
+  // Upper body
+  shirtLength: optionalFloat,
   shoulder: optionalFloat,
-  neck: optionalFloat,
-  sleeve: optionalFloat,
   armhole: optionalFloat,
-  inseam: optionalFloat,
-  outseam: optionalFloat,
-  rise: optionalFloat,
-  thigh: optionalFloat,
-  ankle: optionalFloat,
+  sleeve: optionalFloat,
+  bicep: optionalFloat,
+  chest: optionalFloat,
+  lowerChest: optionalFloat,
+  stomach: optionalFloat,
+  hip: optionalFloat,
+  neck: optionalFloat,
   backLength: optionalFloat,
   frontLength: optionalFloat,
+  // Jacket
+  jacketSleeve: optionalFloat,
   jacketLength: optionalFloat,
-  shirtLength: optionalFloat,
-  takenBy: z.string().optional(),
+  // Waistcoat
+  waistcoatHalfShoulder: optionalFloat,
+  waistcoatLength: optionalFloat,
+  // Long Coat
+  longCoatSleeve: optionalFloat,
+  longCoatLength: optionalFloat,
+  // Trouser
+  kneeLength: optionalFloat,
+  outseam: optionalFloat,
+  inseam: optionalFloat,
+  waist: optionalFloat,
+  thigh: optionalFloat,
+  kneeLose: optionalFloat,
+  ankle: optionalFloat,
+  rise: optionalFloat,
+  // Skirt
+  skirtLength: optionalFloat,
+  skirtBottomHem: optionalFloat,
+  // Meta
+  department: z.string().optional(),
+  trialDate: z.string().optional(),
+  deliveryDate: z.string().optional(),
+  // Remarks
+  upperRemarks: z.string().optional(),
+  lowerRemarks: z.string().optional(),
+  fabricNotes: z.string().optional(),
   notes: z.string().optional(),
+  takenBy: z.string().optional(),
 });
 
 export type MeasurementFormData = z.infer<typeof measurementSchema>;

@@ -17,7 +17,7 @@ import { CustomerForm } from "@/components/customers/customer-form";
 import { MeasurementForm } from "@/components/measurements/measurement-form";
 import { BespokeDesigner } from "@/components/orders/bespoke-designer";
 import { parseDesignNotes } from "@/app/(dashboard)/orders/orders-client";
-import type { CustomerWithRelations } from "@/types";
+import type { CustomerWithRelations, Measurement } from "@/types";
 import {
   getInitials, formatDate, formatCurrency, ORDER_STATUS_CONFIG, INVOICE_STATUS_CONFIG, openWhatsApp
 } from "@/lib/utils";
@@ -31,6 +31,8 @@ export function CustomerDetailClient({ customer }: CustomerDetailClientProps) {
   const router = useRouter();
   const [editOpen, setEditOpen] = useState(false);
   const [measurementOpen, setMeasurementOpen] = useState(false);
+  const [editMeasurement, setEditMeasurement] = useState<Measurement | null>(null);
+  const [localMeasurements, setLocalMeasurements] = useState(customer.measurements as unknown as Measurement[]);
   const [designViewOrder, setDesignViewOrder] = useState<(typeof customer.orders)[0] | null>(null);
 
   const totalRevenue = customer.invoices
@@ -203,7 +205,7 @@ export function CustomerDetailClient({ customer }: CustomerDetailClientProps) {
               Add Measurement
             </Button>
           </div>
-          {customer.measurements.length === 0 ? (
+          {localMeasurements.length === 0 ? (
             <div className="text-center py-12 text-muted-foreground border border-dashed border-border rounded-xl">
               <Ruler className="w-10 h-10 mx-auto mb-3 opacity-30" />
               <p className="font-medium">No measurements recorded yet</p>
@@ -211,38 +213,66 @@ export function CustomerDetailClient({ customer }: CustomerDetailClientProps) {
             </div>
           ) : (
             <div className="space-y-3">
-              {customer.measurements.map((m) => (
-                <Card key={m.id}>
-                  <CardHeader>
-                    <CardTitle className="text-sm flex items-center justify-between">
-                      <span>{m.label}</span>
-                      <span className="text-xs text-muted-foreground font-normal">{formatDate(m.takenAt)}</span>
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="grid grid-cols-3 sm:grid-cols-5 gap-3 text-xs">
-                      {[
-                        { key: "Chest", val: m.chest },
-                        { key: "Waist", val: m.waist },
-                        { key: "Hip", val: m.hip },
-                        { key: "Shoulder", val: m.shoulder },
-                        { key: "Sleeve", val: m.sleeve },
-                        { key: "Neck", val: m.neck },
-                        { key: "Inseam", val: m.inseam },
-                        { key: "Back Len", val: m.backLength },
-                        { key: "Jacket Len", val: m.jacketLength },
-                        { key: "Shirt Len", val: m.shirtLength },
-                      ].filter((item) => item.val !== null && item.val !== undefined).map(({ key, val }) => (
-                        <div key={key} className="text-center p-2 rounded-lg bg-secondary/30">
-                          <p className="font-semibold">{val}&quot;</p>
-                          <p className="text-muted-foreground mt-0.5">{key}</p>
+              {localMeasurements.map((m) => {
+                const u = m.unit === "cm" ? "cm" : "in";
+                const fields = [
+                  { key: "Full Length", val: m.shirtLength },
+                  { key: "Chest", val: m.chest },
+                  { key: "Waist", val: m.waist },
+                  { key: "Hip", val: m.hip },
+                  { key: "Shoulder", val: m.shoulder },
+                  { key: "Sleeve", val: m.sleeve },
+                  { key: "Arm Hole", val: m.armhole },
+                  { key: "Bicep", val: m.bicep },
+                  { key: "Lower Chest", val: m.lowerChest },
+                  { key: "Stomach", val: m.stomach },
+                  { key: "Collar", val: m.neck },
+                  { key: "Cross Back", val: m.backLength },
+                  { key: "Cross Front", val: m.frontLength },
+                  { key: "Jacket Sleeve", val: m.jacketSleeve },
+                  { key: "Jacket Len", val: m.jacketLength },
+                  { key: "WC Half Shldr", val: m.waistcoatHalfShoulder },
+                  { key: "WC Length", val: m.waistcoatLength },
+                  { key: "LC Sleeve", val: m.longCoatSleeve },
+                  { key: "LC Length", val: m.longCoatLength },
+                  { key: "Knee Len", val: m.kneeLength },
+                  { key: "Trouser Len", val: m.outseam },
+                  { key: "Inseam", val: m.inseam },
+                  { key: "Thigh Loose", val: m.thigh },
+                  { key: "Knee Loose", val: m.kneeLose },
+                  { key: "Bottom Hem", val: m.ankle },
+                  { key: "U-Round", val: m.rise },
+                  { key: "Skirt Len", val: m.skirtLength },
+                  { key: "Skirt Hem", val: m.skirtBottomHem },
+                ].filter((item) => item.val !== null && item.val !== undefined);
+                return (
+                  <Card key={m.id}>
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-sm flex items-center justify-between">
+                        <span>{m.label}</span>
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs text-muted-foreground font-normal">{formatDate(m.takenAt)}</span>
+                          <Button size="icon-sm" variant="ghost" onClick={() => setEditMeasurement(m)} title="Edit">
+                            <Edit2 className="w-3.5 h-3.5" />
+                          </Button>
                         </div>
-                      ))}
-                    </div>
-                    {m.notes && <p className="text-xs text-muted-foreground mt-3 italic">{m.notes}</p>}
-                  </CardContent>
-                </Card>
-              ))}
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="grid grid-cols-3 sm:grid-cols-5 gap-2 text-xs">
+                        {fields.map(({ key, val }) => (
+                          <div key={key} className="text-center p-2 rounded-lg bg-secondary/30">
+                            <p className="font-semibold">{val}{u}</p>
+                            <p className="text-muted-foreground mt-0.5">{key}</p>
+                          </div>
+                        ))}
+                      </div>
+                      {m.upperRemarks && <p className="text-xs text-muted-foreground mt-2 italic">{m.upperRemarks}</p>}
+                      {m.notes && <p className="text-xs text-muted-foreground mt-1 italic">{m.notes}</p>}
+                    </CardContent>
+                  </Card>
+                );
+              })}
             </div>
           )}
         </TabsContent>
@@ -412,12 +442,34 @@ export function CustomerDetailClient({ customer }: CustomerDetailClientProps) {
           </DialogHeader>
           <MeasurementForm
             defaultCustomerId={customer.id}
-            onSuccess={() => {
+            onSuccess={(m) => {
+              setLocalMeasurements((prev) => [m, ...prev]);
               setMeasurementOpen(false);
-              router.refresh();
             }}
             onCancel={() => setMeasurementOpen(false)}
           />
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Measurement Dialog */}
+      <Dialog open={!!editMeasurement} onOpenChange={() => setEditMeasurement(null)}>
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Edit2 className="w-5 h-5 text-[#D4AF37]" />
+              Edit Measurement — {customer.name}
+            </DialogTitle>
+          </DialogHeader>
+          {editMeasurement && (
+            <MeasurementForm
+              measurement={editMeasurement}
+              onSuccess={(m) => {
+                setLocalMeasurements((prev) => prev.map((x) => x.id === m.id ? m : x));
+                setEditMeasurement(null);
+              }}
+              onCancel={() => setEditMeasurement(null)}
+            />
+          )}
         </DialogContent>
       </Dialog>
     </div>

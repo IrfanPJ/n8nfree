@@ -49,32 +49,58 @@ function printMeasurement(measurement: Measurement, customerName: string) {
     {
       title: "Upper Body",
       items: [
-        { label: "Chest", v: measurement.chest },
-        { label: "Waist", v: measurement.waist },
-        { label: "Hip", v: measurement.hip },
-        { label: "Shoulder", v: measurement.shoulder },
-        { label: "Neck", v: measurement.neck },
-        { label: "Sleeve", v: measurement.sleeve },
-        { label: "Armhole", v: measurement.armhole },
+        { label: "Full Length",   v: measurement.shirtLength },
+        { label: "Shoulder",      v: measurement.shoulder },
+        { label: "Arm Hole",      v: measurement.armhole },
+        { label: "Sleeve",        v: measurement.sleeve },
+        { label: "Bicep",         v: measurement.bicep },
+        { label: "Chest",         v: measurement.chest },
+        { label: "Lower Chest",   v: measurement.lowerChest },
+        { label: "Stomach",       v: measurement.stomach },
+        { label: "Hip",           v: measurement.hip },
+        { label: "Collar",        v: measurement.neck },
+        { label: "Cross Back",    v: measurement.backLength },
+        { label: "Cross Front",   v: measurement.frontLength },
       ],
     },
     {
-      title: "Lower Body",
+      title: "Jacket",
       items: [
-        { label: "Inseam", v: measurement.inseam },
-        { label: "Outseam", v: measurement.outseam },
-        { label: "Rise", v: measurement.rise },
-        { label: "Thigh", v: measurement.thigh },
-        { label: "Ankle", v: measurement.ankle },
+        { label: "Sleeve",        v: measurement.jacketSleeve },
+        { label: "Full Length",   v: measurement.jacketLength },
       ],
     },
     {
-      title: "Lengths",
+      title: "Waistcoat",
       items: [
-        { label: "Back Length", v: measurement.backLength },
-        { label: "Front Length", v: measurement.frontLength },
-        { label: "Jacket Length", v: measurement.jacketLength },
-        { label: "Shirt Length", v: measurement.shirtLength },
+        { label: "Half Shoulder", v: measurement.waistcoatHalfShoulder },
+        { label: "Full Length",   v: measurement.waistcoatLength },
+      ],
+    },
+    {
+      title: "Long Coat",
+      items: [
+        { label: "Sleeve",        v: measurement.longCoatSleeve },
+        { label: "Full Length",   v: measurement.longCoatLength },
+      ],
+    },
+    {
+      title: "Trouser",
+      items: [
+        { label: "Knee Length",   v: measurement.kneeLength },
+        { label: "Full Length",   v: measurement.outseam },
+        { label: "Inseam",        v: measurement.inseam },
+        { label: "Thigh Loose",   v: measurement.thigh },
+        { label: "Knee Loose",    v: measurement.kneeLose },
+        { label: "Bottom Hem",    v: measurement.ankle },
+        { label: "U-Round",       v: measurement.rise },
+      ],
+    },
+    {
+      title: "Skirt",
+      items: [
+        { label: "Length",        v: measurement.skirtLength },
+        { label: "Bottom Hem",    v: measurement.skirtBottomHem },
       ],
     },
   ];
@@ -188,22 +214,33 @@ function MeasurementCard({
   ];
 
   const allFields: Array<{ label: string; value: number | null }> = [
-    { label: "Chest", value: measurement.chest },
-    { label: "Waist", value: measurement.waist },
-    { label: "Hip", value: measurement.hip },
-    { label: "Shoulder", value: measurement.shoulder },
-    { label: "Neck", value: measurement.neck },
-    { label: "Sleeve", value: measurement.sleeve },
-    { label: "Armhole", value: measurement.armhole },
-    { label: "Inseam", value: measurement.inseam },
-    { label: "Outseam", value: measurement.outseam },
-    { label: "Rise", value: measurement.rise },
-    { label: "Thigh", value: measurement.thigh },
-    { label: "Ankle", value: measurement.ankle },
-    { label: "Back Len.", value: measurement.backLength },
-    { label: "Front Len.", value: measurement.frontLength },
-    { label: "Jacket Len.", value: measurement.jacketLength },
-    { label: "Shirt Len.", value: measurement.shirtLength },
+    { label: "Full Length",    value: measurement.shirtLength },
+    { label: "Shoulder",       value: measurement.shoulder },
+    { label: "Arm Hole",       value: measurement.armhole },
+    { label: "Sleeve",         value: measurement.sleeve },
+    { label: "Bicep",          value: measurement.bicep },
+    { label: "Chest",          value: measurement.chest },
+    { label: "Lower Chest",    value: measurement.lowerChest },
+    { label: "Stomach",        value: measurement.stomach },
+    { label: "Hip",            value: measurement.hip },
+    { label: "Collar",         value: measurement.neck },
+    { label: "Cross Back",     value: measurement.backLength },
+    { label: "Cross Front",    value: measurement.frontLength },
+    { label: "Jacket Sleeve",  value: measurement.jacketSleeve },
+    { label: "Jacket Len.",    value: measurement.jacketLength },
+    { label: "WC Half Shldr",  value: measurement.waistcoatHalfShoulder },
+    { label: "WC Length",      value: measurement.waistcoatLength },
+    { label: "LC Sleeve",      value: measurement.longCoatSleeve },
+    { label: "LC Length",      value: measurement.longCoatLength },
+    { label: "Knee Length",    value: measurement.kneeLength },
+    { label: "Trouser Len.",   value: measurement.outseam },
+    { label: "Inseam",         value: measurement.inseam },
+    { label: "Thigh Loose",    value: measurement.thigh },
+    { label: "Knee Loose",     value: measurement.kneeLose },
+    { label: "Bottom Hem",     value: measurement.ankle },
+    { label: "U-Round",        value: measurement.rise },
+    { label: "Skirt Length",   value: measurement.skirtLength },
+    { label: "Skirt Hem",      value: measurement.skirtBottomHem },
   ].filter((f) => f.value !== null && f.value !== undefined);
 
   return (
@@ -577,32 +614,48 @@ export function MeasurementsClient({
               {
                 title: "Upper Body",
                 fields: [
-                  { label: "Chest", v: viewMeasurement.chest },
-                  { label: "Waist", v: viewMeasurement.waist },
-                  { label: "Hip", v: viewMeasurement.hip },
-                  { label: "Shoulder", v: viewMeasurement.shoulder },
-                  { label: "Neck", v: viewMeasurement.neck },
-                  { label: "Sleeve", v: viewMeasurement.sleeve },
-                  { label: "Armhole", v: viewMeasurement.armhole },
+                  { label: "Full Length",   v: viewMeasurement.shirtLength },
+                  { label: "Shoulder",      v: viewMeasurement.shoulder },
+                  { label: "Arm Hole",      v: viewMeasurement.armhole },
+                  { label: "Sleeve",        v: viewMeasurement.sleeve },
+                  { label: "Bicep",         v: viewMeasurement.bicep },
+                  { label: "Chest",         v: viewMeasurement.chest },
+                  { label: "Lower Chest",   v: viewMeasurement.lowerChest },
+                  { label: "Stomach",       v: viewMeasurement.stomach },
+                  { label: "Hip",           v: viewMeasurement.hip },
+                  { label: "Collar",        v: viewMeasurement.neck },
+                  { label: "Cross Back",    v: viewMeasurement.backLength },
+                  { label: "Cross Front",   v: viewMeasurement.frontLength },
                 ],
               },
               {
-                title: "Lower Body",
+                title: "Jacket / Waistcoat / Long Coat",
                 fields: [
-                  { label: "Inseam", v: viewMeasurement.inseam },
-                  { label: "Outseam", v: viewMeasurement.outseam },
-                  { label: "Rise", v: viewMeasurement.rise },
-                  { label: "Thigh", v: viewMeasurement.thigh },
-                  { label: "Ankle", v: viewMeasurement.ankle },
+                  { label: "Jacket Sleeve",  v: viewMeasurement.jacketSleeve },
+                  { label: "Jacket Len.",    v: viewMeasurement.jacketLength },
+                  { label: "WC Half Shldr",  v: viewMeasurement.waistcoatHalfShoulder },
+                  { label: "WC Length",      v: viewMeasurement.waistcoatLength },
+                  { label: "LC Sleeve",      v: viewMeasurement.longCoatSleeve },
+                  { label: "LC Length",      v: viewMeasurement.longCoatLength },
                 ],
               },
               {
-                title: "Lengths",
+                title: "Trouser",
                 fields: [
-                  { label: "Back Length", v: viewMeasurement.backLength },
-                  { label: "Front Length", v: viewMeasurement.frontLength },
-                  { label: "Jacket Length", v: viewMeasurement.jacketLength },
-                  { label: "Shirt Length", v: viewMeasurement.shirtLength },
+                  { label: "Knee Length",   v: viewMeasurement.kneeLength },
+                  { label: "Full Length",   v: viewMeasurement.outseam },
+                  { label: "Inseam",        v: viewMeasurement.inseam },
+                  { label: "Thigh Loose",   v: viewMeasurement.thigh },
+                  { label: "Knee Loose",    v: viewMeasurement.kneeLose },
+                  { label: "Bottom Hem",    v: viewMeasurement.ankle },
+                  { label: "U-Round",       v: viewMeasurement.rise },
+                ],
+              },
+              {
+                title: "Skirt",
+                fields: [
+                  { label: "Length",        v: viewMeasurement.skirtLength },
+                  { label: "Bottom Hem",    v: viewMeasurement.skirtBottomHem },
                 ],
               },
             ];
@@ -669,13 +722,18 @@ export function MeasurementsClient({
                   );
                 })}
 
-                {/* Notes */}
-                {viewMeasurement.notes && (
-                  <div className="p-3 rounded-lg bg-secondary/20 border border-border/30">
-                    <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1">Notes</p>
-                    <p className="text-sm leading-relaxed">{viewMeasurement.notes}</p>
+                {/* Remarks */}
+                {[
+                  { label: "Upper Body Remarks", val: viewMeasurement.upperRemarks },
+                  { label: "Comments & Fabric Details", val: viewMeasurement.fabricNotes },
+                  { label: "Trouser / Skirt Remarks", val: viewMeasurement.lowerRemarks },
+                  { label: "General Notes", val: viewMeasurement.notes },
+                ].filter((r) => r.val).map((r) => (
+                  <div key={r.label} className="p-3 rounded-lg bg-secondary/20 border border-border/30">
+                    <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1">{r.label}</p>
+                    <p className="text-sm leading-relaxed">{r.val}</p>
                   </div>
-                )}
+                ))}
 
                 {/* Actions */}
                 <div className="flex gap-2 pt-1">

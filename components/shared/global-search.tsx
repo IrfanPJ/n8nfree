@@ -2,7 +2,7 @@
 
 import React, { useState, useCallback, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Search, Users, ShoppingBag, FileText, Calendar, X } from "lucide-react";
+import { Search, Users, ShoppingBag, FileText, Calendar, X, UserCircle } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -19,6 +19,15 @@ const iconMap = {
   order: ShoppingBag,
   invoice: FileText,
   appointment: Calendar,
+  lead: UserCircle,
+};
+
+const typeStyles: Record<string, { badge: string; icon: string; iconBg: string; label: string }> = {
+  lead:        { badge: "bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300",   icon: "text-orange-600 dark:text-orange-400",  iconBg: "bg-orange-100 dark:bg-orange-900/40",  label: "Lead" },
+  customer:    { badge: "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300",           icon: "text-blue-600 dark:text-blue-400",       iconBg: "bg-blue-100 dark:bg-blue-900/40",      label: "Customer" },
+  order:       { badge: "bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300",   icon: "text-purple-600 dark:text-purple-400",   iconBg: "bg-purple-100 dark:bg-purple-900/40",  label: "Order" },
+  invoice:     { badge: "bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300",       icon: "text-green-600 dark:text-green-400",     iconBg: "bg-green-100 dark:bg-green-900/40",    label: "Invoice" },
+  appointment: { badge: "bg-cyan-100 text-cyan-700 dark:bg-cyan-900/40 dark:text-cyan-300",           icon: "text-cyan-600 dark:text-cyan-400",       iconBg: "bg-cyan-100 dark:bg-cyan-900/40",      label: "Appointment" },
 };
 
 export function GlobalSearch({ open, onClose }: GlobalSearchProps) {
@@ -96,7 +105,7 @@ export function GlobalSearch({ open, onClose }: GlobalSearchProps) {
               autoFocus
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search customers, orders, invoices..."
+              placeholder="Search leads, customers, orders, invoices..."
               className="flex-1 bg-transparent text-sm text-foreground placeholder:text-muted-foreground outline-none"
             />
             {query && (
@@ -125,6 +134,7 @@ export function GlobalSearch({ open, onClose }: GlobalSearchProps) {
               <ul className="p-2">
                 {results.map((result) => {
                   const Icon = iconMap[result.type];
+                  const style = typeStyles[result.type];
                   return (
                     <li key={`${result.type}-${result.id}`}>
                       <button
@@ -134,14 +144,16 @@ export function GlobalSearch({ open, onClose }: GlobalSearchProps) {
                         }}
                         className="w-full flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-secondary/50 transition-colors text-left"
                       >
-                        <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
-                          <Icon className="w-4 h-4 text-primary" />
+                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${style.iconBg}`}>
+                          <Icon className={`w-4 h-4 ${style.icon}`} />
                         </div>
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-medium truncate">{result.title}</p>
                           <p className="text-xs text-muted-foreground truncate">{result.subtitle}</p>
                         </div>
-                        <span className="text-xs text-muted-foreground capitalize">{result.type}</span>
+                        <span className={`text-xs font-medium px-2 py-0.5 rounded-full flex-shrink-0 ${style.badge}`}>
+                          {style.label}
+                        </span>
                       </button>
                     </li>
                   );

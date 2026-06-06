@@ -440,7 +440,7 @@ export type ApiResponse<T> = {
 };
 
 export type SearchResult = {
-  type: "customer" | "order" | "invoice" | "appointment";
+  type: "customer" | "order" | "invoice" | "appointment" | "lead";
   id: string;
   title: string;
   subtitle: string;

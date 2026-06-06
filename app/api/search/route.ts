@@ -11,31 +11,41 @@ export async function GET(request: NextRequest) {
   const q = request.nextUrl.searchParams.get("q");
   if (!q || q.length < 2) return NextResponse.json({ results: [] });
 
-  const [{ data: customers }, { data: orders }, { data: invoices }, { data: appointments }] =
+  // Run customers first so their IDs can be used to find linked orders/invoices/appointments by name
+  const { data: customers } = await supabase
+    .from("Customer")
+    .select("id, name, phone, email")
+    .eq("isActive", true)
+    .or(`name.ilike.%${q}%,phone.ilike.%${q}%,email.ilike.%${q}%`)
+    .limit(5);
+
+  const customerIds = (customers ?? []).map((c: any) => c.id);
+  const byCustomer = customerIds.length > 0 ? `,customerId.in.(${customerIds.join(",")})` : "";
+
+  const [{ data: orders }, { data: invoices }, { data: appointments }, { data: leads }] =
     await Promise.all([
-      supabase
-        .from("Customer")
-        .select("id, name, phone, email")
-        .eq("isActive", true)
-        .or(`name.ilike.%${q}%,phone.ilike.%${q}%,email.ilike.%${q}%`)
-        .limit(5),
       supabase
         .from("Order")
         .select(`id, orderNumber, garmentType, customer:Customer!customerId(name)`)
         .eq("isActive", true)
-        .or(`orderNumber.ilike.%${q}%,garmentType.ilike.%${q}%`)
+        .or(`orderNumber.ilike.%${q}%,garmentType.ilike.%${q}%${byCustomer}`)
         .limit(5),
       supabase
         .from("Invoice")
         .select(`id, invoiceNumber, totalAmount, customer:Customer!customerId(name)`)
         .eq("isActive", true)
-        .ilike("invoiceNumber", `%${q}%`)
+        .or(`invoiceNumber.ilike.%${q}%${byCustomer}`)
         .limit(5),
       supabase
         .from("Appointment")
         .select(`id, title, startTime, customer:Customer!customerId(name)`)
         .eq("isActive", true)
-        .ilike("title", `%${q}%`)
+        .or(`title.ilike.%${q}%${byCustomer}`)
+        .limit(5),
+      supabase
+        .from("Lead")
+        .select("id, name, phone, email, stage")
+        .or(`name.ilike.%${q}%,phone.ilike.%${q}%,email.ilike.%${q}%`)
         .limit(5),
     ]);
 
@@ -67,6 +77,13 @@ export async function GET(request: NextRequest) {
       title: a.title,
       subtitle: `${a.customer?.name ?? ""} · ${new Date(a.startTime).toLocaleDateString()}`,
       href: `/appointments/${a.id}`,
+    })),
+    ...(leads ?? []).map((l: any) => ({
+      type: "lead" as const,
+      id: l.id,
+      title: l.name,
+      subtitle: [l.phone, l.email, l.stage?.replace(/_/g, " ")].filter(Boolean).join(" · "),
+      href: `/leads`,
     })),
   ];
 

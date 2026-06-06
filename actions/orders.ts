@@ -420,6 +420,7 @@ export async function deleteOrder(id: string): Promise<ApiResponse<void>> {
     });
 
     revalidatePath("/orders");
+    if (order?.customerId) revalidatePath(`/customers/${order.customerId}`);
     return { success: true, message: "Order deleted successfully" };
   } catch (error) {
     Sentry.captureException(error); console.error("Delete order error:", error);

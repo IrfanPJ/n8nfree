@@ -52,6 +52,16 @@ export async function getCustomers(params: {
     dataQ.order("createdAt", { ascending: false }).range(skip, skip + pageSize - 1),
   ]);
 
+  // Embedded Order(count) includes soft-deleted rows — fetch active counts separately
+  const customerIds = (rawData ?? []).map((c: any) => c.id as string);
+  const { data: activeOrderRows } = customerIds.length > 0
+    ? await supabase.from("Order").select("customerId").eq("isActive", true).in("customerId", customerIds)
+    : { data: [] };
+  const activeOrderCount: Record<string, number> = {};
+  for (const row of (activeOrderRows ?? [])) {
+    activeOrderCount[(row as any).customerId] = (activeOrderCount[(row as any).customerId] ?? 0) + 1;
+  }
+
   const data = (rawData ?? []).map((c: any) => ({
     ...c,
     Order: undefined,
@@ -65,7 +75,7 @@ export async function getCustomers(params: {
     invoices: [],
     followUps: [],
     _count: {
-      orders: c.Order?.[0]?.count ?? 0,
+      orders: activeOrderCount[c.id] ?? 0,
       measurements: c.Measurement?.[0]?.count ?? 0,
       appointments: c.Appointment?.[0]?.count ?? 0,
       invoices: c.Invoice?.[0]?.count ?? 0,
@@ -101,11 +111,11 @@ export async function getCustomerById(id: string): Promise<CustomerWithRelations
   ] = await Promise.all([
     supabase.from("Customer").select("*").eq("id", id).eq("isActive", true).maybeSingle(),
     supabase.from("Measurement").select("*").eq("customerId", id).order("takenAt", { ascending: false }),
-    supabase.from("Order").select("*").eq("customerId", id).order("createdAt", { ascending: false }).limit(10),
+    supabase.from("Order").select("*").eq("customerId", id).eq("isActive", true).order("createdAt", { ascending: false }).limit(10),
     supabase.from("Appointment").select("*").eq("customerId", id).order("startTime", { ascending: false }).limit(5),
     supabase.from("Invoice").select("*").eq("customerId", id).order("createdAt", { ascending: false }).limit(5),
     supabase.from("FollowUp").select("*").eq("customerId", id).order("createdAt", { ascending: false }).limit(5),
-    supabase.from("Order").select("*", { count: "exact", head: true }).eq("customerId", id),
+    supabase.from("Order").select("*", { count: "exact", head: true }).eq("customerId", id).eq("isActive", true),
     supabase.from("Measurement").select("*", { count: "exact", head: true }).eq("customerId", id),
     supabase.from("Appointment").select("*", { count: "exact", head: true }).eq("customerId", id),
     supabase.from("Invoice").select("*", { count: "exact", head: true }).eq("customerId", id),

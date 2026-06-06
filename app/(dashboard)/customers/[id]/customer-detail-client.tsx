@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import {
   ArrowLeft, Edit2, Star, Phone, Mail, MapPin, Calendar, ShoppingBag,
-  Ruler, FileText, Package, MessageCircle, Plus, Sparkles, Printer
+  Ruler, FileText, Package, MessageCircle, Plus, Sparkles, Printer, Trash2
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -14,6 +14,8 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { CustomerForm } from "@/components/customers/customer-form";
+import { deleteOrder } from "@/actions/orders";
+import { toast } from "sonner";
 import { MeasurementForm } from "@/components/measurements/measurement-form";
 import { BespokeDesigner } from "@/components/orders/bespoke-designer";
 import { parseDesignNotes } from "@/app/(dashboard)/orders/orders-client";
@@ -33,7 +35,23 @@ export function CustomerDetailClient({ customer }: CustomerDetailClientProps) {
   const [measurementOpen, setMeasurementOpen] = useState(false);
   const [editMeasurement, setEditMeasurement] = useState<Measurement | null>(null);
   const [localMeasurements, setLocalMeasurements] = useState(customer.measurements as unknown as Measurement[]);
+  const [localOrders, setLocalOrders] = useState(customer.orders);
+  const [deletingOrderId, setDeletingOrderId] = useState<string | null>(null);
   const [designViewOrder, setDesignViewOrder] = useState<(typeof customer.orders)[0] | null>(null);
+
+  async function handleDeleteOrder(e: React.MouseEvent, orderId: string, orderNumber: string) {
+    e.stopPropagation();
+    if (!confirm(`Delete order ${orderNumber}? This cannot be undone.`)) return;
+    setDeletingOrderId(orderId);
+    const result = await deleteOrder(orderId);
+    if (result.success) {
+      toast.success(`Order ${orderNumber} deleted`);
+      setLocalOrders((prev) => prev.filter((o) => o.id !== orderId));
+    } else {
+      toast.error(result.error ?? "Failed to delete order");
+    }
+    setDeletingOrderId(null);
+  }
 
   const totalRevenue = customer.invoices
     .filter((i) => i.status === "PAID")
@@ -152,7 +170,7 @@ export function CustomerDetailClient({ customer }: CustomerDetailClientProps) {
         </TabsList>
 
         <TabsContent value="orders" className="mt-4">
-          {customer.orders.length === 0 ? (
+          {localOrders.length === 0 ? (
             <div className="text-center py-12 text-muted-foreground">
               <ShoppingBag className="w-10 h-10 mx-auto mb-3 opacity-30" />
               <p>No orders yet</p>
@@ -162,7 +180,7 @@ export function CustomerDetailClient({ customer }: CustomerDetailClientProps) {
             </div>
           ) : (
             <div className="space-y-2">
-              {customer.orders.map((order) => {
+              {localOrders.map((order) => {
                 const statusConfig = ORDER_STATUS_CONFIG[order.status];
                 return (
                   <div
@@ -170,8 +188,8 @@ export function CustomerDetailClient({ customer }: CustomerDetailClientProps) {
                     onClick={() => router.push(`/orders/${order.id}`)}
                     className="flex items-center gap-4 p-4 rounded-xl border border-border bg-card hover:border-primary/20 cursor-pointer transition-all"
                   >
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
                         <span className="text-sm font-mono font-medium">{order.orderNumber}</span>
                         <span className={cn("text-xs px-2 py-0.5 rounded-full border", statusConfig.bg, statusConfig.color, statusConfig.border)}>
                           {statusConfig.label}
@@ -184,9 +202,21 @@ export function CustomerDetailClient({ customer }: CustomerDetailClientProps) {
                         </p>
                       )}
                     </div>
-                    <div className="text-right text-sm">
-                      <p className="font-semibold">{formatCurrency(order.totalAmount)}</p>
-                      <p className="text-xs text-muted-foreground">Due: {formatDate(order.deliveryDate)}</p>
+                    <div className="flex items-center gap-3 flex-shrink-0">
+                      <div className="text-right text-sm">
+                        <p className="font-semibold">{formatCurrency(order.totalAmount)}</p>
+                        <p className="text-xs text-muted-foreground">Due: {formatDate(order.deliveryDate)}</p>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        disabled={deletingOrderId === order.id}
+                        onClick={(e) => handleDeleteOrder(e, order.id, order.orderNumber)}
+                        className="text-destructive hover:text-destructive hover:bg-destructive/10 flex-shrink-0"
+                        title="Delete order"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </Button>
                     </div>
                   </div>
                 );

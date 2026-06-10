@@ -179,6 +179,7 @@ export type Appointment = {
 export type Invoice = {
   id: string;
   invoiceNumber: string;
+  internalRef: string | null;
   customerId: string;
   orderId: string | null;
   status: InvoiceStatus;

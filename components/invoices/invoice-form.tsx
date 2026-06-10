@@ -86,6 +86,7 @@ export function InvoiceForm({
     defaultValues: {
       customerId: invoice?.customerId ?? defaultCustomerId ?? "",
       orderId: invoice?.orderId ?? "",
+      internalRef: (invoice as any)?.internalRef ?? "",
       status: invoice?.status ?? "DRAFT",
       items: invoice?.items?.length
         ? invoice.items.map((item) => ({
@@ -216,6 +217,15 @@ export function InvoiceForm({
         <div className="space-y-1.5">
           <Label htmlFor="dueDate">Due Date</Label>
           <Input id="dueDate" type="date" {...register("dueDate")} />
+        </div>
+
+        <div className="space-y-1.5">
+          <Label htmlFor="internalRef">Internal Invoice No.</Label>
+          <Input
+            id="internalRef"
+            placeholder="e.g. HT-2024-001"
+            {...register("internalRef")}
+          />
         </div>
 
         {orders && orders.length > 0 && (

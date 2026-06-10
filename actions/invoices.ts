@@ -88,6 +88,7 @@ export async function createInvoice(data: unknown): Promise<ApiResponse<InvoiceW
       invoiceNumber,
       customerId: parsed.data.customerId,
       orderId: parsed.data.orderId || null,
+      internalRef: parsed.data.internalRef || null,
       status: parsed.data.status,
       subtotal: parsed.data.subtotal,
       discountType: parsed.data.discountType || null,
@@ -152,6 +153,7 @@ export async function updateInvoice(id: string, data: unknown): Promise<ApiRespo
     const { error } = await supabase.from("Invoice").update({
       customerId: parsed.data.customerId,
       orderId: parsed.data.orderId || null,
+      internalRef: parsed.data.internalRef || null,
       status: parsed.data.status,
       subtotal: parsed.data.subtotal,
       discountType: parsed.data.discountType || null,

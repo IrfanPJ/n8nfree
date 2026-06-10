@@ -379,6 +379,14 @@ export function InvoiceView({ invoice, showActions = true }: InvoiceViewProps) {
                         {invoice.invoiceNumber}
                       </td>
                     </tr>
+                    {(invoice as any).internalRef && (
+                      <tr>
+                        <td style={{ color: "#888", paddingBottom: "5px", paddingRight: "12px" }}>Internal Ref</td>
+                        <td style={{ color: "#1a1a1a", fontWeight: "600", paddingBottom: "5px" }}>
+                          {(invoice as any).internalRef}
+                        </td>
+                      </tr>
+                    )}
                     <tr>
                       <td style={{ color: "#888", paddingBottom: "5px", paddingRight: "12px" }}>Date</td>
                       <td style={{ color: "#1a1a1a", paddingBottom: "5px" }}>

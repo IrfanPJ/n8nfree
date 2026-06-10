@@ -11,6 +11,7 @@ export const invoiceItemSchema = z.object({
 export const invoiceSchema = z.object({
   customerId: z.string().min(1, "Customer is required"),
   orderId: z.string().optional(),
+  internalRef: z.string().optional(),
   status: z.enum(["DRAFT", "SENT", "PARTIAL", "PAID", "OVERDUE", "CANCELLED"]),
   items: z.array(invoiceItemSchema).min(1, "At least one item is required"),
   subtotal: z.coerce.number().min(0),

@@ -57,6 +57,8 @@ export const measurementSchema = z.object({
   fabricNotes: z.string().optional(),
   notes: z.string().optional(),
   takenBy: z.string().optional(),
+  // Reference images
+  imageUrls: z.array(z.string()).optional().default([]),
 });
 
 export type MeasurementFormData = z.infer<typeof measurementSchema>;

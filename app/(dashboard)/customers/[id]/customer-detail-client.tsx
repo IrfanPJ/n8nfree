@@ -21,7 +21,7 @@ import { BespokeDesigner } from "@/components/orders/bespoke-designer";
 import { parseDesignNotes } from "@/app/(dashboard)/orders/orders-client";
 import type { CustomerWithRelations, Measurement } from "@/types";
 import {
-  getInitials, formatDate, formatCurrency, ORDER_STATUS_CONFIG, INVOICE_STATUS_CONFIG, openWhatsApp
+  getInitials, formatDate, formatCurrency, ORDER_STATUS_CONFIG, INVOICE_STATUS_CONFIG, openWhatsApp, displayOrderNumber
 } from "@/lib/utils";
 import { cn } from "@/lib/utils";
 
@@ -190,7 +190,7 @@ export function CustomerDetailClient({ customer }: CustomerDetailClientProps) {
                   >
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
-                        <span className="text-sm font-mono font-medium">{order.orderNumber}</span>
+                        <span className="text-sm font-mono font-medium">{displayOrderNumber(order)}</span>
                         <span className={cn("text-xs px-2 py-0.5 rounded-full border", statusConfig.bg, statusConfig.color, statusConfig.border)}>
                           {statusConfig.label}
                         </span>
@@ -211,7 +211,7 @@ export function CustomerDetailClient({ customer }: CustomerDetailClientProps) {
                         variant="ghost"
                         size="icon-sm"
                         disabled={deletingOrderId === order.id}
-                        onClick={(e) => handleDeleteOrder(e, order.id, order.orderNumber)}
+                        onClick={(e) => handleDeleteOrder(e, order.id, displayOrderNumber(order))}
                         className="text-destructive hover:text-destructive hover:bg-destructive/10 flex-shrink-0"
                         title="Delete order"
                       >
@@ -331,7 +331,7 @@ export function CustomerDetailClient({ customer }: CustomerDetailClientProps) {
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 mb-1">
-                          <span className="text-sm font-mono font-semibold">{order.orderNumber}</span>
+                          <span className="text-sm font-mono font-semibold">{displayOrderNumber(order)}</span>
                           <span className={cn("text-xs px-2 py-0.5 rounded-full border", statusConfig.bg, statusConfig.color, statusConfig.border)}>
                             {statusConfig.label}
                           </span>

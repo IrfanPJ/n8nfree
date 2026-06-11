@@ -86,11 +86,13 @@ function PaymentForm({
     register,
     handleSubmit,
     control,
+    watch,
     formState: { errors, isSubmitting },
   } = useForm<RecordPaymentFormData>({
     resolver: zodResolver(recordPaymentSchema) as any, // eslint-disable-line
     defaultValues: { amount: maxAmount, method: "CASH" },
   });
+  const selectedMethod = watch("method");
 
   const onSubmit = async (data: RecordPaymentFormData) => {
     const result = await recordPayment(invoiceId, data);
@@ -128,16 +130,25 @@ function PaymentForm({
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {["CASH", "CARD", "UPI", "BANK_TRANSFER", "CHEQUE", "OTHER"].map((m) => (
-                    <SelectItem key={m} value={m}>
-                      {m.replace("_", " ")}
-                    </SelectItem>
-                  ))}
+                  <SelectItem value="CASH">Cash</SelectItem>
+                  <SelectItem value="CARD">Card Payment</SelectItem>
+                  <SelectItem value="BANK_TRANSFER">Bank Transfer</SelectItem>
+                  <SelectItem value="PAYMENT_LINK">Payment Link</SelectItem>
+                  <SelectItem value="OTHER">Others</SelectItem>
+                  <SelectItem value="UPI">UPI</SelectItem>
+                  <SelectItem value="CHEQUE">Cheque</SelectItem>
                 </SelectContent>
               </Select>
             )}
           />
         </div>
+
+        {selectedMethod === "OTHER" && (
+          <div className="space-y-1.5 col-span-2">
+            <label className="text-sm font-medium">Describe Payment Method</label>
+            <Input placeholder="e.g. Cash on delivery, barter, etc." {...register("methodNote")} />
+          </div>
+        )}
 
         <div className="space-y-1.5 col-span-2">
           <label className="text-sm font-medium">Reference / Transaction ID</label>

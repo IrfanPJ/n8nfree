@@ -227,6 +227,7 @@ export async function recordPayment(invoiceId: string, data: unknown): Promise<A
       invoiceId,
       amount: parsed.data.amount,
       method: parsed.data.method,
+      methodNote: parsed.data.methodNote ?? null,
       reference: parsed.data.reference ?? null,
       notes: parsed.data.notes ?? null,
       paidAt: new Date().toISOString(),

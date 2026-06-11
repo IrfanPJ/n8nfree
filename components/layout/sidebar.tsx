@@ -5,7 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { motion } from "framer-motion";
 import {
-  LayoutDashboard, Users, ShoppingBag, Calendar, FileText,
+  LayoutDashboard, Users, ShoppingBag, Calendar, CalendarDays, FileText,
   Bell, Settings, LogOut, ChevronLeft, ChevronRight,
   Scissors, Package, MessageSquare, BarChart3, Phone,
   Target, Layers, ShoppingCart, X, ScanLine, Activity,
@@ -23,6 +23,7 @@ const navItems = [
   { href: "/scan", label: "QR Scanner", icon: ScanLine },
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/appointments", label: "Appointments", icon: Calendar },
+  { href: "/calendar", label: "Calendar", icon: CalendarDays },
   { href: "/orders", label: "Orders", icon: ShoppingBag },
   { href: "/customers", label: "Client Book", icon: Users },
   { href: "/fabrics", label: "Fabrics", icon: Layers },

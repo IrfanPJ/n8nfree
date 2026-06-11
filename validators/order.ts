@@ -10,24 +10,35 @@ export const orderItemInputSchema = z.object({
   sortOrder: z.coerce.number().int().optional(),
   fabricCode:        z.string().optional().or(z.literal("")),
   fabricComposition: z.string().optional().or(z.literal("")),
-  fabricPrice:       z.coerce.number().min(0).optional(),
   fabricColor:       z.string().optional().or(z.literal("")),
+  fabricImageUrl:    z.string().optional().or(z.literal("")),
 });
 
 export const orderSchema = z.object({
   customerId: z.string().min(1, "Customer is required"),
+  customOrderNumber: z.string().optional().or(z.literal("")),
   items: z.array(orderItemInputSchema).min(1, "At least one garment item is required"),
   fabricName: z.string().optional(),
   fabricColor: z.string().optional(),
   fabricQuantity: z.coerce.number().positive().optional(),
   deliveryDate: z.string().min(1, "Delivery date is required"),
   trialDate: z.string().optional(),
+  trialRequired: z.boolean().default(false),
   totalAmount: z.coerce.number().min(0, "Total amount must be non-negative"),
   advanceAmount: z.coerce.number().min(0, "Advance amount must be non-negative"),
-  priority: z.enum(["LOW", "NORMAL", "HIGH", "URGENT"]),
+  priority: z.enum(["VIP", "REGULAR", "URGENT"]),
   designNotes: z.string().optional(),
   notes: z.string().optional(),
   assignedToId: z.string().optional().transform((v) => v || undefined),
+  masterTailorId: z.string().optional().transform((v) => v || undefined),
+  salespersonId: z.string().optional().transform((v) => v || undefined),
+  stylingName: z.string().optional(),
+  stylingNotes: z.string().optional(),
+  stylingImageUrls: z.array(z.string()).optional().default([]),
+  purchaseNotes: z.string().optional(),
+  specialNotes: z.string().optional(),
+  advancePaymentMethod: z.enum(["CASH", "CARD", "BANK_TRANSFER", "PAYMENT_LINK", "OTHER"]).optional(),
+  advancePaymentReference: z.string().optional(),
 });
 
 export const orderStatusUpdateSchema = z.object({

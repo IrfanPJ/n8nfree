@@ -1,11 +1,12 @@
 "use client";
 
-import React, { useEffect, useRef } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
 import { measurementSchema, type MeasurementFormData } from "@/validators/measurement";
 import { createMeasurement, updateMeasurement } from "@/actions/measurements";
+import { uploadImage } from "@/lib/upload-image-client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -18,6 +19,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
+import { Camera } from "lucide-react";
 import type { Measurement, Customer } from "@/types";
 
 interface MeasurementFormProps {
@@ -145,8 +147,33 @@ export function MeasurementForm({
       lowerRemarks:          measurement?.lowerRemarks ?? "",
       fabricNotes:           measurement?.fabricNotes ?? "",
       notes:                 measurement?.notes ?? "",
+      imageUrls:             measurement?.imageUrls ?? [],
     },
   });
+
+  const [showImageUpload, setShowImageUpload] = useState((measurement?.imageUrls?.length ?? 0) > 0);
+  const [measurementImages, setMeasurementImages] = useState<string[]>(measurement?.imageUrls ?? []);
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const imageFileRef = useRef<HTMLInputElement | null>(null);
+
+  const handleMeasurementImageUpload = useCallback(async (file: File) => {
+    setUploadingImage(true);
+    try {
+      const result = await uploadImage("measurement-images", file, "measurements");
+      if (result.url) {
+        const updated = [...measurementImages, result.url];
+        setMeasurementImages(updated);
+        setValue("imageUrls", updated);
+        toast.success("Image uploaded");
+      } else { toast.error(result.error ?? "Upload failed"); }
+    } finally { setUploadingImage(false); }
+  }, [measurementImages, setValue]);
+
+  const removeMeasurementImage = (url: string) => {
+    const updated = measurementImages.filter((u) => u !== url);
+    setMeasurementImages(updated);
+    setValue("imageUrls", updated);
+  };
 
   const unit = watch("unit");
   const prevUnitRef = useRef<string>(unit);
@@ -346,6 +373,66 @@ export function MeasurementForm({
       <div className="space-y-1">
         <Label htmlFor="notes" className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">General Notes</Label>
         <Textarea id="notes" placeholder="Any other notes..." rows={2} {...register("notes")} className="resize-none text-sm" />
+      </div>
+
+      {/* ── Reference Images ─────────────────────────────────────── */}
+      <div className="space-y-2">
+        <div className="flex items-center gap-2">
+          <input
+            type="checkbox"
+            id="showImageUpload"
+            checked={showImageUpload}
+            onChange={(e) => setShowImageUpload(e.target.checked)}
+            className="rounded"
+          />
+          <Label htmlFor="showImageUpload" className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground cursor-pointer">
+            Add Measurement Reference Images
+          </Label>
+        </div>
+
+        {showImageUpload && (
+          <div className="space-y-2 p-3 rounded-lg border border-border bg-secondary/10">
+            <input
+              ref={imageFileRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={async (e) => {
+                const file = e.target.files?.[0];
+                if (file) await handleMeasurementImageUpload(file);
+                e.target.value = "";
+              }}
+            />
+            {measurementImages.length > 0 && (
+              <div className="flex flex-wrap gap-2">
+                {measurementImages.map((url) => (
+                  <div key={url} className="relative group w-20 h-20">
+                    <img src={url} alt="Reference" className="w-full h-full object-cover rounded border border-border" />
+                    <button
+                      type="button"
+                      onClick={() => removeMeasurementImage(url)}
+                      className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-destructive text-destructive-foreground text-xs flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                    >×</button>
+                  </div>
+                ))}
+              </div>
+            )}
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => imageFileRef.current?.click()}
+              disabled={uploadingImage || measurementImages.length >= 10}
+              className="gap-1.5 text-xs"
+            >
+              <Camera className="w-3.5 h-3.5" />
+              {uploadingImage ? "Uploading..." : "Add Image"}
+            </Button>
+            {measurementImages.length >= 10 && (
+              <p className="text-xs text-muted-foreground">Maximum 10 images reached</p>
+            )}
+          </div>
+        )}
       </div>
 
       {/* ── Actions ──────────────────────────────────────────────── */}

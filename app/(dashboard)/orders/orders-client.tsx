@@ -54,7 +54,8 @@ import {
 import { OrderForm } from "@/components/orders/order-form";
 import { OrderStatusBadge, PriorityBadge } from "@/components/orders/order-status-badge";
 import { OrderKanban } from "@/components/orders/order-kanban";
-import { BespokeDesigner, type GarmentDesign } from "@/components/orders/bespoke-designer";
+import { OrdersCalendar } from "@/components/orders/orders-calendar";
+import { BespokeDesigner, buildSpecText, type GarmentDesign } from "@/components/orders/bespoke-designer";
 import { OrderQRDialog } from "@/components/orders/order-qr-dialog";
 import { deleteOrder, updateOrderStatus, updateOrderDesign } from "@/actions/orders";
 import type { OrderWithRelations, PaginatedResult, OrderStatus, Measurement } from "@/types";
@@ -67,6 +68,7 @@ import {
   ORDER_STATUS_CONFIG,
   PRIORITY_CONFIG,
   openWhatsApp,
+  displayOrderNumber,
 } from "@/lib/utils";
 import { format } from "date-fns";
 import { getMeasurements, deleteMeasurement } from "@/actions/measurements";
@@ -193,20 +195,30 @@ const ORDER_STATUSES: OrderStatus[] = [
   "ORDER_CLOSED",
 ];
 
-const PRIORITIES = ["LOW", "NORMAL", "HIGH", "URGENT"] as const;
+const PRIORITIES = ["VIP", "REGULAR", "URGENT"] as const;
 
 interface OrdersClientProps {
   initialData: PaginatedResult<OrderWithRelations>;
-  initialView?: "table" | "kanban";
+  initialView?: "table" | "kanban" | "calendar";
 }
 
-// Parse designNotes — may be plain text (legacy) or JSON {spec, design}
+// Parse designNotes — three formats supported:
+//   1. { spec, design }  — saved by BespokeDesigner dialog or new inline form
+//   2. bare GarmentDesign JSON  — saved by old inline form (transitional)
+//   3. plain text — legacy free-text design notes
 export function parseDesignNotes(raw: string | null | undefined): { spec: string; design: GarmentDesign | null } {
   if (!raw) return { spec: "", design: null };
   try {
     const p = JSON.parse(raw);
-    if (p && typeof p === "object" && "spec" in p) {
-      return { spec: p.spec as string, design: (p.design as GarmentDesign) ?? null };
+    if (p && typeof p === "object") {
+      if ("spec" in p) {
+        // Format 1: { spec, design }
+        return { spec: p.spec as string, design: (p.design as GarmentDesign) ?? null };
+      }
+      if ("jacket" in p || "shirt" in p || "trouser" in p) {
+        // Format 2: bare GarmentDesign object (transitional inline-form save)
+        return { spec: buildSpecText(p as GarmentDesign), design: p as GarmentDesign };
+      }
     }
   } catch { /* plain text */ }
   return { spec: raw, design: null };
@@ -219,7 +231,7 @@ export function OrdersClient({
   const router = useRouter();
   const searchParams = useSearchParams();
   const [data, setData] = useState(initialData);
-  const [view, setView] = useState<"table" | "kanban">(initialView);
+  const [view, setView] = useState<"table" | "kanban" | "calendar">(initialView);
   const [createOpen, setCreateOpen] = useState(false);
   const [editOrder, setEditOrder] = useState<OrderWithRelations | null>(null);
   const [viewOrder, setViewOrder] = useState<OrderWithRelations | null>(null);
@@ -388,6 +400,18 @@ export function OrdersClient({
               <LayoutGrid className="w-3.5 h-3.5" />
               Kanban
             </button>
+            <button
+              onClick={() => setView("calendar")}
+              className={cn(
+                "flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium transition-colors border-l border-border",
+                view === "calendar"
+                  ? "bg-[#D4AF37]/15 text-[#D4AF37]"
+                  : "text-muted-foreground hover:text-foreground hover:bg-secondary/50"
+              )}
+            >
+              <Calendar className="w-3.5 h-3.5" />
+              Calendar
+            </button>
           </div>
 
           <Button variant="gold" onClick={() => setCreateOpen(true)}>
@@ -483,7 +507,14 @@ export function OrdersClient({
       )}
 
       {/* Content */}
-      {view === "kanban" ? (
+      {view === "calendar" ? (
+        <OrdersCalendar
+          onOrderClick={(orderId) => {
+            const order = data.data.find((o) => o.id === orderId);
+            if (order) setViewOrder(order);
+          }}
+        />
+      ) : view === "kanban" ? (
         <OrderKanban
           initialOrders={data.data}
           onStatusChange={(orderId, newStatus) =>
@@ -684,7 +715,7 @@ export function OrdersClient({
               <span>Order Details</span>
               {viewOrder && (
                 <span className="text-[#D4AF37] text-sm font-normal">
-                  {viewOrder.orderNumber}
+                  {displayOrderNumber(viewOrder)}
                 </span>
               )}
             </DialogTitle>
@@ -732,7 +763,7 @@ function OrderTableRow({ order, index, deletingId, statusUpdating, onView, onEdi
       <td className="px-4 py-3">
         <div className="flex flex-col gap-0.5">
           <button onClick={onView} className="text-sm font-semibold text-[#D4AF37] hover:underline text-left">
-            {order.orderNumber}
+            {displayOrderNumber(order)}
           </button>
           <div className="flex items-center gap-1.5">
             <PriorityBadge priority={order.priority} />
@@ -838,7 +869,7 @@ function OrderTableRow({ order, index, deletingId, statusUpdating, onView, onEdi
               </DropdownMenuItem>
               {order.customer.phone && (
                 <DropdownMenuItem
-                  onClick={() => openWhatsApp(order.customer.phone, `Hello ${order.customer.name}, your order ${order.orderNumber} (${order.garmentType}) status: *${ORDER_STATUS_CONFIG[order.status]?.label}*. Delivery: ${formatDate(order.deliveryDate)}. — House of Tailors`)}
+                  onClick={() => openWhatsApp(order.customer.phone, `Hello ${order.customer.name}, your order ${displayOrderNumber(order)} (${order.garmentType}) status: *${ORDER_STATUS_CONFIG[order.status]?.label}*. Delivery: ${formatDate(order.deliveryDate)}. — House of Tailors`)}
                   className="text-green-400 focus:text-green-400"
                 >
                   <MessageCircle className="w-4 h-4 mr-2" /> WhatsApp
@@ -858,7 +889,7 @@ function OrderTableRow({ order, index, deletingId, statusUpdating, onView, onEdi
           </Button>
           {order.customer.phone && (
             <Button variant="ghost" size="icon-sm" className="text-green-400 hover:text-green-300"
-              onClick={() => openWhatsApp(order.customer.phone, `Hello ${order.customer.name}, your order ${order.orderNumber} (${order.garmentType}) status: *${ORDER_STATUS_CONFIG[order.status]?.label}*. Delivery: ${formatDate(order.deliveryDate)}. — House of Tailors`)}>
+              onClick={() => openWhatsApp(order.customer.phone, `Hello ${order.customer.name}, your order ${displayOrderNumber(order)} (${order.garmentType}) status: *${ORDER_STATUS_CONFIG[order.status]?.label}*. Delivery: ${formatDate(order.deliveryDate)}. — House of Tailors`)}>
               <MessageCircle className="w-4 h-4" />
             </Button>
           )}
@@ -1074,7 +1105,7 @@ function OrderDetailView({ order, onShowQR }: { order: OrderWithRelations; onSho
                   className="text-green-400 border-green-400/30 hover:bg-green-400/10"
                   onClick={() => openWhatsApp(
                     order.customer.phone,
-                    `Hello ${order.customer.name}, your order ${order.orderNumber} (${order.garmentType}) status: *${ORDER_STATUS_CONFIG[order.status]?.label}*. Delivery: ${formatDate(order.deliveryDate)}. — House of Tailors`
+                    `Hello ${order.customer.name}, your order ${displayOrderNumber(order)} (${order.garmentType}) status: *${ORDER_STATUS_CONFIG[order.status]?.label}*. Delivery: ${formatDate(order.deliveryDate)}. — House of Tailors`
                   )}
                 >
                   <MessageCircle className="w-3.5 h-3.5 mr-1.5" />

@@ -54,6 +54,8 @@ function measurementFields(d: ReturnType<typeof measurementSchema.parse>) {
     lowerRemarks: d.lowerRemarks ?? null,
     fabricNotes: d.fabricNotes ?? null,
     notes: d.notes ?? null,
+    // Images
+    imageUrls: d.imageUrls ?? [],
   };
 }
 

@@ -18,7 +18,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { formatCurrency } from "@/lib/utils";
+import { formatCurrency, displayOrderNumber } from "@/lib/utils";
 import { cn } from "@/lib/utils";
 import type { InvoiceWithRelations, Customer, Order } from "@/types";
 
@@ -115,6 +115,26 @@ export function InvoiceForm({
 
   const { fields, append, remove } = useFieldArray({ control, name: "items" });
   const [customItems, setCustomItems] = useState<Record<string, boolean>>({});
+  // Track whether customer was auto-filled from a selected order
+  const [orderLockedCustomer, setOrderLockedCustomer] = useState(
+    !!(invoice?.orderId && invoice?.customerId)
+  );
+
+  const handleOrderChange = (orderId: string) => {
+    setValue("orderId", orderId === "none" ? "" : orderId);
+    if (orderId === "none" || !orderId) {
+      setOrderLockedCustomer(false);
+      return;
+    }
+    const order = orders?.find((o) => o.id === orderId);
+    if (!order) return;
+    // Auto-fill customer
+    setValue("customerId", order.customerId, { shouldDirty: true });
+    setOrderLockedCustomer(true);
+    // Auto-fill internal ref from order's custom number
+    const ref = (order as any).customOrderNumber || order.orderNumber;
+    if (ref) setValue("internalRef", ref, { shouldDirty: true });
+  };
 
   // Auto-calculate item amounts and totals
   const recalculate = useCallback(() => {
@@ -163,35 +183,101 @@ export function InvoiceForm({
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
-      {/* Customer & Order */}
+      {/* Order → Customer → Ref → Status → Due Date */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        {customers && customers.length > 0 && (
-          <div className="space-y-1.5">
-            <Label>Customer *</Label>
+
+        {/* 1. Order selector (first — drives everything else) */}
+        {orders && orders.length > 0 && (
+          <div className="space-y-1.5 sm:col-span-2">
+            <Label>Linked Order <span className="text-muted-foreground font-normal">(optional — auto-fills customer & invoice number)</span></Label>
             <Controller
-              name="customerId"
+              name="orderId"
               control={control}
               render={({ field }) => (
-                <Select value={field.value} onValueChange={field.onChange}>
-                  <SelectTrigger className={errors.customerId ? "border-destructive" : ""}>
-                    <SelectValue placeholder="Select customer" />
+                <Select
+                  value={field.value || "none"}
+                  onValueChange={(v) => handleOrderChange(v)}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select order to link (optional)" />
                   </SelectTrigger>
                   <SelectContent>
-                    {customers.map((c) => (
-                      <SelectItem key={c.id} value={c.id}>
-                        {c.name}
-                      </SelectItem>
-                    ))}
+                    <SelectItem value="none">No linked order</SelectItem>
+                    {orders.map((o) => {
+                      const num = displayOrderNumber(o as Order & { orderNumber: string; customOrderNumber?: string | null });
+                      const cust = customers?.find((c) => c.id === o.customerId);
+                      return (
+                        <SelectItem key={o.id} value={o.id}>
+                          {num}{cust ? ` — ${cust.name}` : ""}
+                        </SelectItem>
+                      );
+                    })}
                   </SelectContent>
                 </Select>
               )}
             />
-            {errors.customerId && (
-              <p className="text-xs text-destructive">{errors.customerId.message}</p>
-            )}
           </div>
         )}
 
+        {/* 2. Customer — read-only when auto-filled from order, dropdown otherwise */}
+        <div className="space-y-1.5">
+          <Label>Customer *</Label>
+          {orderLockedCustomer ? (
+            <div className="flex items-center gap-2 h-10 px-3 rounded-md border border-border/60 bg-secondary/20 text-sm">
+              <span className="flex-1 truncate">
+                {customers?.find((c) => c.id === watch("customerId"))?.name ?? "Auto-filled from order"}
+              </span>
+              <button
+                type="button"
+                className="text-muted-foreground hover:text-foreground text-xs shrink-0"
+                onClick={() => {
+                  setOrderLockedCustomer(false);
+                  setValue("orderId", "");
+                  setValue("customerId", "");
+                  setValue("internalRef", "");
+                }}
+              >
+                Clear
+              </button>
+            </div>
+          ) : (
+            <>
+              <Controller
+                name="customerId"
+                control={control}
+                render={({ field }) => (
+                  <Select value={field.value} onValueChange={field.onChange}>
+                    <SelectTrigger className={errors.customerId ? "border-destructive" : ""}>
+                      <SelectValue placeholder="Select customer" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {(customers ?? []).map((c) => (
+                        <SelectItem key={c.id} value={c.id}>
+                          {c.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              />
+              {errors.customerId && (
+                <p className="text-xs text-destructive">{errors.customerId.message}</p>
+              )}
+            </>
+          )}
+        </div>
+
+        {/* 3. Internal invoice number — auto-filled from order's custom order number */}
+        <div className="space-y-1.5">
+          <Label htmlFor="internalRef">Invoice Number</Label>
+          <Input
+            id="internalRef"
+            placeholder="Auto-filled from order, or enter manually"
+            {...register("internalRef")}
+          />
+        </div>
+
+        {/* 4. Status */}
         <div className="space-y-1.5">
           <Label>Status</Label>
           <Controller
@@ -214,44 +300,12 @@ export function InvoiceForm({
           />
         </div>
 
+        {/* 5. Due date */}
         <div className="space-y-1.5">
           <Label htmlFor="dueDate">Due Date</Label>
           <Input id="dueDate" type="date" {...register("dueDate")} />
         </div>
 
-        <div className="space-y-1.5">
-          <Label htmlFor="internalRef">Internal Invoice No.</Label>
-          <Input
-            id="internalRef"
-            placeholder="e.g. HT-2024-001"
-            {...register("internalRef")}
-          />
-        </div>
-
-        {orders && orders.length > 0 && (
-          <div className="space-y-1.5">
-            <Label>Linked Order</Label>
-            <Controller
-              name="orderId"
-              control={control}
-              render={({ field }) => (
-                <Select value={field.value || "none"} onValueChange={(v) => field.onChange(v === "none" ? "" : v)}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Link to order (optional)" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">No linked order</SelectItem>
-                    {orders.map((o) => (
-                      <SelectItem key={o.id} value={o.id}>
-                        {(o as Order & { orderNumber: string }).orderNumber}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              )}
-            />
-          </div>
-        )}
       </div>
 
       {/* Line Items */}

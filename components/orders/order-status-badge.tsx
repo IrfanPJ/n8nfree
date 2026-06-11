@@ -57,22 +57,27 @@ export function OrderStatusBadge({
 }
 
 interface PriorityBadgeProps {
-  priority: "LOW" | "NORMAL" | "HIGH" | "URGENT";
+  priority: string;
   className?: string;
 }
 
 const PRIORITY_STYLES: Record<string, string> = {
-  LOW: "text-gray-400 bg-gray-400/10 border-gray-400/20",
-  NORMAL: "text-blue-400 bg-blue-400/10 border-blue-400/20",
-  HIGH: "text-yellow-400 bg-yellow-400/10 border-yellow-400/20",
-  URGENT: "text-red-400 bg-red-400/10 border-red-400/20",
+  VIP:     "text-purple-400 bg-purple-400/10 border-purple-400/20",
+  REGULAR: "text-gray-400 bg-gray-400/10 border-gray-400/20",
+  URGENT:  "text-red-400 bg-red-400/10 border-red-400/20",
+  // legacy values — display gracefully
+  LOW:     "text-gray-400 bg-gray-400/10 border-gray-400/20",
+  NORMAL:  "text-gray-400 bg-gray-400/10 border-gray-400/20",
+  HIGH:    "text-amber-400 bg-amber-400/10 border-amber-400/20",
 };
 
 const PRIORITY_LABELS: Record<string, string> = {
-  LOW: "Low",
-  NORMAL: "Normal",
-  HIGH: "High",
-  URGENT: "Urgent",
+  VIP:     "VIP",
+  REGULAR: "Regular",
+  URGENT:  "Urgent",
+  LOW:     "Regular",
+  NORMAL:  "Regular",
+  HIGH:    "Urgent",
 };
 
 export function PriorityBadge({ priority, className }: PriorityBadgeProps) {
@@ -80,14 +85,17 @@ export function PriorityBadge({ priority, className }: PriorityBadgeProps) {
     <span
       className={cn(
         "inline-flex items-center rounded-full border text-[10px] font-semibold px-1.5 py-0.5",
-        PRIORITY_STYLES[priority],
+        PRIORITY_STYLES[priority] ?? "text-gray-400 bg-gray-400/10 border-gray-400/20",
         className
       )}
     >
       {priority === "URGENT" && (
         <span className="mr-0.5" aria-hidden="true">!</span>
       )}
-      {PRIORITY_LABELS[priority]}
+      {priority === "VIP" && (
+        <span className="mr-0.5" aria-hidden="true">★</span>
+      )}
+      {PRIORITY_LABELS[priority] ?? priority}
     </span>
   );
 }

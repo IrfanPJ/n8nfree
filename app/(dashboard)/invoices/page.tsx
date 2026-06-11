@@ -36,7 +36,7 @@ async function InvoicesContent({
       customerId: params.customerId,
     }),
     getCustomers({ pageSize: 500 }),
-    supabase.from("Order").select("id, orderNumber, customerId, status, totalAmount").eq("isActive", true).order("createdAt", { ascending: false }).limit(200),
+    supabase.from("Order").select("id, orderNumber, customOrderNumber, customerId, status, totalAmount").eq("isActive", true).order("createdAt", { ascending: false }).limit(200),
   ]);
 
   return (

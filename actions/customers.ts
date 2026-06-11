@@ -5,6 +5,7 @@ import { randomUUID } from "crypto";
 import { supabase } from "@/lib/supabase";
 import { auth } from "@/lib/auth";
 import { customerSchema } from "@/validators/customer";
+import { saveCustomCountry, saveCustomCity } from "@/actions/master-lists";
 import * as Sentry from "@sentry/nextjs";
 import type { ApiResponse, CustomerWithRelations, PaginatedResult } from "@/types";
 
@@ -161,6 +162,9 @@ export async function createCustomer(data: unknown): Promise<ApiResponse<Custome
         ...parsed.data,
         email: parsed.data.email || null,
         dateOfBirth: parsed.data.dateOfBirth || null,
+        area: parsed.data.area || null,
+        country: parsed.data.country || null,
+        countryCustom: parsed.data.countryCustom || null,
         tags: parsed.data.tags ?? [],
         branch: "Business Bay",
         createdAt: now,
@@ -170,6 +174,10 @@ export async function createCustomer(data: unknown): Promise<ApiResponse<Custome
       .single();
 
     if (error) throw error;
+
+    // Save custom country/city for future autocomplete
+    if (parsed.data.countryCustom) saveCustomCountry(parsed.data.countryCustom).catch(() => {});
+    if (parsed.data.city) saveCustomCity(parsed.data.city, parsed.data.country || undefined).catch(() => {});
 
     await supabase.from("ActivityLog").insert({
       id: randomUUID(),
@@ -209,6 +217,9 @@ export async function updateCustomer(id: string, data: unknown): Promise<ApiResp
         ...parsed.data,
         email: parsed.data.email || null,
         dateOfBirth: parsed.data.dateOfBirth || null,
+        area: parsed.data.area || null,
+        country: parsed.data.country || null,
+        countryCustom: parsed.data.countryCustom || null,
         tags: parsed.data.tags ?? [],
         updatedAt: new Date().toISOString(),
       })
@@ -217,6 +228,10 @@ export async function updateCustomer(id: string, data: unknown): Promise<ApiResp
       .single();
 
     if (error) throw error;
+
+    // Save custom country/city for future autocomplete
+    if (parsed.data.countryCustom) saveCustomCountry(parsed.data.countryCustom).catch(() => {});
+    if (parsed.data.city) saveCustomCity(parsed.data.city, parsed.data.country || undefined).catch(() => {});
 
     await supabase.from("ActivityLog").insert({
       id: randomUUID(),

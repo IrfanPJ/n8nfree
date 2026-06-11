@@ -74,21 +74,21 @@ export interface GarmentDesign {
 
 // ── Defaults ───────────────────────────────────────────────────
 
-const DEFAULT_JACKET: JacketDesign = {
+export const DEFAULT_JACKET: JacketDesign = {
   sizePattern: "", buttonsCode: "", jacketType: "", noOfButtons: "",
   frontPockets: "", lapel: "", lapelPinHole: "", backVent: "",
   insideFashion: "", insidePockets: "", extraPocket: "", sleeveButtons: "",
   pickStitch: "", others: "", comments: "",
 };
 
-const DEFAULT_SHIRT: ShirtDesign = {
+export const DEFAULT_SHIRT: ShirtDesign = {
   sizePattern: "", buttonsCode: "", shirtFit: "", collarStyle: "",
   frontPockets: "", frontPlacket: "", backDart: "", cuffStyle: "",
   nameEmbroidery: "", embroideryPosition: "", cuffSize: "",
   collarPointSize: "", collarStandSize: "", collarSize: "", comments: "",
 };
 
-const DEFAULT_TROUSER: TrouserDesign = {
+export const DEFAULT_TROUSER: TrouserDesign = {
   sizePattern: "", buttonsCode: "", fit: "", frontPleats: "",
   backPockets: "", backPocketsType: "", insideLining: "", loops: "",
   sideAdjuster: "", frontPocket: "", bottomStyle: "", buttonHook: "",
@@ -366,7 +366,7 @@ function printSpec(
 
 // ── OptionChip ─────────────────────────────────────────────────
 
-function OptionChip({ label, selected, onClick }: { label: string; selected: boolean; onClick: () => void }) {
+export function OptionChip({ label, selected, onClick }: { label: string; selected: boolean; onClick: () => void }) {
   return (
     <button
       type="button"
@@ -388,7 +388,7 @@ function OptionChip({ label, selected, onClick }: { label: string; selected: boo
   );
 }
 
-function SecLabel({ children }: { children: React.ReactNode }) {
+export function SecLabel({ children }: { children: React.ReactNode }) {
   return (
     <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-1.5 mt-4 first:mt-0">
       {children}
@@ -396,7 +396,7 @@ function SecLabel({ children }: { children: React.ReactNode }) {
   );
 }
 
-function OptionGroup({
+export function OptionGroup({
   label, options, value, onChange,
 }: { label: string; options: string[]; value: string; onChange: (v: string) => void }) {
   return (

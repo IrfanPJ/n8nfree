@@ -23,12 +23,12 @@ export type OrderStatus =
   | "PENDING_ALTERATION"
   | "READY_FINAL_DELIVERY"
   | "ORDER_CLOSED";
-export type OrderPriority = "LOW" | "NORMAL" | "HIGH" | "URGENT";
+export type OrderPriority = "VIP" | "REGULAR" | "URGENT";
 export type AppointmentStatus =
   | "SCHEDULED" | "CONFIRMED" | "IN_PROGRESS" | "COMPLETED" | "CANCELLED" | "NO_SHOW";
 export type InvoiceStatus = "DRAFT" | "SENT" | "PARTIAL" | "PAID" | "OVERDUE" | "CANCELLED";
 export type FollowUpStatus = "PENDING" | "IN_PROGRESS" | "COMPLETED" | "CANCELLED";
-export type PaymentMethod = "CASH" | "CARD" | "UPI" | "BANK_TRANSFER" | "CHEQUE" | "OTHER";
+export type PaymentMethod = "CASH" | "CARD" | "UPI" | "BANK_TRANSFER" | "CHEQUE" | "OTHER" | "PAYMENT_LINK";
 export type NotificationType =
   | "ORDER_STATUS" | "APPOINTMENT" | "PAYMENT" | "FOLLOWUP" | "SYSTEM" | "DELIVERY";
 
@@ -54,7 +54,10 @@ export type Customer = {
   email: string | null;
   phone: string;
   address: string | null;
+  area: string | null;
   city: string | null;
+  country: string | null;
+  countryCustom: string | null;
   gender: Gender;
   dateOfBirth: string | null;
   notes: string | null;
@@ -114,6 +117,7 @@ export type Measurement = {
   lowerRemarks: string | null;
   fabricNotes: string | null;
   notes: string | null;
+  imageUrls: string[];
   takenAt: string;
   takenBy: string | null;
   createdAt: string;
@@ -123,8 +127,11 @@ export type Measurement = {
 export type Order = {
   id: string;
   orderNumber: string;
+  customOrderNumber: string | null;
   customerId: string;
   assignedToId: string | null;
+  masterTailorId: string | null;
+  salespersonId: string | null;
   status: OrderStatus;
   priority: OrderPriority;
   garmentType: string;
@@ -138,9 +145,15 @@ export type Order = {
   orderDate: string;
   deliveryDate: string;
   trialDate: string | null;
+  trialRequired: boolean;
   advanceAmount: number;
   totalAmount: number;
   notes: string | null;
+  stylingName: string | null;
+  stylingNotes: string | null;
+  stylingImageUrls: string[];
+  purchaseNotes: string | null;
+  specialNotes: string | null;
   cancelReason: string | null;
   isActive: boolean;
   branch: string;
@@ -213,6 +226,7 @@ export type Payment = {
   invoiceId: string;
   amount: number;
   method: PaymentMethod;
+  methodNote: string | null;
   reference: string | null;
   notes: string | null;
   paidAt: string;
@@ -226,7 +240,7 @@ export type FollowUp = {
   title: string;
   description: string | null;
   status: FollowUpStatus;
-  priority: OrderPriority;
+  priority: "LOW" | "NORMAL" | "HIGH" | "URGENT";
   dueDate: string | null;
   completedAt: string | null;
   notes: string | null;
@@ -250,15 +264,20 @@ export type Supplier = {
 export type Purchase = {
   id: string;
   supplierId: string | null;
+  orderId: string | null;
   itemName: string;
   itemCode: string | null;
+  fabricCode: string | null;
+  fabricColor: string | null;
   category: string;
+  status: string;
   quantity: number;
   unit: string;
   unitPrice: number;
   totalAmount: number;
   paidAmount: number;
   notes: string | null;
+  purchaseNotes: string | null;
   purchaseDate: string;
   createdAt: string;
   updatedAt: string;
@@ -364,6 +383,46 @@ export type CustomerWithRelations = Customer & {
   };
 };
 
+export type TailorMaster = {
+  id: string;
+  name: string;
+  phone: string | null;
+  specialization: string | null;
+  notes: string | null;
+  branch: string | null;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type Salesperson = {
+  id: string;
+  name: string;
+  phone: string | null;
+  branch: string | null;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type GarmentTypeMaster = {
+  id: string;
+  name: string;
+  isActive: boolean;
+  createdAt: string;
+};
+
+export type CalendarEvent = {
+  id: string;
+  type: "appointment" | "trial" | "delivery";
+  title: string;
+  start: string;
+  end?: string;
+  customerId?: string;
+  orderId?: string;
+  color: string;
+};
+
 export type OrderItem = {
   id: string;
   orderId: string;
@@ -374,17 +433,22 @@ export type OrderItem = {
   assignedTo?: Pick<User, "id" | "name" | "role"> | null;
   notes: string | null;
   sortOrder: number;
-  fabricName: string | null;
+  fabricCode: string | null;
+  fabricComposition: string | null;
   fabricColor: string | null;
+  fabricImageUrl: string | null;
   createdAt: string;
 };
 
 export type OrderWithRelations = Order & {
   customer: Customer;
   assignedTo?: User | null;
+  masterTailor?: TailorMaster | null;
+  salesperson?: Pick<User, "id" | "name" | "role"> | null;
   invoice?: Invoice | null;
   statusHistory: OrderHistory[];
   items: OrderItem[];
+  fabricPurchaseStatus?: string | null;
 };
 
 export type AppointmentWithRelations = Appointment & {
@@ -406,6 +470,10 @@ export type FollowUpWithRelations = FollowUp & {
 
 export type PurchaseWithRelations = Purchase & {
   supplier?: Supplier | null;
+  order?: Pick<Order, "id" | "orderNumber" | "customOrderNumber" | "status"> & {
+    customer: Pick<Customer, "id" | "name">;
+    items?: Array<Pick<OrderItem, "id" | "garmentType" | "quantity" | "unitPrice" | "fabricCode" | "fabricComposition" | "fabricColor" | "fabricImageUrl" | "notes">>;
+  } | null;
 };
 
 // ── Dashboard ─────────────────────────────────────────────────────────────────

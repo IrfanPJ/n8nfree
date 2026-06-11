@@ -22,7 +22,7 @@ import { OrderStatusBadge, PriorityBadge } from "./order-status-badge";
 import { BespokeDesigner } from "./bespoke-designer";
 import { updateOrderStatus, updateOrderDesign } from "@/actions/orders";
 import type { OrderWithRelations, OrderStatus } from "@/types";
-import { ORDER_STATUS_CONFIG, formatCurrency, formatDate, cn, openWhatsApp } from "@/lib/utils";
+import { ORDER_STATUS_CONFIG, PRIORITY_CONFIG, formatCurrency, formatDate, cn, openWhatsApp, displayOrderNumber } from "@/lib/utils";
 
 
 type StatusKey = keyof typeof ORDER_STATUS_CONFIG;
@@ -100,7 +100,7 @@ function MoveOrderDialog({
         {order && (
           <div className="space-y-4">
             <div className="p-3 rounded-lg bg-secondary/30 border border-border">
-              <p className="text-sm font-semibold text-[#D4AF37]">{order.orderNumber}</p>
+              <p className="text-sm font-semibold text-[#D4AF37]">{displayOrderNumber(order)}</p>
               <p className="text-xs text-muted-foreground mt-0.5">{order.customer.name} · {order.garmentType}</p>
               <div className="mt-2"><OrderStatusBadge status={order.status} size="sm" /></div>
             </div>
@@ -169,8 +169,8 @@ function OrderKanbanCard({
         transition={{ duration: 0.15 }}
         className={cn(
           "group p-3 rounded-xl border bg-card hover:border-[#D4AF37]/40 transition-colors cursor-grab active:cursor-grabbing shadow-sm hover:shadow-md select-none",
-          order.priority === "URGENT" ? "border-red-400/30"
-            : order.priority === "HIGH" ? "border-yellow-400/20"
+          order.priority === "VIP" ? "border-purple-400/30"
+            : order.priority === "URGENT" ? "border-red-400/30"
             : "border-border"
         )}
       >
@@ -178,7 +178,7 @@ function OrderKanbanCard({
           <div className="flex items-center gap-1.5 min-w-0">
             <GripVertical className="w-3.5 h-3.5 text-muted-foreground/30 flex-shrink-0 group-hover:text-muted-foreground/60 transition-colors" />
             <div className="min-w-0">
-              <p className="text-xs font-semibold text-[#D4AF37] truncate leading-none">{order.orderNumber}</p>
+              <p className="text-xs font-semibold text-[#D4AF37] truncate leading-none">{displayOrderNumber(order)}</p>
               <p className="text-sm font-medium truncate mt-0.5">{order.customer.name}</p>
             </div>
           </div>
@@ -197,6 +197,30 @@ function OrderKanbanCard({
           {isOverdue && <AlertCircle className="w-3 h-3 ml-auto" />}
         </div>
 
+        {order.trialRequired && order.trialDate && (
+          <div className="flex items-center gap-1.5 text-xs text-amber-400 mb-2">
+            <Clock className="w-3 h-3 flex-shrink-0" />
+            <span>Trial: {formatDate(order.trialDate)}</span>
+          </div>
+        )}
+
+        {order.fabricPurchaseStatus && order.fabricPurchaseStatus !== "NONE" && (
+          <div className="mb-2">
+            <span className={cn(
+              "text-[10px] font-medium px-1.5 py-0.5 rounded border",
+              order.fabricPurchaseStatus === "FABRIC_COLLECTED"
+                ? "bg-green-500/15 text-green-400 border-green-500/30"
+                : order.fabricPurchaseStatus === "FABRIC_ORDERED"
+                ? "bg-amber-500/15 text-amber-400 border-amber-500/30"
+                : "bg-zinc-500/15 text-zinc-400 border-zinc-500/30"
+            )}>
+              {order.fabricPurchaseStatus === "FABRIC_COLLECTED" ? "Fabric Collected"
+                : order.fabricPurchaseStatus === "FABRIC_ORDERED" ? "Fabric Ordered"
+                : "Pending Purchase"}
+            </span>
+          </div>
+        )}
+
         <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-2">
           <DollarSign className="w-3 h-3 flex-shrink-0" />
           <span>{formatCurrency(order.totalAmount)}</span>
@@ -210,6 +234,13 @@ function OrderKanbanCard({
           </div>
         )}
 
+        {order.specialNotes && (
+          <div className="flex items-start gap-1.5 text-xs text-muted-foreground mt-1" title={order.specialNotes}>
+            <MessageCircle className="w-3 h-3 flex-shrink-0 mt-0.5" />
+            <span className="truncate italic">{order.specialNotes}</span>
+          </div>
+        )}
+
         <div className="mt-2 pt-2 border-t border-border/50 opacity-0 group-hover:opacity-100 transition-opacity">
           <div className="flex items-center gap-1.5">
             <button type="button" onClick={(e) => { e.stopPropagation(); onDesignClick(order); }}
@@ -219,7 +250,7 @@ function OrderKanbanCard({
             {order.customer.phone && (
               <button type="button" onClick={(e) => {
                 e.stopPropagation();
-                openWhatsApp(order.customer.phone, `Hello ${order.customer.name}, your order ${order.orderNumber} (${order.garmentType}) is in *${statusConfig(order.status).label}*. Delivery: ${formatDate(order.deliveryDate)}.`);
+                openWhatsApp(order.customer.phone, `Hello ${order.customer.name}, your order ${displayOrderNumber(order)} (${order.garmentType}) is in *${statusConfig(order.status).label}*. Delivery: ${formatDate(order.deliveryDate)}.`);
               }}
                 className="flex items-center gap-1 text-[10px] px-2 py-1 rounded-md bg-green-500/10 text-green-400 hover:bg-green-500/20 transition-colors font-medium">
                 <MessageCircle className="w-3 h-3" /> WA

@@ -15,6 +15,8 @@ const ORDER_SELECT = `
   *,
   customer:Customer!customerId(*),
   assignedTo:User!assignedToId(*),
+  masterTailor:TailorMaster!masterTailorId(*),
+  salesperson:User!salespersonId(id, name, role),
   invoice:Invoice!orderId(*),
   statusHistory:OrderHistory!orderId(*),
   items:OrderItem!orderId(*, assignedTo:User!assignedToId(id,name,role,position))
@@ -124,6 +126,7 @@ export async function createOrder(data: unknown): Promise<ApiResponse<OrderWithR
     const { error: orderError } = await supabase.from("Order").insert({
       id: orderId,
       orderNumber,
+      customOrderNumber: parsed.data.customOrderNumber || null,
       customerId: parsed.data.customerId,
       garmentType: derivedGarmentType,
       fabricName: parsed.data.fabricName ?? null,
@@ -131,12 +134,20 @@ export async function createOrder(data: unknown): Promise<ApiResponse<OrderWithR
       fabricQuantity: parsed.data.fabricQuantity ?? null,
       deliveryDate: new Date(parsed.data.deliveryDate).toISOString(),
       trialDate: parsed.data.trialDate ? new Date(parsed.data.trialDate).toISOString() : null,
+      trialRequired: parsed.data.trialRequired ?? false,
       totalAmount: parsed.data.totalAmount,
       advanceAmount: parsed.data.advanceAmount,
       priority: parsed.data.priority,
       designNotes: parsed.data.designNotes ?? null,
       notes: parsed.data.notes ?? null,
       assignedToId: parsed.data.assignedToId || null,
+      masterTailorId: parsed.data.masterTailorId || null,
+      salespersonId: parsed.data.salespersonId || null,
+      stylingName: parsed.data.stylingName ?? null,
+      stylingNotes: parsed.data.stylingNotes ?? null,
+      stylingImageUrls: parsed.data.stylingImageUrls ?? [],
+      purchaseNotes: parsed.data.purchaseNotes ?? null,
+      specialNotes: parsed.data.specialNotes ?? null,
       branch: "Business Bay",
       status: "MEASUREMENT",
       createdAt: now,
@@ -157,8 +168,8 @@ export async function createOrder(data: unknown): Promise<ApiResponse<OrderWithR
         sortOrder: item.sortOrder ?? idx,
         fabricCode:        (item as any).fabricCode || null,
         fabricComposition: (item as any).fabricComposition || null,
-        fabricPrice:       (item as any).fabricPrice ?? null,
         fabricColor:       (item as any).fabricColor || null,
+        fabricImageUrl:    (item as any).fabricImageUrl || null,
         createdAt: now,
         updatedAt: now,
       }))
@@ -169,10 +180,35 @@ export async function createOrder(data: unknown): Promise<ApiResponse<OrderWithR
     const fabricEntries = items.flatMap((item: any) => [
       { type: "code" as const,        value: item.fabricCode },
       { type: "composition" as const, value: item.fabricComposition },
-      { type: "price" as const,       value: item.fabricPrice != null ? String(item.fabricPrice) : "" },
       { type: "color" as const,       value: item.fabricColor },
     ]);
     upsertFabricValues(fabricEntries).catch(() => {});
+
+    // Sync customOrderNumber to linked invoice's internalRef
+    if (parsed.data.customOrderNumber) {
+      supabase
+        .from("Invoice")
+        .update({ internalRef: parsed.data.customOrderNumber })
+        .eq("orderId", orderId)
+        .then(() => {});
+    }
+
+    // Create advance payment record if amount > 0 and method provided
+    if (parsed.data.advanceAmount > 0 && parsed.data.advancePaymentMethod) {
+      await supabase.from("Payment").insert({
+        id: randomUUID(),
+        orderId,
+        amount: parsed.data.advanceAmount,
+        method: parsed.data.advancePaymentMethod,
+        methodNote: parsed.data.advancePaymentReference ?? null,
+        notes: "Advance payment on order creation",
+        paidAt: now,
+        createdAt: now,
+      });
+    }
+
+    // Auto-create purchase records for items with fabric codes
+    autoCreatePurchasesForOrder(orderId, items, parsed.data.purchaseNotes ?? null).catch(() => {});
 
     await supabase.from("OrderHistory").insert({
       id: historyId,
@@ -238,6 +274,7 @@ export async function updateOrder(id: string, data: unknown): Promise<ApiRespons
     const { error } = await supabase
       .from("Order")
       .update({
+        customOrderNumber: parsed.data.customOrderNumber || null,
         customerId: parsed.data.customerId,
         garmentType: derivedGarmentType,
         fabricName: parsed.data.fabricName ?? null,
@@ -245,12 +282,20 @@ export async function updateOrder(id: string, data: unknown): Promise<ApiRespons
         fabricQuantity: parsed.data.fabricQuantity ?? null,
         deliveryDate: new Date(parsed.data.deliveryDate).toISOString(),
         trialDate: parsed.data.trialDate ? new Date(parsed.data.trialDate).toISOString() : null,
+        trialRequired: parsed.data.trialRequired ?? false,
         totalAmount: parsed.data.totalAmount,
         advanceAmount: parsed.data.advanceAmount,
         priority: parsed.data.priority,
         designNotes: parsed.data.designNotes ?? null,
         notes: parsed.data.notes ?? null,
         assignedToId: parsed.data.assignedToId || null,
+        masterTailorId: parsed.data.masterTailorId || null,
+        salespersonId: parsed.data.salespersonId || null,
+        stylingName: parsed.data.stylingName ?? null,
+        stylingNotes: parsed.data.stylingNotes ?? null,
+        stylingImageUrls: parsed.data.stylingImageUrls ?? [],
+        purchaseNotes: parsed.data.purchaseNotes ?? null,
+        specialNotes: parsed.data.specialNotes ?? null,
         updatedAt: now,
       })
       .eq("id", id);
@@ -274,8 +319,8 @@ export async function updateOrder(id: string, data: unknown): Promise<ApiRespons
           sortOrder: item.sortOrder ?? idx,
           fabricCode:        (item as any).fabricCode || null,
           fabricComposition: (item as any).fabricComposition || null,
-          fabricPrice:       (item as any).fabricPrice ?? null,
           fabricColor:       (item as any).fabricColor || null,
+          fabricImageUrl:    (item as any).fabricImageUrl || null,
           createdAt: now,
           updatedAt: now,
         };
@@ -289,10 +334,18 @@ export async function updateOrder(id: string, data: unknown): Promise<ApiRespons
       const fabricEntries = parsed.data.items.flatMap((item: any) => [
         { type: "code" as const,        value: item.fabricCode },
         { type: "composition" as const, value: item.fabricComposition },
-        { type: "price" as const,       value: item.fabricPrice != null ? String(item.fabricPrice) : "" },
         { type: "color" as const,       value: item.fabricColor },
       ]);
       upsertFabricValues(fabricEntries).catch(() => {});
+
+      // Sync customOrderNumber → linked invoice internalRef
+      if (parsed.data.customOrderNumber) {
+        supabase
+          .from("Invoice")
+          .update({ internalRef: parsed.data.customOrderNumber })
+          .eq("orderId", id)
+          .then(() => {});
+      }
     } else {
       await supabase.from("OrderItem").delete().eq("orderId", id);
     }
@@ -342,6 +395,20 @@ export async function updateOrderStatus(
       .eq("id", id);
 
     if (error) throw error;
+
+    // Sync linked purchases within the fabric window
+    const purchaseStatusMap: Record<string, string> = {
+      MEASUREMENT:      "PENDING_PURCHASE",
+      FABRIC_ORDERING:  "FABRIC_ORDERED",
+      FABRIC_COLLECTED: "FABRIC_COLLECTED",
+    };
+    const syncedPurchaseStatus = purchaseStatusMap[parsed.data.status];
+    if (syncedPurchaseStatus) {
+      await supabase
+        .from("Purchase")
+        .update({ status: syncedPurchaseStatus, updatedAt: now })
+        .eq("orderId", id);
+    }
 
     await supabase.from("OrderHistory").insert({
       id: randomUUID(),
@@ -456,6 +523,38 @@ export async function updateOrderDesign(id: string, specText: string, design?: u
 }
 
 
+async function autoCreatePurchasesForOrder(
+  orderId: string,
+  items: Array<any>,
+  purchaseNotes: string | null
+): Promise<void> {
+  const fabricItems = items.filter((item) => item.fabricCode);
+  if (fabricItems.length === 0) return;
+
+  const now = new Date().toISOString();
+  const rows = fabricItems.map((item) => ({
+    id: randomUUID(),
+    orderId,
+    itemName: item.fabricCode,
+    category: "FABRIC",
+    fabricCode: item.fabricCode || null,
+    fabricColor: item.fabricColor || null,
+    quantity: item.quantity ?? 1,
+    unit: "meters",
+    unitPrice: 0,
+    totalAmount: 0,
+    paidAmount: 0,
+    status: "PENDING_PURCHASE",
+    purchaseNotes: purchaseNotes || null,
+    purchaseDate: now,
+    createdAt: now,
+    updatedAt: now,
+  }));
+
+  await supabase.from("Purchase").insert(rows);
+  revalidatePath("/purchases");
+}
+
 export async function getOrdersForKanban(): Promise<OrderWithRelations[]> {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
@@ -474,4 +573,41 @@ export async function getOrdersForKanban(): Promise<OrderWithRelations[]> {
       (a: any, b: any) => new Date(b.changedAt).getTime() - new Date(a.changedAt).getTime()
     ),
   })) as OrderWithRelations[];
+}
+
+export type DateConflictResult = {
+  count: number;
+  orders: Array<{ orderNumber: string; customOrderNumber: string | null; customerName: string }>;
+};
+
+export async function checkDateConflicts(
+  date: string,          // ISO date string "YYYY-MM-DD"
+  type: "delivery" | "trial",
+  excludeOrderId?: string
+): Promise<DateConflictResult> {
+  const session = await auth();
+  if (!session?.user) return { count: 0, orders: [] };
+
+  const col = type === "delivery" ? "deliveryDate" : "trialDate";
+
+  let q = supabase
+    .from("Order")
+    .select("orderNumber, customOrderNumber, customer:Customer!customerId(name)")
+    .eq("isActive", true)
+    .not("status", "in", '("DELIVERED","ORDER_CLOSED")')
+    .gte(col, `${date}T00:00:00`)
+    .lte(col, `${date}T23:59:59`);
+
+  if (excludeOrderId) q = q.neq("id", excludeOrderId);
+
+  const { data } = await q.limit(10);
+
+  return {
+    count: data?.length ?? 0,
+    orders: (data ?? []).map((o: any) => ({
+      orderNumber:       o.orderNumber,
+      customOrderNumber: o.customOrderNumber ?? null,
+      customerName:      o.customer?.name ?? "Unknown",
+    })),
+  };
 }

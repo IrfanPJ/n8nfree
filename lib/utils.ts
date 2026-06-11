@@ -119,9 +119,26 @@ export function openWhatsApp(phone: string, message: string): void {
   window.open(url, "_blank");
 }
 
-export const PRIORITY_CONFIG = {
-  LOW: { label: "Low", color: "text-gray-400" },
-  NORMAL: { label: "Normal", color: "text-blue-400" },
-  HIGH: { label: "High", color: "text-yellow-400" },
-  URGENT: { label: "Urgent", color: "text-red-400" },
-} as const;
+export const PRIORITY_CONFIG: Record<string, { label: string; color: string }> = {
+  VIP:     { label: "VIP",     color: "text-purple-400" },
+  REGULAR: { label: "Regular", color: "text-gray-400" },
+  URGENT:  { label: "Urgent",  color: "text-red-400" },
+  // legacy values — kept for follow-up module and graceful display
+  LOW:     { label: "Low",     color: "text-gray-400" },
+  NORMAL:  { label: "Normal",  color: "text-gray-400" },
+  HIGH:    { label: "High",    color: "text-amber-400" },
+};
+
+export function displayOrderNumber(order: { customOrderNumber?: string | null; orderNumber: string }): string {
+  return order.customOrderNumber || order.orderNumber;
+}
+
+export const PAYMENT_METHOD_CONFIG: Record<string, { label: string }> = {
+  CASH:         { label: "Cash" },
+  CARD:         { label: "Card Payment" },
+  BANK_TRANSFER:{ label: "Bank Transfer" },
+  PAYMENT_LINK: { label: "Payment Link" },
+  OTHER:        { label: "Others" },
+  UPI:          { label: "UPI" },
+  CHEQUE:       { label: "Cheque" },
+};

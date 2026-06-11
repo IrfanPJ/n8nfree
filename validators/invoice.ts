@@ -29,7 +29,8 @@ export const invoiceSchema = z.object({
 
 export const recordPaymentSchema = z.object({
   amount: z.coerce.number().min(0.01, "Amount must be greater than 0"),
-  method: z.enum(["CASH", "CARD", "UPI", "BANK_TRANSFER", "CHEQUE", "OTHER"]),
+  method: z.enum(["CASH", "CARD", "UPI", "BANK_TRANSFER", "CHEQUE", "OTHER", "PAYMENT_LINK"]),
+  methodNote: z.string().optional(),
   reference: z.string().optional(),
   notes: z.string().optional(),
 });

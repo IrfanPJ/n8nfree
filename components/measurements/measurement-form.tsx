@@ -26,6 +26,7 @@ interface MeasurementFormProps {
   measurement?: Measurement;
   customers?: Customer[];
   defaultCustomerId?: string;
+  defaultLabel?: string;
   onSuccess?: (measurement: Measurement) => void;
   onCancel?: () => void;
 }
@@ -86,6 +87,7 @@ export function MeasurementForm({
   measurement,
   customers,
   defaultCustomerId,
+  defaultLabel,
   onSuccess,
   onCancel,
 }: MeasurementFormProps) {
@@ -102,7 +104,7 @@ export function MeasurementForm({
     resolver: zodResolver(measurementSchema) as any,
     defaultValues: {
       customerId:            measurement?.customerId ?? defaultCustomerId ?? "",
-      label:                 measurement?.label && measurement.label !== "Standard" ? measurement.label : "",
+      label:                 measurement?.label && measurement.label !== "Standard" ? measurement.label : (defaultLabel ?? ""),
       unit:                  (measurement?.unit as "inches" | "cm") ?? "inches",
       department:            measurement?.department ?? "",
       trialDate:             measurement?.trialDate ?? "",

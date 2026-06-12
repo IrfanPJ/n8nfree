@@ -304,6 +304,7 @@ export function OrderForm({ order, defaultCustomerId, onSuccess, onCancel }: Ord
   const totalAmount = watch("totalAmount");
   const advanceAmount = watch("advanceAmount");
   const watchedCustomerId = watch("customerId");
+  const watchedOrderNumber = watch("customOrderNumber");
   const trialRequired = watch("trialRequired");
 
   useEffect(() => {
@@ -969,6 +970,7 @@ export function OrderForm({ order, defaultCustomerId, onSuccess, onCancel }: Ord
             <MeasurementForm
               measurement={editingMeasurement ?? undefined}
               defaultCustomerId={watchedCustomerId}
+              defaultLabel={editingMeasurement ? undefined : (watchedOrderNumber?.trim() || undefined)}
               onSuccess={(m) => {
                 if (editingMeasurement) {
                   setExistingMeasurements((prev) => prev.map((x) => x.id === m.id ? m : x));

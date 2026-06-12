@@ -259,18 +259,14 @@ function MeasurementCard({
               </div>
               <div className="min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">
-                  <CardTitle className="text-sm font-semibold">{measurement.label}</CardTitle>
+                  <CardTitle className="text-sm font-semibold">
+                    {customer ? customer.name : "Unknown Customer"}
+                  </CardTitle>
                   <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-[#D4AF37]/30 text-[#D4AF37]">
                     {measurement.unit}
                   </Badge>
                 </div>
                 <div className="flex items-center gap-3 mt-0.5">
-                  {customer && (
-                    <span className="text-xs text-muted-foreground flex items-center gap-1">
-                      <User className="w-3 h-3" />
-                      {customer.name}
-                    </span>
-                  )}
                   <span className="text-xs text-muted-foreground flex items-center gap-1">
                     <CalendarDays className="w-3 h-3" />
                     {format(new Date(measurement.takenAt), "dd MMM yyyy")}

@@ -257,7 +257,7 @@ function OrderKanbanCard({
               </button>
             )}
             <button type="button" onClick={(e) => { e.stopPropagation(); onMoveClick(order); }}
-              className="ml-auto flex items-center gap-1 text-[10px] px-2 py-1 rounded-md bg-secondary text-muted-foreground hover:text-foreground transition-colors font-medium">
+              className="ml-auto flex items-center gap-1 text-[10px] px-2 py-1 rounded-md bg-secondary/80 text-foreground/70 hover:text-foreground hover:bg-secondary transition-colors font-medium border border-border/40">
               Move →
             </button>
           </div>

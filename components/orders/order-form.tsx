@@ -27,12 +27,89 @@ import { MeasurementForm } from "@/components/measurements/measurement-form";
 import type { OrderWithRelations, Customer, Measurement, TailorMaster, GarmentTypeMaster } from "@/types";
 import { formatCurrency, cn } from "@/lib/utils";
 import { COUNTRIES } from "@/lib/countries";
-import { UserPlus, X, Plus, Trash2, Ruler, CheckCircle2, Edit2, Camera, Sparkles } from "lucide-react";
+import { UserPlus, X, Plus, Trash2, Ruler, CheckCircle2, Edit2, Camera, Sparkles, ChevronDown, Search } from "lucide-react";
 import {
+  BespokeDesigner,
   OptionChip, OptionGroup, SecLabel,
   DEFAULT_JACKET, DEFAULT_SHIRT, DEFAULT_TROUSER,
   buildSpecText, type GarmentDesign,
 } from "@/components/orders/bespoke-designer";
+
+// ── Searchable customer combobox ─────────────────────────────────────────────
+function CustomerCombobox({
+  customers, value, onChange, loading, hasError,
+}: {
+  customers: Customer[];
+  value: string;
+  onChange: (id: string) => void;
+  loading?: boolean;
+  hasError?: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState("");
+  const containerRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const selected = customers.find((c) => c.id === value);
+  const filtered = search
+    ? customers.filter((c) =>
+        c.name.toLowerCase().includes(search.toLowerCase()) || c.phone.includes(search))
+    : customers;
+
+  useEffect(() => {
+    if (!open) return;
+    function onPD(e: PointerEvent) {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener("pointerdown", onPD);
+    return () => document.removeEventListener("pointerdown", onPD);
+  }, [open]);
+
+  useEffect(() => { if (open) setTimeout(() => inputRef.current?.focus(), 0); }, [open]);
+
+  return (
+    <div ref={containerRef} className="relative">
+      <button type="button" disabled={loading} onClick={() => setOpen((v) => !v)}
+        className={cn(
+          "w-full h-9 px-3 flex items-center justify-between rounded-md border text-sm bg-background hover:border-[#D4AF37]/50 transition-colors",
+          hasError ? "border-destructive" : "border-input"
+        )}>
+        <span className={selected ? "text-foreground" : "text-muted-foreground"}>
+          {loading ? "Loading…" : selected ? selected.name : "Select a customer"}
+        </span>
+        <ChevronDown className="w-4 h-4 text-muted-foreground flex-shrink-0 ml-2" />
+      </button>
+      {open && (
+        <div className="absolute z-50 w-full mt-1 rounded-md border border-border bg-popover shadow-lg">
+          <div className="p-2 border-b border-border">
+            <div className="relative">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
+              <input ref={inputRef} type="text" placeholder="Search by name or phone…" value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="w-full h-8 pl-8 pr-3 text-sm bg-background border border-input rounded-md focus:outline-none focus:border-[#D4AF37]/50" />
+            </div>
+          </div>
+          <div className="max-h-52 overflow-y-auto py-1">
+            {filtered.length === 0 ? (
+              <p className="text-sm text-muted-foreground px-3 py-4 text-center">No customers found</p>
+            ) : filtered.map((c) => (
+              <button key={c.id} type="button"
+                onPointerDown={(e) => e.preventDefault()}
+                onClick={() => { onChange(c.id); setOpen(false); setSearch(""); }}
+                className={cn(
+                  "w-full px-3 py-2 text-left text-sm flex items-center justify-between gap-2 hover:bg-accent transition-colors",
+                  value === c.id && "bg-accent"
+                )}>
+                <span className="font-medium">{c.name}</span>
+                <span className="text-xs text-muted-foreground flex-shrink-0">{c.phone}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 interface OrderFormProps {
   order?: OrderWithRelations;
@@ -79,6 +156,9 @@ export function OrderForm({ order, defaultCustomerId, onSuccess, onCancel }: Ord
   const [newClientCity, setNewClientCity] = useState("");
   const [savingClient, setSavingClient] = useState(false);
 
+
+  // Styling dialog
+  const [stylingDialogOpen, setStylingDialogOpen] = useState(false);
 
   // Tailor inline add
   const [showAddTailor, setShowAddTailor] = useState(false);
@@ -434,19 +514,13 @@ export function OrderForm({ order, defaultCustomerId, onSuccess, onCancel }: Ord
             </button>
           </div>
           <Controller name="customerId" control={control} render={({ field }) => (
-            <Select value={field.value} onValueChange={field.onChange} disabled={loadingCustomers}>
-              <SelectTrigger className={cn(errors.customerId ? "border-destructive" : "")}>
-                <SelectValue placeholder={loadingCustomers ? "Loading customers..." : "Select a customer"} />
-              </SelectTrigger>
-              <SelectContent>
-                {customers.map((c) => (
-                  <SelectItem key={c.id} value={c.id}>
-                    <span className="font-medium">{c.name}</span>
-                    <span className="ml-2 text-muted-foreground text-xs">{c.phone}</span>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <CustomerCombobox
+              customers={customers}
+              value={field.value}
+              onChange={field.onChange}
+              loading={loadingCustomers}
+              hasError={!!errors.customerId}
+            />
           )} />
           <FieldError message={errors.customerId?.message} />
           {showAddClient && (
@@ -555,8 +629,8 @@ export function OrderForm({ order, defaultCustomerId, onSuccess, onCancel }: Ord
                             <SelectValue placeholder="Select type" />
                           </SelectTrigger>
                           <SelectContent>
+                            <SelectItem value="__add__" className="text-[#D4AF37] font-medium border-b border-border/50 mb-1">+ Add New Item</SelectItem>
                             {garmentTypes.map((g) => (<SelectItem key={g.id} value={g.name}>{g.name}</SelectItem>))}
-                            <SelectItem value="__add__" className="text-[#D4AF37]">+ Add New Item</SelectItem>
                           </SelectContent>
                         </Select>
                       )} />
@@ -632,215 +706,20 @@ export function OrderForm({ order, defaultCustomerId, onSuccess, onCancel }: Ord
       </div>
 
       {/* ── Garment Styling ───────────────────────────────────────────────── */}
-      <div className="space-y-4">
-        <SectionTitle><span className="flex items-center gap-1.5"><Sparkles className="w-3.5 h-3.5" />Garment Styling</span></SectionTitle>
-
-        {/* Tabs */}
-        <div className="flex border-b border-border">
-          {(["jacket", "shirt", "trouser"] as const).map((tab) => (
-            <button key={tab} type="button" onClick={() => setDesignTab(tab)}
-              className={cn(
-                "px-5 py-2 text-sm font-medium capitalize border-b-2 -mb-px transition-colors",
-                designTab === tab ? "border-[#D4AF37] text-[#D4AF37]" : "border-transparent text-muted-foreground hover:text-foreground"
-              )}>
-              {tab}
-            </button>
-          ))}
+      <div className="space-y-3">
+        <div className="flex items-center justify-between">
+          <SectionTitle><span className="flex items-center gap-1.5"><Sparkles className="w-3.5 h-3.5" />Garment Styling</span></SectionTitle>
+          <button type="button" onClick={() => setStylingDialogOpen(true)}
+            className="flex items-center gap-1.5 text-xs text-[#D4AF37] hover:text-[#D4AF37]/80 transition-colors font-medium">
+            <Sparkles className="w-3.5 h-3.5" />
+            {buildSpecText({ jacket: jacketDesign, shirt: shirtDesign, trouser: trouserDesign }).trim() ? "Edit Styling" : "Add Styling"}
+          </button>
         </div>
-
-        <div className="rounded-lg border border-border/50 bg-secondary/10 p-4">
-          {/* ── JACKET ── */}
-          {designTab === "jacket" && (
-            <div className="space-y-0">
-              <div className="grid grid-cols-2 gap-4 mb-2">
-                <div>
-                  <SecLabel>Size Pattern</SecLabel>
-                  <div className="flex flex-wrap gap-1.5">
-                    {["Create New", "Use Existing", "Use Sample", "Not Required"].map((o) => (
-                      <OptionChip key={o} label={o} selected={jacketDesign.sizePattern === o}
-                        onClick={() => setJ("sizePattern", jacketDesign.sizePattern === o ? "" : o)} />
-                    ))}
-                  </div>
-                </div>
-                <div>
-                  <SecLabel>Buttons Code</SecLabel>
-                  <Input placeholder="Code" value={jacketDesign.buttonsCode}
-                    onChange={(e) => setJ("buttonsCode", e.target.value)} className="h-8 text-sm" />
-                </div>
-              </div>
-              <OptionGroup label="Jacket Type" options={["Single Breasted", "Double Breasted", "Band Gala", "Bundy"]}
-                value={jacketDesign.jacketType} onChange={(v) => setJ("jacketType", v)} />
-              <OptionGroup label="No. of Buttons" options={["1 Button", "2 Buttons", "3 Buttons", "6 Buttons"]}
-                value={jacketDesign.noOfButtons} onChange={(v) => setJ("noOfButtons", v)} />
-              <OptionGroup label="Front Pockets" options={["Straight", "Slanting", "With Ticket"]}
-                value={jacketDesign.frontPockets} onChange={(v) => setJ("frontPockets", v)} />
-              <OptionGroup label="Lapel" options={["Notch", "Peak", "Shawl"]}
-                value={jacketDesign.lapel} onChange={(v) => setJ("lapel", v)} />
-              <OptionGroup label="Lapel Pin Hole" options={["Show", "With Hole", "None"]}
-                value={jacketDesign.lapelPinHole} onChange={(v) => setJ("lapelPinHole", v)} />
-              <OptionGroup label="Back Vent Open" options={["Side Vent", "Center Vent", "No Vent"]}
-                value={jacketDesign.backVent} onChange={(v) => setJ("backVent", v)} />
-              <OptionGroup label="Inside Fashion" options={["Straight", "Takurdwara", "Piping"]}
-                value={jacketDesign.insideFashion} onChange={(v) => setJ("insideFashion", v)} />
-              <OptionGroup label="Inside Pockets" options={["2 Pocket", "3 Pockets", "4 Pockets", "No Pocket"]}
-                value={jacketDesign.insidePockets} onChange={(v) => setJ("insidePockets", v)} />
-              <OptionGroup label="Extra Pocket" options={["Pen Pocket", "Passport", "None"]}
-                value={jacketDesign.extraPocket} onChange={(v) => setJ("extraPocket", v)} />
-              <OptionGroup label="Sleeve Buttons" options={["3 Buttons", "4 Buttons", "5 Buttons"]}
-                value={jacketDesign.sleeveButtons} onChange={(v) => setJ("sleeveButtons", v)} />
-              <OptionGroup label="Pick Stitch" options={["Full Pick", "Lapel Pick", "None"]}
-                value={jacketDesign.pickStitch} onChange={(v) => setJ("pickStitch", v)} />
-              <div>
-                <SecLabel>Others</SecLabel>
-                <Input placeholder="Any other styling detail..." value={jacketDesign.others}
-                  onChange={(e) => setJ("others", e.target.value)} className="h-8 text-sm" />
-              </div>
-              <div>
-                <SecLabel>More Comments</SecLabel>
-                <Textarea placeholder="Additional comments..." rows={2} value={jacketDesign.comments}
-                  onChange={(e) => setJ("comments", e.target.value)} className="text-sm resize-none" />
-              </div>
-            </div>
-          )}
-
-          {/* ── SHIRT ── */}
-          {designTab === "shirt" && (
-            <div className="space-y-0">
-              <div className="grid grid-cols-2 gap-4 mb-2">
-                <div>
-                  <SecLabel>Size Pattern</SecLabel>
-                  <div className="flex flex-wrap gap-1.5">
-                    {["Create New", "Use Existing", "Use Sample", "Not Required"].map((o) => (
-                      <OptionChip key={o} label={o} selected={shirtDesign.sizePattern === o}
-                        onClick={() => setS("sizePattern", shirtDesign.sizePattern === o ? "" : o)} />
-                    ))}
-                  </div>
-                </div>
-                <div>
-                  <SecLabel>Buttons Code</SecLabel>
-                  <Input placeholder="Code" value={shirtDesign.buttonsCode}
-                    onChange={(e) => setS("buttonsCode", e.target.value)} className="h-8 text-sm" />
-                </div>
-              </div>
-              <OptionGroup label="Shirt Fit" options={["Comfort", "Slim"]}
-                value={shirtDesign.shirtFit} onChange={(v) => setS("shirtFit", v)} />
-              <OptionGroup label="Collar Style" options={["Regular", "Semi Cut Way", "Full Cut Way", "Tux Wing"]}
-                value={shirtDesign.collarStyle} onChange={(v) => setS("collarStyle", v)} />
-              <OptionGroup label="Front Pockets" options={["Single", "Double", "No Pocket"]}
-                value={shirtDesign.frontPockets} onChange={(v) => setS("frontPockets", v)} />
-              <OptionGroup label="Front Placket" options={["With Placket", "Invisible Buttons", "No Placket", "Tux Pleats"]}
-                value={shirtDesign.frontPlacket} onChange={(v) => setS("frontPlacket", v)} />
-              <OptionGroup label="Back Dart" options={["Dart", "Center Box", "Side Pleats", "None"]}
-                value={shirtDesign.backDart} onChange={(v) => setS("backDart", v)} />
-              <OptionGroup label="Cuff Style" options={["One Button", "Two Button", "French Cuff"]}
-                value={shirtDesign.cuffStyle} onChange={(v) => setS("cuffStyle", v)} />
-              <div>
-                <SecLabel>Name Embroidery</SecLabel>
-                <div className="flex flex-wrap gap-2">
-                  {["Yes", "No"].map((o) => (
-                    <OptionChip key={o} label={o} selected={shirtDesign.nameEmbroidery === o}
-                      onClick={() => setS("nameEmbroidery", shirtDesign.nameEmbroidery === o ? "" : o)} />
-                  ))}
-                  {shirtDesign.nameEmbroidery === "Yes" && (
-                    <>
-                      <OptionChip label="Left" selected={shirtDesign.embroideryPosition === "Left"}
-                        onClick={() => setS("embroideryPosition", shirtDesign.embroideryPosition === "Left" ? "" : "Left")} />
-                      <OptionChip label="Right" selected={shirtDesign.embroideryPosition === "Right"}
-                        onClick={() => setS("embroideryPosition", shirtDesign.embroideryPosition === "Right" ? "" : "Right")} />
-                    </>
-                  )}
-                </div>
-              </div>
-              <OptionGroup label="Cuff Size" options={["Left", "Right", "Regular"]}
-                value={shirtDesign.cuffSize} onChange={(v) => setS("cuffSize", v)} />
-              <div className="grid grid-cols-3 gap-3">
-                <div>
-                  <SecLabel>Collar Point Size</SecLabel>
-                  <Input placeholder="Size" value={shirtDesign.collarPointSize}
-                    onChange={(e) => setS("collarPointSize", e.target.value)} className="h-8 text-sm" />
-                </div>
-                <div>
-                  <SecLabel>Collar Stand Size</SecLabel>
-                  <Input placeholder="Size" value={shirtDesign.collarStandSize}
-                    onChange={(e) => setS("collarStandSize", e.target.value)} className="h-8 text-sm" />
-                </div>
-                <div>
-                  <SecLabel>Collar Size</SecLabel>
-                  <Input placeholder="Size" value={shirtDesign.collarSize}
-                    onChange={(e) => setS("collarSize", e.target.value)} className="h-8 text-sm" />
-                </div>
-              </div>
-              <div>
-                <SecLabel>More Comments</SecLabel>
-                <Textarea placeholder="Additional comments..." rows={2} value={shirtDesign.comments}
-                  onChange={(e) => setS("comments", e.target.value)} className="text-sm resize-none" />
-              </div>
-            </div>
-          )}
-
-          {/* ── TROUSER ── */}
-          {designTab === "trouser" && (
-            <div className="space-y-0">
-              <div className="grid grid-cols-2 gap-4 mb-2">
-                <div>
-                  <SecLabel>Size Pattern</SecLabel>
-                  <div className="flex flex-wrap gap-1.5">
-                    {["Create New", "Use Existing", "Use Sample", "Not Required"].map((o) => (
-                      <OptionChip key={o} label={o} selected={trouserDesign.sizePattern === o}
-                        onClick={() => setT("sizePattern", trouserDesign.sizePattern === o ? "" : o)} />
-                    ))}
-                  </div>
-                </div>
-                <div>
-                  <SecLabel>Buttons Code</SecLabel>
-                  <Input placeholder="Code" value={trouserDesign.buttonsCode}
-                    onChange={(e) => setT("buttonsCode", e.target.value)} className="h-8 text-sm" />
-                </div>
-              </div>
-              <OptionGroup label="Fit" options={["Comfort", "Slim", "Straight", "Loose Fit"]}
-                value={trouserDesign.fit} onChange={(v) => setT("fit", v)} />
-              <OptionGroup label="Front Pleats" options={["1 Pleat", "2 Pleats", "No Pleats", "Front Darts"]}
-                value={trouserDesign.frontPleats} onChange={(v) => setT("frontPleats", v)} />
-              <div className="grid grid-cols-2 gap-4">
-                <OptionGroup label="Back Pockets (Count)" options={["1 Pocket", "2 Pockets", "No Pockets"]}
-                  value={trouserDesign.backPockets} onChange={(v) => setT("backPockets", v)} />
-                <OptionGroup label="Back Pockets (Type)" options={["Pocket Flap", "Button Loop", "Kaaj"]}
-                  value={trouserDesign.backPocketsType} onChange={(v) => setT("backPocketsType", v)} />
-              </div>
-              <OptionGroup label="Inside Lining" options={["Half Lining", "Full Lining", "No Lining"]}
-                value={trouserDesign.insideLining} onChange={(v) => setT("insideLining", v)} />
-              <OptionGroup label="Loops" options={["8 Loops", "6 Loops", "No Loops"]}
-                value={trouserDesign.loops} onChange={(v) => setT("loops", v)} />
-              <OptionGroup label="Side Adjuster" options={["Yes", "No", "Back Elastic", "Side Invisible Elastic"]}
-                value={trouserDesign.sideAdjuster} onChange={(v) => setT("sideAdjuster", v)} />
-              <OptionGroup label="Front Pocket" options={["Cross", "Straight", "Jeans Style", "No Pockets"]}
-                value={trouserDesign.frontPocket} onChange={(v) => setT("frontPocket", v)} />
-              <OptionGroup label="Bottom Style" options={["Cuff Fold", "Normal Hemming", "Fold & Stitch"]}
-                value={trouserDesign.bottomStyle} onChange={(v) => setT("bottomStyle", v)} />
-              <OptionGroup label="Button / Hook" options={["Long Belt", "Hook", "Button", "Double Button 2\" Belt"]}
-                value={trouserDesign.buttonHook} onChange={(v) => setT("buttonHook", v)} />
-              <OptionGroup label="Coin Pocket" options={["Inside Belt", "Inside Right Pocket", "None"]}
-                value={trouserDesign.coinPocket} onChange={(v) => setT("coinPocket", v)} />
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <SecLabel>Waist Size</SecLabel>
-                  <Input placeholder="e.g. 34" value={trouserDesign.waistSize}
-                    onChange={(e) => setT("waistSize", e.target.value)} className="h-8 text-sm" />
-                </div>
-                <div>
-                  <SecLabel>Full Length</SecLabel>
-                  <Input placeholder="e.g. 42" value={trouserDesign.fullLength}
-                    onChange={(e) => setT("fullLength", e.target.value)} className="h-8 text-sm" />
-                </div>
-              </div>
-              <div>
-                <SecLabel>More Comments</SecLabel>
-                <Textarea placeholder="Additional comments..." rows={2} value={trouserDesign.comments}
-                  onChange={(e) => setT("comments", e.target.value)} className="text-sm resize-none" />
-              </div>
-            </div>
-          )}
-        </div>
+        {buildSpecText({ jacket: jacketDesign, shirt: shirtDesign, trouser: trouserDesign }).trim() && (
+          <p className="text-xs text-muted-foreground bg-secondary/30 rounded-lg px-3 py-2 leading-relaxed line-clamp-2">
+            ✦ {buildSpecText({ jacket: jacketDesign, shirt: shirtDesign, trouser: trouserDesign })}
+          </p>
+        )}
       </div>
 
       {/* ── Order Schedule ────────────────────────────────────────────────── */}
@@ -853,6 +732,7 @@ export function OrderForm({ order, defaultCustomerId, onSuccess, onCancel }: Ord
             <Input
               id="deliveryDate"
               type="datetime-local"
+              min={new Date().toISOString().slice(0, 16)}
               {...register("deliveryDate")}
               className={cn(errors.deliveryDate ? "border-destructive" : "")}
               onChange={(e) => {
@@ -884,6 +764,7 @@ export function OrderForm({ order, defaultCustomerId, onSuccess, onCancel }: Ord
               <Input
                 id="trialDate"
                 type="datetime-local"
+                min={new Date().toISOString().slice(0, 16)}
                 {...register("trialDate")}
                 onChange={(e) => {
                   register("trialDate").onChange(e);
@@ -897,30 +778,33 @@ export function OrderForm({ order, defaultCustomerId, onSuccess, onCancel }: Ord
 
         {/* Master Tailor */}
         <div className="space-y-1.5">
-          <div className="flex items-center justify-between">
-            <Label>Master Tailor</Label>
-            <button type="button" onClick={() => setShowAddTailor((v) => !v)}
-              className="text-xs text-[#D4AF37] hover:text-[#D4AF37]/80 transition-colors">
-              {showAddTailor ? "Cancel" : "+ Add New Tailor"}
-            </button>
-          </div>
+          <Label>Master Tailor</Label>
           <Controller name="masterTailorId" control={control} render={({ field }) => (
-            <Select value={field.value || "__none__"} onValueChange={(v) => field.onChange(v === "__none__" ? "" : v)}>
+            <Select value={field.value || "__none__"}
+              onValueChange={(v) => {
+                if (v === "__add_master__") { setShowAddTailor(true); return; }
+                field.onChange(v === "__none__" ? "" : v);
+              }}>
               <SelectTrigger><SelectValue placeholder="Assign master tailor" /></SelectTrigger>
               <SelectContent>
+                <SelectItem value="__add_master__" className="text-[#D4AF37] font-medium border-b border-border/50 mb-1">+ Add New Master</SelectItem>
                 <SelectItem value="__none__">— Unassigned —</SelectItem>
                 {tailorMasters.map((t) => (<SelectItem key={t.id} value={t.id}>{t.name}{t.specialization && <span className="ml-1.5 text-xs text-muted-foreground">({t.specialization})</span>}</SelectItem>))}
               </SelectContent>
             </Select>
           )} />
           {showAddTailor && (
-            <div className="mt-2 p-3 rounded-lg border border-border bg-secondary/10 space-y-2">
-              <p className="text-xs font-medium text-muted-foreground">New Tailor (no login required)</p>
+            <div className="mt-2 p-3 rounded-lg border border-[#D4AF37]/25 bg-[#D4AF37]/5 space-y-2">
+              <div className="flex items-center justify-between">
+                <p className="text-xs font-semibold text-[#D4AF37]">Add New Master</p>
+                <button type="button" onClick={() => { setShowAddTailor(false); setNewTailorName(""); setNewTailorPhone(""); }}
+                  className="text-muted-foreground hover:text-foreground"><X className="w-3.5 h-3.5" /></button>
+              </div>
               <div className="grid grid-cols-2 gap-2">
                 <Input placeholder="Name *" value={newTailorName} onChange={(e) => setNewTailorName(e.target.value)} className="h-8 text-sm" />
                 <Input placeholder="Phone" value={newTailorPhone} onChange={(e) => setNewTailorPhone(e.target.value)} className="h-8 text-sm" />
               </div>
-              <Button type="button" size="sm" variant="gold" onClick={handleSaveTailor} loading={savingTailor} className="w-full text-xs">Save Tailor</Button>
+              <Button type="button" size="sm" variant="gold" onClick={handleSaveTailor} loading={savingTailor} className="w-full text-xs">Save Master</Button>
             </div>
           )}
         </div>
@@ -1108,6 +992,19 @@ export function OrderForm({ order, defaultCustomerId, onSuccess, onCancel }: Ord
           {isEditing ? "Update Order" : "Create Order"}
         </Button>
       </div>
+
+      {/* Styling Dialog */}
+      <BespokeDesigner
+        open={stylingDialogOpen}
+        onClose={() => setStylingDialogOpen(false)}
+        initialDesign={{ jacket: jacketDesign, shirt: shirtDesign, trouser: trouserDesign }}
+        onSave={async (design, specText) => {
+          setJacketDesign(design.jacket ?? DEFAULT_JACKET);
+          setShirtDesign(design.shirt ?? DEFAULT_SHIRT);
+          setTrouserDesign(design.trouser ?? DEFAULT_TROUSER);
+          setValue("designNotes", JSON.stringify({ spec: specText, design }));
+        }}
+      />
     </form>
   );
 }

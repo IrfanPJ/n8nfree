@@ -346,7 +346,6 @@ export function MeasurementForm({
           <Field label="Full Length"   name="outseam"    register={register} />
           <Field label="Inseam"        name="inseam"     register={register} />
           <Field label="Waist"         name="waist"      register={register} />
-          <Field label="Hip"           name="hip"        register={register} />
           <Field label="Thigh Loose"   name="thigh"      register={register} />
           <Field label="Knee Loose"    name="kneeLose"   register={register} />
           <Field label="Bottom Hem"    name="ankle"      register={register} />

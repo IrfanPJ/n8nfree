@@ -399,12 +399,18 @@ export function SecLabel({ children }: { children: React.ReactNode }) {
 export function OptionGroup({
   label, options, value, onChange,
 }: { label: string; options: string[]; value: string; onChange: (v: string) => void }) {
+  const selected = value ? value.split(", ").filter(Boolean) : [];
   return (
     <div>
       <SecLabel>{label}</SecLabel>
       <div className="flex flex-wrap gap-2">
         {options.map((o) => (
-          <OptionChip key={o} label={o} selected={value === o} onClick={() => onChange(value === o ? "" : o)} />
+          <OptionChip key={o} label={o} selected={selected.includes(o)}
+            onClick={() => onChange(
+              selected.includes(o)
+                ? selected.filter((s) => s !== o).join(", ")
+                : [...selected, o].join(", ")
+            )} />
         ))}
       </div>
     </div>

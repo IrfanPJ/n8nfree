@@ -398,7 +398,7 @@ export function MeasurementsClient({
     const customer = allCustomers.find((c) => c.id === m.customerId);
     const matchesSearch =
       !search ||
-      m.label.toLowerCase().includes(search.toLowerCase()) ||
+      (m.label ?? "").toLowerCase().includes(search.toLowerCase()) ||
       (customer?.name ?? "").toLowerCase().includes(search.toLowerCase());
     const matchesCustomer = !filterCustomer || m.customerId === filterCustomer;
     return matchesSearch && matchesCustomer;
@@ -450,7 +450,7 @@ export function MeasurementsClient({
         <div className="relative flex-1 min-w-[200px] max-w-sm">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
           <Input
-            placeholder="Search by label or customer..."
+            placeholder="Search by order no. or customer..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="pl-9"

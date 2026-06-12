@@ -11,7 +11,7 @@ const optionalFloat = z
 
 export const measurementSchema = z.object({
   customerId: z.string().min(1, "Customer is required"),
-  label: z.string().min(1, "Label is required").max(100),
+  label: z.string().min(1, "Order / Invoice Ref. is required").max(100),
   unit: z.enum(["inches", "cm"]),
   // Upper body
   shirtLength: optionalFloat,

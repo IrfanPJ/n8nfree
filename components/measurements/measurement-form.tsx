@@ -102,7 +102,7 @@ export function MeasurementForm({
     resolver: zodResolver(measurementSchema) as any,
     defaultValues: {
       customerId:            measurement?.customerId ?? defaultCustomerId ?? "",
-      label:                 measurement?.label ?? "Standard",
+      label:                 measurement?.label && measurement.label !== "Standard" ? measurement.label : "",
       unit:                  (measurement?.unit as "inches" | "cm") ?? "inches",
       department:            measurement?.department ?? "",
       trialDate:             measurement?.trialDate ?? "",
@@ -234,8 +234,8 @@ export function MeasurementForm({
         )}
 
         <div className="space-y-1">
-          <Label htmlFor="label" className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Label *</Label>
-          <Input id="label" placeholder="e.g. Standard, Wedding" {...register("label")} className={cn("h-8 text-sm", errors.label ? "border-destructive" : "")} />
+          <Label htmlFor="label" className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Order / Invoice Ref. *</Label>
+          <Input id="label" placeholder="e.g. HOT-2026-001, Wedding Suit" {...register("label")} className={cn("h-8 text-sm", errors.label ? "border-destructive" : "")} />
           {errors.label && <p className="text-xs text-destructive">{errors.label.message}</p>}
         </div>
 

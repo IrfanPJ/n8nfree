@@ -43,8 +43,16 @@ export async function getInvoices(params: GetInvoicesParams = {}): Promise<{
   if (dateFrom) { countQ = countQ.gte("createdAt", new Date(dateFrom).toISOString()); dataQ = dataQ.gte("createdAt", new Date(dateFrom).toISOString()); }
   if (dateTo) { countQ = countQ.lte("createdAt", new Date(dateTo).toISOString()); dataQ = dataQ.lte("createdAt", new Date(dateTo).toISOString()); }
   if (search) {
-    countQ = countQ.ilike("invoiceNumber", `%${search}%`);
-    dataQ = dataQ.ilike("invoiceNumber", `%${search}%`);
+    const safe = search.replace(/[%_,().]/g, "\\$&");
+    const { data: matchedCustomers } = await supabase
+      .from("Customer")
+      .select("id")
+      .ilike("name", `%${safe}%`);
+    const customerIds = (matchedCustomers ?? []).map((c: any) => c.id);
+    let f = `invoiceNumber.ilike.%${safe}%,internalRef.ilike.%${safe}%`;
+    if (customerIds.length > 0) f += `,customerId.in.(${customerIds.join(",")})`;
+    countQ = countQ.or(f);
+    dataQ = dataQ.or(f);
   }
 
   const [{ count: total }, { data }] = await Promise.all([

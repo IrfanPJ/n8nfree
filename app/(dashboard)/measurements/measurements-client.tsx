@@ -266,7 +266,12 @@ function MeasurementCard({
                     {measurement.unit}
                   </Badge>
                 </div>
-                <div className="flex items-center gap-3 mt-0.5">
+                <div className="flex items-center gap-3 mt-0.5 flex-wrap">
+                  {measurement.label && measurement.label !== "Standard" && (
+                    <span className="text-xs font-semibold text-[#D4AF37]/90 tracking-wide">
+                      {measurement.label}
+                    </span>
+                  )}
                   <span className="text-xs text-muted-foreground flex items-center gap-1">
                     <CalendarDays className="w-3 h-3" />
                     {format(new Date(measurement.takenAt), "dd MMM yyyy")}

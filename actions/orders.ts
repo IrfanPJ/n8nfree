@@ -43,7 +43,13 @@ export async function getOrders(params: {
   if (priority) { countQ = countQ.eq("priority", priority); dataQ = dataQ.eq("priority", priority); }
   if (search) {
     const safe = search.replace(/[%_,().]/g, "\\$&");
-    const f = `orderNumber.ilike.%${safe}%,garmentType.ilike.%${safe}%,fabricName.ilike.%${safe}%`;
+    const { data: matchedCustomers } = await supabase
+      .from("Customer")
+      .select("id")
+      .ilike("name", `%${safe}%`);
+    const customerIds = (matchedCustomers ?? []).map((c: any) => c.id);
+    let f = `orderNumber.ilike.%${safe}%,customOrderNumber.ilike.%${safe}%,garmentType.ilike.%${safe}%,fabricName.ilike.%${safe}%`;
+    if (customerIds.length > 0) f += `,customerId.in.(${customerIds.join(",")})`;
     countQ = countQ.or(f);
     dataQ = dataQ.or(f);
   }

@@ -675,7 +675,7 @@ export function OrdersClient({
         open={!!designOrder}
         onClose={() => setDesignOrder(null)}
         orderId={designOrder?.id}
-        orderNumber={designOrder?.orderNumber}
+        orderNumber={designOrder?.customOrderNumber || designOrder?.orderNumber}
         initialDesign={designOrder ? parseDesignNotes(designOrder.designNotes).design ?? undefined : undefined}
         order={designOrder ? {
           customerName: (designOrder as any).customer?.name ?? "",

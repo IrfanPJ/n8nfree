@@ -999,6 +999,7 @@ export function OrderForm({ order, defaultCustomerId, onSuccess, onCancel }: Ord
       <BespokeDesigner
         open={stylingDialogOpen}
         onClose={() => setStylingDialogOpen(false)}
+        orderNumber={watchedOrderNumber?.trim() || undefined}
         initialDesign={{ jacket: jacketDesign, shirt: shirtDesign, trouser: trouserDesign }}
         onSave={async (design, specText) => {
           setJacketDesign(design.jacket ?? DEFAULT_JACKET);

@@ -456,7 +456,7 @@ export function OrderKanban({
         open={!!designOrder}
         onClose={() => setDesignOrder(null)}
         orderId={designOrder?.id}
-        orderNumber={designOrder?.orderNumber}
+        orderNumber={designOrder?.customOrderNumber || designOrder?.orderNumber}
         onSave={async (_design, specText) => {
           if (!designOrder) return;
           await updateOrderDesign(designOrder.id, specText);

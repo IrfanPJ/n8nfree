@@ -61,6 +61,43 @@ export async function signUpAction(
   return { success: true };
 }
 
+export async function changePasswordAction(
+  data: unknown
+): Promise<{ success: boolean; error?: string }> {
+  const session = await auth();
+  if (!session?.user?.id) return { success: false, error: "Unauthorized" };
+
+  const parsed = z
+    .object({
+      currentPassword: z.string().min(1, "Current password is required"),
+      newPassword: z.string().min(8, "New password must be at least 8 characters"),
+    })
+    .safeParse(data);
+  if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message };
+
+  const { currentPassword, newPassword } = parsed.data;
+
+  const { data: user } = await supabase
+    .from("User")
+    .select("password")
+    .eq("id", session.user.id)
+    .single();
+
+  if (!user) return { success: false, error: "User not found" };
+
+  const valid = await bcrypt.compare(currentPassword, user.password);
+  if (!valid) return { success: false, error: "Current password is incorrect" };
+
+  const hashed = await bcrypt.hash(newPassword, 10);
+  const { error } = await supabase
+    .from("User")
+    .update({ password: hashed, updatedAt: new Date().toISOString() })
+    .eq("id", session.user.id);
+
+  if (error) return { success: false, error: "Failed to update password" };
+  return { success: true };
+}
+
 const addTeamMemberSchema = z.object({
   name: z.string().min(2, "Name must be at least 2 characters"),
   email: z.string().email("Invalid email address"),

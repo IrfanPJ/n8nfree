@@ -2,6 +2,7 @@
 
 import { auth } from "@/lib/auth";
 import { supabase } from "@/lib/supabase";
+import bcrypt from "bcryptjs";
 import type { StaffPosition, UserRole } from "@/types";
 
 export async function getAssignableStaff() {
@@ -91,6 +92,29 @@ export async function deleteTeamMember(userId: string) {
     .eq("id", userId);
   if (error) return { success: false as const, error: error.message };
   return { success: true as const };
+}
+
+export async function resetMemberPassword(
+  userId: string,
+  newPassword: string
+): Promise<{ success: boolean; error?: string }> {
+  const session = await auth();
+  if (!session?.user || session.user.role !== "ADMIN") {
+    return { success: false, error: "Unauthorized" };
+  }
+  if (userId === session.user.id) {
+    return { success: false, error: "Use Change Password to update your own password" };
+  }
+  if (newPassword.length < 8) {
+    return { success: false, error: "Password must be at least 8 characters" };
+  }
+  const hashed = await bcrypt.hash(newPassword, 10);
+  const { error } = await supabase
+    .from("User")
+    .update({ password: hashed, updatedAt: new Date().toISOString() })
+    .eq("id", userId);
+  if (error) return { success: false, error: error.message };
+  return { success: true };
 }
 
 export async function updateTeamMember(

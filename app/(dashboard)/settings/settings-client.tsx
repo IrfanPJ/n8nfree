@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { User, Bell, Palette, Building2, Save, Users, ShieldCheck, ChevronDown, Lock, Trash2, Scissors, Plus } from "lucide-react";
+import { User, Bell, Palette, Building2, Save, Users, ShieldCheck, ChevronDown, Lock, Trash2, Scissors, Plus, Eye, EyeOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -17,6 +17,8 @@ import { toast } from "sonner";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { getInitials } from "@/lib/utils";
 import { updateTeamMember, updateUserPermissions, deleteTeamMember } from "@/actions/users";
+import { addTeamMemberAction } from "@/actions/auth";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { updateBusinessSettings, type BusinessSettings } from "@/actions/business-settings";
 import { addFabricHistoryEntry, deleteFabricHistoryEntry, type FabricHistoryEntry, type FabricHistoryType } from "@/actions/fabric-history";
 import type { StaffPosition, UserRole } from "@/types";
@@ -263,9 +265,130 @@ function FabricHistoryTab({ initialHistory }: { initialHistory?: SettingsClientP
   );
 }
 
+function AddMemberDialog({ open, onClose, onAdded }: {
+  open: boolean;
+  onClose: () => void;
+  onAdded: (member: TeamMember) => void;
+}) {
+  const [form, setForm] = useState({ name: "", email: "", password: "", role: "STAFF" as UserRole, position: "" });
+  const [showPassword, setShowPassword] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  function handleChange(field: string, value: string) {
+    setForm((prev) => ({ ...prev, [field]: value }));
+    setError(null);
+  }
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setLoading(true);
+    setError(null);
+    const result = await addTeamMemberAction({
+      name: form.name,
+      email: form.email,
+      password: form.password,
+      role: form.role,
+      position: form.position || null,
+    });
+    setLoading(false);
+    if (!result.success) {
+      setError(result.error ?? "Failed to add member");
+      return;
+    }
+    toast.success(`${form.name} added to the team`);
+    onAdded({
+      id: crypto.randomUUID(),
+      name: form.name,
+      email: form.email,
+      role: form.role,
+      position: form.position || null,
+      isActive: true,
+      pagePermissions: null,
+    });
+    setForm({ name: "", email: "", password: "", role: "STAFF", position: "" });
+    onClose();
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={(v) => { if (!v) onClose(); }}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Add Team Member</DialogTitle>
+        </DialogHeader>
+        <form onSubmit={handleSubmit} className="space-y-4 pt-1">
+          <div className="space-y-1.5">
+            <Label htmlFor="am-name">Full name</Label>
+            <Input id="am-name" value={form.name} onChange={(e) => handleChange("name", e.target.value)} placeholder="Jane Smith" required />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="am-email">Email address</Label>
+            <Input id="am-email" type="email" value={form.email} onChange={(e) => handleChange("email", e.target.value)} placeholder="jane@example.com" required />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="am-password">Temporary password</Label>
+            <div className="relative">
+              <Input
+                id="am-password"
+                type={showPassword ? "text" : "password"}
+                value={form.password}
+                onChange={(e) => handleChange("password", e.target.value)}
+                placeholder="Min. 8 characters"
+                className="pr-10"
+                required
+                minLength={8}
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword((v) => !v)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+              >
+                {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </button>
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label>Role</Label>
+              <Select value={form.role} onValueChange={(v) => handleChange("role", v)}>
+                <SelectTrigger className="h-9 text-sm"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {(Object.keys(ROLE_LABELS) as UserRole[]).map((r) => (
+                    <SelectItem key={r} value={r} className="text-sm">{ROLE_LABELS[r]}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label>Position</Label>
+              <Select value={form.position || "NONE"} onValueChange={(v) => handleChange("position", v === "NONE" ? "" : v)}>
+                <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="No position" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="NONE" className="text-sm text-muted-foreground">No position</SelectItem>
+                  {(Object.keys(POSITION_LABELS) as StaffPosition[]).map((pos) => (
+                    <SelectItem key={pos} value={pos} className="text-sm">{POSITION_LABELS[pos]}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          {error && <p className="text-xs text-destructive">{error}</p>}
+          <DialogFooter className="pt-2">
+            <Button type="button" variant="outline" onClick={onClose} disabled={loading}>Cancel</Button>
+            <Button type="submit" variant="gold" loading={loading}>
+              {loading ? "Adding..." : "Add Member"}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function TeamTab({ teamMembers, currentUserId }: { teamMembers: TeamMember[]; currentUserId: string }) {
   const [members, setMembers] = useState(teamMembers);
   const [pending, startTransition] = useTransition();
+  const [addOpen, setAddOpen] = useState(false);
 
   function handlePositionChange(memberId: string, position: StaffPosition | "NONE") {
     const newPos = position === "NONE" ? null : position;
@@ -310,15 +433,25 @@ function TeamTab({ teamMembers, currentUserId }: { teamMembers: TeamMember[]; cu
   }
 
   return (
+    <>
+    <AddMemberDialog open={addOpen} onClose={() => setAddOpen(false)} onAdded={(m) => setMembers((prev) => [...prev, m])} />
     <Card>
       <CardHeader>
-        <CardTitle className="flex items-center gap-2 text-base">
-          <Users className="w-4 h-4 text-primary" />
-          Team Management
-        </CardTitle>
-        <CardDescription>
-          Assign roles, positions and page access to your staff members
-        </CardDescription>
+        <div className="flex items-center justify-between">
+          <div>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Users className="w-4 h-4 text-primary" />
+              Team Management
+            </CardTitle>
+            <CardDescription className="mt-1">
+              Assign roles, positions and page access to your staff members
+            </CardDescription>
+          </div>
+          <Button variant="gold" size="sm" onClick={() => setAddOpen(true)}>
+            <Plus className="w-3.5 h-3.5 mr-1.5" />
+            Add Member
+          </Button>
+        </div>
       </CardHeader>
       <CardContent className="space-y-4">
         {members.length === 0 && (
@@ -401,6 +534,7 @@ function TeamTab({ teamMembers, currentUserId }: { teamMembers: TeamMember[]; cu
         })}
       </CardContent>
     </Card>
+    </>
   );
 }
 

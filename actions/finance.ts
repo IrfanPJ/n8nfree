@@ -1,35 +1,48 @@
 "use server";
 
-import { supabase } from "@/lib/supabase";
 import { auth } from "@/lib/auth";
+import { getScopedClient } from "@/lib/supabase-scoped";
+import { getActiveBranchCookie } from "@/lib/active-branch";
+import { resolveReadBranchFilter } from "@/lib/branch-context";
 import * as Sentry from "@sentry/nextjs";
 import { startOfMonth, endOfMonth, subMonths } from "date-fns";
 
-export async function getFinanceStats(_branch?: string) {
+export async function getFinanceStats() {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
+  const db = await getScopedClient(session);
+  const branchFilter = resolveReadBranchFilter(session, await getActiveBranchCookie());
 
   try {
     const now = new Date();
     const curStart = startOfMonth(now);
     const curEnd = endOfMonth(now);
 
+    let invoiceQ = db.from("Invoice").select("paidAmount").eq("isActive", true).eq("status", "PAID")
+      .gte("createdAt", curStart.toISOString()).lte("createdAt", curEnd.toISOString());
+    let posQ = db.from("POSSale").select("total")
+      .gte("createdAt", curStart.toISOString()).lte("createdAt", curEnd.toISOString());
+    let purchaseQ = db.from("Purchase").select("totalAmount")
+      .gte("createdAt", curStart.toISOString()).lte("createdAt", curEnd.toISOString());
+    let outstandingQ = db.from("Invoice").select("dueAmount").eq("isActive", true)
+      .in("status", ["SENT", "PARTIAL", "OVERDUE"]);
+    let draftQ = db.from("Invoice").select("*", { count: "exact", head: true })
+      .eq("isActive", true).eq("status", "DRAFT");
+
+    if (branchFilter) {
+      invoiceQ = invoiceQ.eq("branchId", branchFilter);
+      posQ = posQ.eq("branchId", branchFilter);
+      purchaseQ = purchaseQ.eq("branchId", branchFilter);
+      outstandingQ = outstandingQ.eq("branchId", branchFilter);
+      draftQ = draftQ.eq("branchId", branchFilter);
+    }
+
     const [invoiceRevenue, posRevenue, purchases, outstanding, draftInvoices] = await Promise.all([
-      supabase.from("Invoice").select("paidAmount").eq("isActive", true).eq("status", "PAID")
-        .gte("createdAt", curStart.toISOString()).lte("createdAt", curEnd.toISOString())
-        .then(r => r.data?.reduce((s, i) => s + (i.paidAmount ?? 0), 0) ?? 0),
-      supabase.from("POSSale").select("total")
-        .gte("createdAt", curStart.toISOString()).lte("createdAt", curEnd.toISOString())
-        .then(r => r.data?.reduce((s, i) => s + (i.total ?? 0), 0) ?? 0),
-      supabase.from("Purchase").select("totalAmount")
-        .gte("createdAt", curStart.toISOString()).lte("createdAt", curEnd.toISOString())
-        .then(r => r.data?.reduce((s, i) => s + (i.totalAmount ?? 0), 0) ?? 0),
-      supabase.from("Invoice").select("dueAmount").eq("isActive", true)
-        .in("status", ["SENT", "PARTIAL", "OVERDUE"])
-        .then(r => r.data?.reduce((s, i) => s + (i.dueAmount ?? 0), 0) ?? 0),
-      supabase.from("Invoice").select("*", { count: "exact", head: true })
-        .eq("isActive", true).eq("status", "DRAFT")
-        .then(r => r.count ?? 0),
+      invoiceQ.then(r => r.data?.reduce((s, i) => s + (i.paidAmount ?? 0), 0) ?? 0),
+      posQ.then(r => r.data?.reduce((s, i) => s + (i.total ?? 0), 0) ?? 0),
+      purchaseQ.then(r => r.data?.reduce((s, i) => s + (i.totalAmount ?? 0), 0) ?? 0),
+      outstandingQ.then(r => r.data?.reduce((s, i) => s + (i.dueAmount ?? 0), 0) ?? 0),
+      draftQ.then(r => r.count ?? 0),
     ]);
 
     const revenueMTD = invoiceRevenue + posRevenue;
@@ -44,9 +57,11 @@ export async function getFinanceStats(_branch?: string) {
   }
 }
 
-export async function getMonthlyFinance(_branch?: string) {
+export async function getMonthlyFinance() {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
+  const db = await getScopedClient(session);
+  const branchFilter = resolveReadBranchFilter(session, await getActiveBranchCookie());
 
   try {
     const months = Array.from({ length: 6 }, (_, i) => {
@@ -60,16 +75,23 @@ export async function getMonthlyFinance(_branch?: string) {
 
     return Promise.all(
       months.map(async ({ start, end, label }) => {
+        let invoiceQ = db.from("Invoice").select("paidAmount").eq("isActive", true).eq("status", "PAID")
+          .gte("createdAt", start.toISOString()).lte("createdAt", end.toISOString());
+        let posQ = db.from("POSSale").select("total")
+          .gte("createdAt", start.toISOString()).lte("createdAt", end.toISOString());
+        let purchaseQ = db.from("Purchase").select("totalAmount")
+          .gte("createdAt", start.toISOString()).lte("createdAt", end.toISOString());
+
+        if (branchFilter) {
+          invoiceQ = invoiceQ.eq("branchId", branchFilter);
+          posQ = posQ.eq("branchId", branchFilter);
+          purchaseQ = purchaseQ.eq("branchId", branchFilter);
+        }
+
         const [invoiceRev, posRev, expenses] = await Promise.all([
-          supabase.from("Invoice").select("paidAmount").eq("isActive", true).eq("status", "PAID")
-            .gte("createdAt", start.toISOString()).lte("createdAt", end.toISOString())
-            .then(r => r.data?.reduce((s, i) => s + (i.paidAmount ?? 0), 0) ?? 0),
-          supabase.from("POSSale").select("total")
-            .gte("createdAt", start.toISOString()).lte("createdAt", end.toISOString())
-            .then(r => r.data?.reduce((s, i) => s + (i.total ?? 0), 0) ?? 0),
-          supabase.from("Purchase").select("totalAmount")
-            .gte("createdAt", start.toISOString()).lte("createdAt", end.toISOString())
-            .then(r => r.data?.reduce((s, i) => s + (i.totalAmount ?? 0), 0) ?? 0),
+          invoiceQ.then(r => r.data?.reduce((s, i) => s + (i.paidAmount ?? 0), 0) ?? 0),
+          posQ.then(r => r.data?.reduce((s, i) => s + (i.total ?? 0), 0) ?? 0),
+          purchaseQ.then(r => r.data?.reduce((s, i) => s + (i.totalAmount ?? 0), 0) ?? 0),
         ]);
         return { month: label, revenue: invoiceRev + posRev, expenses, profit: (invoiceRev + posRev) - expenses };
       })
@@ -81,16 +103,21 @@ export async function getMonthlyFinance(_branch?: string) {
   }
 }
 
-export async function getTopClientsByRevenue(_branch?: string) {
+export async function getTopClientsByRevenue() {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
+  const db = await getScopedClient(session);
+  const branchFilter = resolveReadBranchFilter(session, await getActiveBranchCookie());
 
   try {
-    const { data } = await supabase
+    let q = db
       .from("Invoice")
       .select("customerId, paidAmount, customer:Customer!customerId(name)")
       .eq("isActive", true)
       .eq("status", "PAID");
+    if (branchFilter) q = q.eq("branchId", branchFilter);
+
+    const { data } = await q;
 
     const map: Record<string, { name: string; total: number }> = {};
     for (const row of data ?? []) {

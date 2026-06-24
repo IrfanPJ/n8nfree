@@ -1,7 +1,9 @@
 export const dynamic = "force-dynamic";
 import React, { Suspense } from "react";
-import { supabase } from "@/lib/supabase";
 import { auth } from "@/lib/auth";
+import { getScopedClient } from "@/lib/supabase-scoped";
+import { getActiveBranchCookie } from "@/lib/active-branch";
+import { resolveReadBranchFilter } from "@/lib/branch-context";
 import { redirect } from "next/navigation";
 import { AnalyticsClient } from "./analytics-client";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -10,6 +12,8 @@ import { startOfMonth, subMonths, endOfMonth } from "date-fns";
 async function AnalyticsContent() {
   const session = await auth();
   if (!session?.user) redirect("/login");
+  const db = await getScopedClient(session);
+  const branchId = resolveReadBranchFilter(session, await getActiveBranchCookie());
 
   const months = Array.from({ length: 12 }, (_, i) => {
     const date = subMonths(new Date(), 11 - i);
@@ -23,13 +27,15 @@ async function AnalyticsContent() {
   // Monthly revenue: fetch paid invoices per month
   const monthlyRevenue = await Promise.all(
     months.map(async ({ start, end, label }) => {
-      const { data } = await supabase
+      let q = db
         .from("Invoice")
         .select("paidAmount")
         .eq("isActive", true)
         .eq("status", "PAID")
         .gte("createdAt", start.toISOString())
         .lte("createdAt", end.toISOString());
+      if (branchId) q = q.eq("branchId", branchId);
+      const { data } = await q;
       return { month: label, revenue: data?.reduce((s, r) => s + (r.paidAmount ?? 0), 0) ?? 0 };
     })
   );
@@ -37,22 +43,25 @@ async function AnalyticsContent() {
   // Orders per month
   const ordersByMonth = await Promise.all(
     months.map(async ({ start, end, label }) => {
-      const { count } = await supabase
+      let q = db
         .from("Order")
         .select("*", { count: "exact", head: true })
         .eq("isActive", true)
         .gte("createdAt", start.toISOString())
         .lte("createdAt", end.toISOString());
+      if (branchId) q = q.eq("branchId", branchId);
+      const { count } = await q;
       return { month: label, orders: count ?? 0 };
     })
   );
 
   // Top customers by order count
-  const { data: customersRaw } = await supabase
+  let customersQ = db
     .from("Customer")
     .select("id, name, isVIP, Order!customerId(count), Invoice!customerId(id, paidAmount, status, isActive)")
-    .eq("isActive", true)
-    .limit(50);
+    .eq("isActive", true);
+  if (branchId) customersQ = customersQ.eq("branchId", branchId);
+  const { data: customersRaw } = await customersQ.limit(50);
 
   const topCustomers = (customersRaw ?? [])
     .map((c: any) => ({
@@ -67,10 +76,12 @@ async function AnalyticsContent() {
     .slice(0, 10);
 
   // Garment type breakdown
-  const { data: allOrders } = await supabase
+  let garmentQ = db
     .from("Order")
     .select("garmentType")
     .eq("isActive", true);
+  if (branchId) garmentQ = garmentQ.eq("branchId", branchId);
+  const { data: allOrders } = await garmentQ;
 
   const garmentMap = new Map<string, number>();
   for (const o of allOrders ?? []) {

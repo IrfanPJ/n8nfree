@@ -1,18 +1,19 @@
 export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
-import { supabase } from "@/lib/supabase";
+import { getScopedClient } from "@/lib/supabase-scoped";
 import type { SearchResult } from "@/types";
 
 export async function GET(request: NextRequest) {
   const session = await auth();
   if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const db = await getScopedClient(session);
 
   const q = request.nextUrl.searchParams.get("q");
   if (!q || q.length < 2) return NextResponse.json({ results: [] });
 
   // Run customers first so their IDs can be used to find linked orders/invoices/appointments by name
-  const { data: customers } = await supabase
+  const { data: customers } = await db
     .from("Customer")
     .select("id, name, phone, email")
     .eq("isActive", true)
@@ -24,25 +25,25 @@ export async function GET(request: NextRequest) {
 
   const [{ data: orders }, { data: invoices }, { data: appointments }, { data: leads }] =
     await Promise.all([
-      supabase
+      db
         .from("Order")
         .select(`id, orderNumber, garmentType, customer:Customer!customerId(name)`)
         .eq("isActive", true)
         .or(`orderNumber.ilike.%${q}%,garmentType.ilike.%${q}%${byCustomer}`)
         .limit(5),
-      supabase
+      db
         .from("Invoice")
         .select(`id, invoiceNumber, totalAmount, customer:Customer!customerId(name)`)
         .eq("isActive", true)
         .or(`invoiceNumber.ilike.%${q}%${byCustomer}`)
         .limit(5),
-      supabase
+      db
         .from("Appointment")
         .select(`id, title, startTime, customer:Customer!customerId(name)`)
         .eq("isActive", true)
         .or(`title.ilike.%${q}%${byCustomer}`)
         .limit(5),
-      supabase
+      db
         .from("Lead")
         .select("id, name, phone, email, stage")
         .or(`name.ilike.%${q}%,phone.ilike.%${q}%,email.ilike.%${q}%`)

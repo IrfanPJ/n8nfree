@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Plus,
@@ -260,6 +260,14 @@ export function AppointmentsClient({
   staff,
 }: AppointmentsClientProps) {
   const [appointments, setAppointments] = useState(initialAppointments);
+
+  // Sync local state whenever the server re-fetches (e.g. router.refresh()
+  // after a branch switch) — without this, switching branches would keep
+  // showing whatever appointments were loaded on first render.
+  useEffect(() => {
+    setAppointments(initialAppointments);
+  }, [initialAppointments]);
+
   const [viewMode, setViewMode] = useState<ViewMode>("list");
   const [currentMonth, setCurrentMonth] = useState(() => startOfMonth(new Date()));
   const [currentWeekStart, setCurrentWeekStart] = useState(() => startOfWeek(new Date(), { weekStartsOn: 1 }));

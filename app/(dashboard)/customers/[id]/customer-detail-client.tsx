@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import {
@@ -36,6 +36,12 @@ export function CustomerDetailClient({ customer }: CustomerDetailClientProps) {
   const [editMeasurement, setEditMeasurement] = useState<Measurement | null>(null);
   const [localMeasurements, setLocalMeasurements] = useState(customer.measurements as unknown as Measurement[]);
   const [localOrders, setLocalOrders] = useState(customer.orders);
+
+  // Sync local state whenever the server re-fetches.
+  useEffect(() => {
+    setLocalMeasurements(customer.measurements as unknown as Measurement[]);
+    setLocalOrders(customer.orders);
+  }, [customer]);
   const [deletingOrderId, setDeletingOrderId] = useState<string | null>(null);
   const [designViewOrder, setDesignViewOrder] = useState<(typeof customer.orders)[0] | null>(null);
 

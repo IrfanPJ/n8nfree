@@ -2,8 +2,10 @@
 
 import { revalidatePath } from "next/cache";
 import { randomUUID } from "crypto";
-import { supabase } from "@/lib/supabase";
 import { auth } from "@/lib/auth";
+import { getScopedClient } from "@/lib/supabase-scoped";
+import { getActiveBranchCookie } from "@/lib/active-branch";
+import { resolveActiveBranchId, resolveReadBranchFilter } from "@/lib/branch-context";
 import { appointmentSchema } from "@/validators/appointment";
 import { sendAppointmentConfirmation } from "@/lib/email";
 import type { ApiResponse, AppointmentWithRelations, AppointmentStatus } from "@/types";
@@ -14,7 +16,6 @@ export interface GetAppointmentsParams {
   status?: AppointmentStatus;
   customerId?: string;
   staffId?: string;
-  branch?: string;
 }
 
 const APPT_SELECT = `*, customer:Customer!customerId(*), staff:User!staffId(*)`;
@@ -22,11 +23,14 @@ const APPT_SELECT = `*, customer:Customer!customerId(*), staff:User!staffId(*)`;
 export async function getAppointments(params: GetAppointmentsParams = {}): Promise<AppointmentWithRelations[]> {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
+  const db = await getScopedClient(session);
 
   const { dateFrom, dateTo, status, customerId, staffId } = params;
 
-  let q = supabase.from("Appointment").select(APPT_SELECT).eq("isActive", true);
+  let q = db.from("Appointment").select(APPT_SELECT).eq("isActive", true);
 
+  const branchFilter = resolveReadBranchFilter(session, await getActiveBranchCookie());
+  if (branchFilter) q = q.eq("branchId", branchFilter);
   if (status) q = q.eq("status", status);
   if (customerId) q = q.eq("customerId", customerId);
   if (staffId) q = q.eq("staffId", staffId);
@@ -40,14 +44,17 @@ export async function getAppointments(params: GetAppointmentsParams = {}): Promi
 export async function getAppointmentById(id: string): Promise<AppointmentWithRelations | null> {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
+  const db = await getScopedClient(session);
 
-  const { data } = await supabase.from("Appointment").select(APPT_SELECT).eq("id", id).maybeSingle();
+  const { data } = await db.from("Appointment").select(APPT_SELECT).eq("id", id).maybeSingle();
   return data as AppointmentWithRelations | null;
 }
 
 export async function createAppointment(data: unknown): Promise<ApiResponse<AppointmentWithRelations>> {
   const session = await auth();
   if (!session?.user) return { success: false, error: "Unauthorized" };
+  const db = await getScopedClient(session);
+  const branchId = resolveActiveBranchId(session, await getActiveBranchCookie());
 
   const parsed = appointmentSchema.safeParse(data);
   if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message ?? "Validation failed" };
@@ -56,7 +63,7 @@ export async function createAppointment(data: unknown): Promise<ApiResponse<Appo
     const id = randomUUID();
     const now = new Date().toISOString();
 
-    const { error } = await supabase.from("Appointment").insert({
+    const { error } = await db.from("Appointment").insert({
       id,
       customerId: parsed.data.customerId,
       staffId: parsed.data.staffId || null,
@@ -70,26 +77,27 @@ export async function createAppointment(data: unknown): Promise<ApiResponse<Appo
       notes: parsed.data.notes || null,
       reminderAt: parsed.data.reminderAt ? new Date(parsed.data.reminderAt).toISOString() : null,
       leadId: parsed.data.leadId || null,
-      branch: "Business Bay",
+      branchId,
       createdAt: now,
       updatedAt: now,
     });
 
     if (error) throw error;
 
-    await supabase.from("ActivityLog").insert({
+    await db.from("ActivityLog").insert({
       id: randomUUID(),
       userId: session.user.id,
       customerId: parsed.data.customerId,
+      branchId,
       action: "CREATE",
       entity: "Appointment",
       entityId: id,
       description: `Appointment "${parsed.data.title}" scheduled`,
     });
 
-    const { data: appointment } = await supabase.from("Appointment").select(APPT_SELECT).eq("id", id).single();
+    const { data: appointment } = await db.from("Appointment").select(APPT_SELECT).eq("id", id).single();
 
-    const { data: customer } = await supabase.from("Customer").select("email, name").eq("id", parsed.data.customerId).single();
+    const { data: customer } = await db.from("Customer").select("email, name").eq("id", parsed.data.customerId).single();
     if (customer?.email) {
       sendAppointmentConfirmation({
         to: customer.email,
@@ -113,12 +121,13 @@ export async function createAppointment(data: unknown): Promise<ApiResponse<Appo
 export async function updateAppointment(id: string, data: unknown): Promise<ApiResponse<AppointmentWithRelations>> {
   const session = await auth();
   if (!session?.user) return { success: false, error: "Unauthorized" };
+  const db = await getScopedClient(session);
 
   const parsed = appointmentSchema.safeParse(data);
   if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message ?? "Validation failed" };
 
   try {
-    const { error } = await supabase.from("Appointment").update({
+    const { error } = await db.from("Appointment").update({
       customerId: parsed.data.customerId,
       staffId: parsed.data.staffId || null,
       title: parsed.data.title,
@@ -135,7 +144,7 @@ export async function updateAppointment(id: string, data: unknown): Promise<ApiR
 
     if (error) throw error;
 
-    const { data: appointment } = await supabase.from("Appointment").select(APPT_SELECT).eq("id", id).single();
+    const { data: appointment } = await db.from("Appointment").select(APPT_SELECT).eq("id", id).single();
     revalidatePath("/appointments");
     return { success: true, data: appointment as AppointmentWithRelations, message: "Appointment updated" };
   } catch (error) {
@@ -147,15 +156,16 @@ export async function updateAppointment(id: string, data: unknown): Promise<ApiR
 export async function updateAppointmentStatus(id: string, status: AppointmentStatus): Promise<ApiResponse<AppointmentWithRelations>> {
   const session = await auth();
   if (!session?.user) return { success: false, error: "Unauthorized" };
+  const db = await getScopedClient(session);
 
   try {
-    await supabase.from("Appointment").update({ status, updatedAt: new Date().toISOString() }).eq("id", id);
-    const { data: appointment } = await supabase.from("Appointment").select(APPT_SELECT).eq("id", id).single();
+    await db.from("Appointment").update({ status, updatedAt: new Date().toISOString() }).eq("id", id);
+    const { data: appointment } = await db.from("Appointment").select(APPT_SELECT).eq("id", id).single();
 
     // Auto Closed Won: when appointment is completed, move linked lead to CLOSED_WON
     const leadId = (appointment as any)?.leadId;
     if (status === "COMPLETED" && leadId) {
-      await supabase.from("Lead")
+      await db.from("Lead")
         .update({ stage: "CLOSED_WON", updatedAt: new Date().toISOString() })
         .eq("id", leadId);
       revalidatePath("/leads");
@@ -171,12 +181,13 @@ export async function updateAppointmentStatus(id: string, status: AppointmentSta
 export async function deleteAppointment(id: string): Promise<ApiResponse<void>> {
   const session = await auth();
   if (!session?.user) return { success: false, error: "Unauthorized" };
-  if (!["ADMIN", "MANAGER"].includes(session.user.role)) {
+  if (!["SUPER_ADMIN", "ADMIN", "MANAGER"].includes(session.user.role)) {
     return { success: false, error: "Insufficient permissions" };
   }
+  const db = await getScopedClient(session);
 
   try {
-    const { error } = await supabase.from("Appointment").update({ isActive: false, updatedAt: new Date().toISOString() }).eq("id", id);
+    const { error } = await db.from("Appointment").update({ isActive: false, updatedAt: new Date().toISOString() }).eq("id", id);
     if (error) throw error;
     revalidatePath("/appointments");
     return { success: true, message: "Appointment cancelled" };

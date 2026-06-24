@@ -2,21 +2,25 @@
 
 import { revalidatePath } from "next/cache";
 import { randomUUID } from "crypto";
-import { supabase } from "@/lib/supabase";
 import { auth } from "@/lib/auth";
+import { getScopedClient } from "@/lib/supabase-scoped";
+import { getActiveBranchCookie } from "@/lib/active-branch";
+import { resolveActiveBranchId, resolveReadBranchFilter } from "@/lib/branch-context";
 import { fabricSchema } from "@/validators/fabric";
 import type { ApiResponse, Fabric } from "@/types";
 
 export async function getFabrics(params: {
   search?: string;
   lowStockOnly?: boolean;
-  branch?: string;
 } = {}): Promise<Fabric[]> {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
+  const db = await getScopedClient(session);
 
-  let q = supabase.from("Fabric").select("*").eq("isActive", true);
+  let q = db.from("Fabric").select("*").eq("isActive", true);
 
+  const branchFilter = resolveReadBranchFilter(session, await getActiveBranchCookie());
+  if (branchFilter) q = q.eq("branchId", branchFilter);
   if (params.search) q = q.ilike("name", `%${params.search}%`);
 
   const { data } = await q.order("name", { ascending: true });
@@ -32,6 +36,8 @@ export async function getFabrics(params: {
 export async function createFabric(data: unknown): Promise<ApiResponse<Fabric>> {
   const session = await auth();
   if (!session?.user) return { success: false, error: "Unauthorized" };
+  const db = await getScopedClient(session);
+  const branchId = resolveActiveBranchId(session, await getActiveBranchCookie());
 
   const parsed = fabricSchema.safeParse(data);
   if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message };
@@ -40,7 +46,7 @@ export async function createFabric(data: unknown): Promise<ApiResponse<Fabric>> 
     const id = randomUUID();
     const now = new Date().toISOString();
 
-    const { error } = await supabase.from("Fabric").insert({
+    const { error } = await db.from("Fabric").insert({
       id,
       name: parsed.data.name,
       type: parsed.data.type,
@@ -51,7 +57,7 @@ export async function createFabric(data: unknown): Promise<ApiResponse<Fabric>> 
       pricePerUnit: parsed.data.pricePerUnit,
       unit: parsed.data.unit,
       notes: parsed.data.notes || null,
-      branch: "Business Bay",
+      branchId,
       isActive: true,
       createdAt: now,
       updatedAt: now,
@@ -59,7 +65,7 @@ export async function createFabric(data: unknown): Promise<ApiResponse<Fabric>> 
 
     if (error) throw error;
 
-    const { data: fabric } = await supabase.from("Fabric").select("*").eq("id", id).single();
+    const { data: fabric } = await db.from("Fabric").select("*").eq("id", id).single();
     revalidatePath("/fabrics");
     return { success: true, data: fabric as Fabric, message: "Fabric added" };
   } catch {
@@ -70,12 +76,13 @@ export async function createFabric(data: unknown): Promise<ApiResponse<Fabric>> 
 export async function updateFabric(id: string, data: unknown): Promise<ApiResponse<Fabric>> {
   const session = await auth();
   if (!session?.user) return { success: false, error: "Unauthorized" };
+  const db = await getScopedClient(session);
 
   const parsed = fabricSchema.safeParse(data);
   if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message };
 
   try {
-    const { error } = await supabase.from("Fabric").update({
+    const { error } = await db.from("Fabric").update({
       name: parsed.data.name,
       type: parsed.data.type,
       color: parsed.data.color || null,
@@ -90,7 +97,7 @@ export async function updateFabric(id: string, data: unknown): Promise<ApiRespon
 
     if (error) throw error;
 
-    const { data: fabric } = await supabase.from("Fabric").select("*").eq("id", id).single();
+    const { data: fabric } = await db.from("Fabric").select("*").eq("id", id).single();
     revalidatePath("/fabrics");
     return { success: true, data: fabric as Fabric, message: "Fabric updated" };
   } catch {
@@ -101,20 +108,21 @@ export async function updateFabric(id: string, data: unknown): Promise<ApiRespon
 export async function adjustStock(id: string, delta: number, notes?: string): Promise<ApiResponse<Fabric>> {
   const session = await auth();
   if (!session?.user) return { success: false, error: "Unauthorized" };
+  const db = await getScopedClient(session);
 
-  const { data: existing } = await supabase.from("Fabric").select("stockQty").eq("id", id).single();
+  const { data: existing } = await db.from("Fabric").select("stockQty").eq("id", id).single();
   if (!existing) return { success: false, error: "Fabric not found" };
 
   const newQty = Math.max(0, existing.stockQty + delta);
 
-  const { error } = await supabase.from("Fabric").update({
+  const { error } = await db.from("Fabric").update({
     stockQty: newQty,
     updatedAt: new Date().toISOString(),
   }).eq("id", id);
 
   if (error) return { success: false, error: "Failed to adjust stock" };
 
-  const { data: fabric } = await supabase.from("Fabric").select("*").eq("id", id).single();
+  const { data: fabric } = await db.from("Fabric").select("*").eq("id", id).single();
   revalidatePath("/fabrics");
   return { success: true, data: fabric as Fabric, message: `Stock updated to ${newQty}` };
 }
@@ -122,11 +130,12 @@ export async function adjustStock(id: string, delta: number, notes?: string): Pr
 export async function deleteFabric(id: string): Promise<ApiResponse<void>> {
   const session = await auth();
   if (!session?.user) return { success: false, error: "Unauthorized" };
-  if (!["ADMIN", "MANAGER"].includes(session.user.role)) {
+  if (!["SUPER_ADMIN", "ADMIN", "MANAGER"].includes(session.user.role)) {
     return { success: false, error: "Insufficient permissions" };
   }
+  const db = await getScopedClient(session);
 
-  await supabase.from("Fabric").update({ isActive: false, updatedAt: new Date().toISOString() }).eq("id", id);
+  await db.from("Fabric").update({ isActive: false, updatedAt: new Date().toISOString() }).eq("id", id);
   revalidatePath("/fabrics");
   return { success: true, message: "Fabric removed" };
 }

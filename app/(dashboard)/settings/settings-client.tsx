@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useTransition } from "react";
-import { User, Bell, Palette, Building2, Save, Users, ShieldCheck, ChevronDown, Lock, Trash2, Scissors, Plus, Eye, EyeOff, KeyRound } from "lucide-react";
+import { useState, useTransition, useEffect } from "react";
+import { User, Bell, Palette, Building2, Save, Users, ShieldCheck, ChevronDown, Lock, Trash2, Scissors, Plus, Eye, EyeOff, KeyRound, MapPin } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -16,12 +16,13 @@ import { useTheme } from "next-themes";
 import { toast } from "sonner";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { getInitials } from "@/lib/utils";
-import { updateTeamMember, updateUserPermissions, deleteTeamMember, resetMemberPassword } from "@/actions/users";
+import { updateTeamMember, updateUserPermissions, updateUserBranches, deleteTeamMember, resetMemberPassword } from "@/actions/users";
 import { addTeamMemberAction, changePasswordAction } from "@/actions/auth";
+import { createBranch, deactivateBranch } from "@/actions/branches";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { updateBusinessSettings, type BusinessSettings } from "@/actions/business-settings";
 import { addFabricHistoryEntry, deleteFabricHistoryEntry, type FabricHistoryEntry, type FabricHistoryType } from "@/actions/fabric-history";
-import type { StaffPosition, UserRole } from "@/types";
+import type { StaffPosition, UserRole, Branch } from "@/types";
 import { PAGE_PERMISSIONS } from "@/lib/permissions";
 import { cn } from "@/lib/utils";
 
@@ -37,10 +38,13 @@ const POSITION_LABELS: Record<StaffPosition, string> = {
 };
 
 const ROLE_LABELS: Record<UserRole, string> = {
+  SUPER_ADMIN: "Super Admin",
   ADMIN: "Admin",
   MANAGER: "Manager",
   STAFF: "Staff",
 };
+
+const ADMIN_ROLES = ["SUPER_ADMIN", "ADMIN"];
 
 type TeamMember = {
   id: string;
@@ -50,6 +54,7 @@ type TeamMember = {
   position: string | null;
   isActive: boolean;
   pagePermissions?: string[] | null;
+  branches?: string[] | null;
 };
 
 interface SettingsClientProps {
@@ -59,6 +64,7 @@ interface SettingsClientProps {
     email?: string | null;
     image?: string | null;
     role?: string;
+    branches?: string[];
   };
   teamMembers?: TeamMember[];
   businessSettings?: BusinessSettings;
@@ -68,6 +74,7 @@ interface SettingsClientProps {
     prices: FabricHistoryEntry[];
     colors: FabricHistoryEntry[];
   };
+  branches?: Branch[];
 }
 
 function MemberPermissionsRow({ member, onUpdate }: {
@@ -173,6 +180,163 @@ function MemberPermissionsRow({ member, onUpdate }: {
   );
 }
 
+
+function MemberBranchesRow({ member, branches, editable, onUpdate }: {
+  member: TeamMember;
+  branches: Branch[];
+  editable: boolean;
+  onUpdate: (id: string, branchIds: string[]) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const current = member.branches ?? [];
+
+  async function handleToggle(branchId: string) {
+    const next = current.includes(branchId)
+      ? current.filter((b) => b !== branchId)
+      : [...current, branchId];
+    if (next.length === 0) {
+      toast.error("At least one branch must be assigned");
+      return;
+    }
+    setSaving(true);
+    const result = await updateUserBranches(member.id, next);
+    if (result.success) {
+      onUpdate(member.id, next);
+      toast.success("Branch assignment updated");
+    } else {
+      toast.error(result.error ?? "Failed to update branches");
+    }
+    setSaving(false);
+  }
+
+  const names = current.map((id) => branches.find((b) => b.id === id)?.name ?? id);
+
+  if (!editable) {
+    return (
+      <div className="flex items-center gap-1.5 px-1 text-xs text-muted-foreground">
+        <MapPin className="w-3 h-3" />
+        {names.length > 0 ? names.join(", ") : "No branch assigned"}
+      </div>
+    );
+  }
+
+  return (
+    <div className="border border-border rounded-lg overflow-hidden">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="w-full flex items-center gap-2 px-3 py-2 bg-secondary/20 hover:bg-secondary/40 transition-colors text-xs"
+      >
+        <MapPin className="w-3.5 h-3.5 text-[#D4AF37]" />
+        <span className="font-medium text-muted-foreground">Branches</span>
+        <span className="ml-1 text-[10px] px-1.5 py-0.5 rounded-full font-semibold bg-[#D4AF37]/15 text-[#D4AF37]">
+          {names.length > 0 ? names.join(", ") : "None"}
+        </span>
+        <ChevronDown className={cn("w-3.5 h-3.5 ml-auto text-muted-foreground transition-transform", open && "rotate-180")} />
+      </button>
+      {open && (
+        <div className={cn("p-3 grid grid-cols-2 gap-2 border-t border-border", saving && "opacity-50 pointer-events-none")}>
+          {branches.map((b) => (
+            <label key={b.id} className="flex items-center gap-2 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={current.includes(b.id)}
+                onChange={() => handleToggle(b.id)}
+                className="w-3.5 h-3.5 rounded accent-[#D4AF37]"
+              />
+              <span className="text-xs text-muted-foreground">{b.name}</span>
+            </label>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function BranchesTab({ initialBranches }: { initialBranches: Branch[] }) {
+  const [branches, setBranches] = useState(initialBranches);
+
+  // Sync local state whenever the server re-fetches.
+  useEffect(() => {
+    setBranches(initialBranches);
+  }, [initialBranches]);
+
+  const [form, setForm] = useState({ name: "", code: "", address: "" });
+  const [saving, setSaving] = useState(false);
+
+  async function handleAdd() {
+    if (!form.name.trim() || !form.code.trim()) {
+      toast.error("Name and code are required");
+      return;
+    }
+    setSaving(true);
+    const result = await createBranch({ name: form.name.trim(), code: form.code.trim(), address: form.address.trim() || undefined });
+    setSaving(false);
+    if (!result.success || !result.data) {
+      toast.error(result.error ?? "Failed to create branch");
+      return;
+    }
+    setBranches((prev) => [...prev, result.data!]);
+    setForm({ name: "", code: "", address: "" });
+    toast.success("Branch created");
+  }
+
+  async function handleDeactivate(id: string, name: string) {
+    if (!confirm(`Deactivate "${name}"? Staff assigned only to this branch will lose access until reassigned.`)) return;
+    const result = await deactivateBranch(id);
+    if (result.success) {
+      setBranches((prev) => prev.map((b) => (b.id === id ? { ...b, isActive: false } : b)));
+      toast.success("Branch deactivated");
+    } else {
+      toast.error(result.error ?? "Failed to deactivate branch");
+    }
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2 text-base">
+          <MapPin className="w-4 h-4 text-primary" />
+          Branches
+        </CardTitle>
+        <CardDescription>Manage the physical branches your business operates. Visible only to Super Admins.</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+          <Input placeholder="Branch name (e.g. Abu Dhabi)" value={form.name} onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))} className="h-9 text-sm" />
+          <Input placeholder="Short code (e.g. AD)" value={form.code} onChange={(e) => setForm((p) => ({ ...p, code: e.target.value }))} className="h-9 text-sm" />
+          <div className="flex gap-2">
+            <Input placeholder="Address (optional)" value={form.address} onChange={(e) => setForm((p) => ({ ...p, address: e.target.value }))} className="h-9 text-sm" />
+            <Button size="sm" className="h-9 px-3 flex-shrink-0" disabled={saving} onClick={handleAdd}>
+              <Plus className="w-3.5 h-3.5" />
+            </Button>
+          </div>
+        </div>
+        <Separator />
+        <div className="space-y-2">
+          {branches.length === 0 && <p className="text-sm text-muted-foreground text-center py-4">No branches yet</p>}
+          {branches.map((b) => (
+            <div key={b.id} className="flex items-center justify-between p-3 rounded-lg border border-border">
+              <div>
+                <p className="text-sm font-medium">{b.name} <span className="text-xs text-muted-foreground">({b.code})</span></p>
+                {b.address && <p className="text-xs text-muted-foreground">{b.address}</p>}
+              </div>
+              <div className="flex items-center gap-2">
+                {!b.isActive && <Badge variant="outline" className="text-xs">Inactive</Badge>}
+                {b.isActive && b.id !== "business-bay" && (
+                  <Button variant="ghost" size="icon-sm" onClick={() => handleDeactivate(b.id, b.name)} className="h-8 w-8 text-red-400 hover:text-red-300 hover:bg-red-500/10">
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </Button>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
 
 const FABRIC_SECTIONS: { key: keyof NonNullable<SettingsClientProps["fabricHistory"]>; type: FabricHistoryType; label: string; placeholder: string }[] = [
   { key: "codes",        type: "code",        label: "Fabric Codes",        placeholder: "e.g. WL-001" },
@@ -347,12 +511,16 @@ function ResetPasswordDialog({ memberId, memberName, open, onClose }: {
   );
 }
 
-function AddMemberDialog({ open, onClose, onAdded }: {
+function AddMemberDialog({ open, onClose, onAdded, branches, isSuperAdmin, ownBranches }: {
   open: boolean;
   onClose: () => void;
   onAdded: (member: TeamMember) => void;
+  branches: Branch[];
+  isSuperAdmin: boolean;
+  ownBranches: string[];
 }) {
-  const [form, setForm] = useState({ name: "", email: "", password: "", role: "STAFF" as UserRole, position: "" });
+  const assignableBranches = isSuperAdmin ? branches : branches.filter((b) => ownBranches.includes(b.id));
+  const [form, setForm] = useState({ name: "", email: "", password: "", role: "STAFF" as UserRole, position: "", branchIds: [] as string[] });
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -362,8 +530,21 @@ function AddMemberDialog({ open, onClose, onAdded }: {
     setError(null);
   }
 
+  function toggleBranch(branchId: string) {
+    setForm((prev) => ({
+      ...prev,
+      branchIds: prev.branchIds.includes(branchId)
+        ? prev.branchIds.filter((b) => b !== branchId)
+        : [...prev.branchIds, branchId],
+    }));
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (form.role !== "SUPER_ADMIN" && form.branchIds.length === 0) {
+      setError("Select at least one branch");
+      return;
+    }
     setLoading(true);
     setError(null);
     const result = await addTeamMemberAction({
@@ -372,6 +553,7 @@ function AddMemberDialog({ open, onClose, onAdded }: {
       password: form.password,
       role: form.role,
       position: form.position || null,
+      branchIds: form.branchIds,
     });
     setLoading(false);
     if (!result.success) {
@@ -387,8 +569,9 @@ function AddMemberDialog({ open, onClose, onAdded }: {
       position: form.position || null,
       isActive: true,
       pagePermissions: null,
+      branches: form.branchIds,
     });
-    setForm({ name: "", email: "", password: "", role: "STAFF", position: "" });
+    setForm({ name: "", email: "", password: "", role: "STAFF", position: "", branchIds: [] });
     onClose();
   }
 
@@ -435,9 +618,11 @@ function AddMemberDialog({ open, onClose, onAdded }: {
               <Select value={form.role} onValueChange={(v) => handleChange("role", v)}>
                 <SelectTrigger className="h-9 text-sm"><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  {(Object.keys(ROLE_LABELS) as UserRole[]).map((r) => (
-                    <SelectItem key={r} value={r} className="text-sm">{ROLE_LABELS[r]}</SelectItem>
-                  ))}
+                  {(Object.keys(ROLE_LABELS) as UserRole[])
+                    .filter((r) => r !== "SUPER_ADMIN" || isSuperAdmin)
+                    .map((r) => (
+                      <SelectItem key={r} value={r} className="text-sm">{ROLE_LABELS[r]}</SelectItem>
+                    ))}
                 </SelectContent>
               </Select>
             </div>
@@ -454,6 +639,27 @@ function AddMemberDialog({ open, onClose, onAdded }: {
               </Select>
             </div>
           </div>
+          {form.role !== "SUPER_ADMIN" && (
+            <div className="space-y-1.5">
+              <Label>Branches</Label>
+              <div className="grid grid-cols-2 gap-2 p-2 rounded-lg border border-border">
+                {assignableBranches.length === 0 && (
+                  <p className="text-xs text-muted-foreground col-span-2">No branches available</p>
+                )}
+                {assignableBranches.map((b) => (
+                  <label key={b.id} className="flex items-center gap-2 cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={form.branchIds.includes(b.id)}
+                      onChange={() => toggleBranch(b.id)}
+                      className="w-3.5 h-3.5 rounded accent-[#D4AF37]"
+                    />
+                    <span className="text-xs text-muted-foreground">{b.name}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+          )}
           {error && <p className="text-xs text-destructive">{error}</p>}
           <DialogFooter className="pt-2">
             <Button type="button" variant="outline" onClick={onClose} disabled={loading}>Cancel</Button>
@@ -467,11 +673,27 @@ function AddMemberDialog({ open, onClose, onAdded }: {
   );
 }
 
-function TeamTab({ teamMembers, currentUserId }: { teamMembers: TeamMember[]; currentUserId: string }) {
+function TeamTab({ teamMembers, currentUserId, branches, isSuperAdmin, ownBranches }: {
+  teamMembers: TeamMember[];
+  currentUserId: string;
+  branches: Branch[];
+  isSuperAdmin: boolean;
+  ownBranches: string[];
+}) {
   const [members, setMembers] = useState(teamMembers);
+
+  // Sync local state whenever the server re-fetches.
+  useEffect(() => {
+    setMembers(teamMembers);
+  }, [teamMembers]);
+
   const [pending, startTransition] = useTransition();
   const [addOpen, setAddOpen] = useState(false);
   const [resetTarget, setResetTarget] = useState<{ id: string; name: string | null } | null>(null);
+
+  function handleBranchesUpdate(memberId: string, branchIds: string[]) {
+    setMembers((prev) => prev.map((m) => (m.id === memberId ? { ...m, branches: branchIds } : m)));
+  }
 
   function handlePositionChange(memberId: string, position: StaffPosition | "NONE") {
     const newPos = position === "NONE" ? null : position;
@@ -517,7 +739,14 @@ function TeamTab({ teamMembers, currentUserId }: { teamMembers: TeamMember[]; cu
 
   return (
     <>
-    <AddMemberDialog open={addOpen} onClose={() => setAddOpen(false)} onAdded={(m) => setMembers((prev) => [...prev, m])} />
+    <AddMemberDialog
+      open={addOpen}
+      onClose={() => setAddOpen(false)}
+      onAdded={(m) => setMembers((prev) => [...prev, m])}
+      branches={branches}
+      isSuperAdmin={isSuperAdmin}
+      ownBranches={ownBranches}
+    />
     {resetTarget && (
       <ResetPasswordDialog
         memberId={resetTarget.id}
@@ -578,9 +807,11 @@ function TeamTab({ teamMembers, currentUserId }: { teamMembers: TeamMember[]; cu
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        {(Object.keys(ROLE_LABELS) as UserRole[]).map((r) => (
-                          <SelectItem key={r} value={r} className="text-xs">{ROLE_LABELS[r]}</SelectItem>
-                        ))}
+                        {(Object.keys(ROLE_LABELS) as UserRole[])
+                          .filter((r) => r !== "SUPER_ADMIN" || isSuperAdmin)
+                          .map((r) => (
+                            <SelectItem key={r} value={r} className="text-xs">{ROLE_LABELS[r]}</SelectItem>
+                          ))}
                       </SelectContent>
                     </Select>
 
@@ -623,8 +854,17 @@ function TeamTab({ teamMembers, currentUserId }: { teamMembers: TeamMember[]; cu
                 )}
               </div>
 
+              {!isSelf && (
+                <MemberBranchesRow
+                  member={member}
+                  branches={branches}
+                  editable={isSuperAdmin}
+                  onUpdate={handleBranchesUpdate}
+                />
+              )}
+
               {/* Page access — only for non-self, non-admin members */}
-              {!isSelf && member.role !== "ADMIN" && (
+              {!isSelf && !ADMIN_ROLES.includes(member.role) && (
                 <MemberPermissionsRow
                   member={member}
                   onUpdate={handlePermissionsUpdate}
@@ -639,7 +879,7 @@ function TeamTab({ teamMembers, currentUserId }: { teamMembers: TeamMember[]; cu
   );
 }
 
-export function SettingsClient({ user, teamMembers = [], businessSettings, fabricHistory }: SettingsClientProps) {
+export function SettingsClient({ user, teamMembers = [], businessSettings, fabricHistory, branches = [] }: SettingsClientProps) {
   const { theme, setTheme } = useTheme();
   const [notifications, setNotifications] = useState({
     orderUpdates: true,
@@ -658,7 +898,8 @@ export function SettingsClient({ user, teamMembers = [], businessSettings, fabri
   });
   const [savingBiz, setSavingBiz] = useState(false);
 
-  const isAdmin = user.role === "ADMIN";
+  const isAdmin = ADMIN_ROLES.includes(user.role ?? "");
+  const isSuperAdmin = user.role === "SUPER_ADMIN";
 
   const [pwForm, setPwForm] = useState({ current: "", next: "", confirm: "" });
   const [pwLoading, setPwLoading] = useState(false);
@@ -699,6 +940,7 @@ export function SettingsClient({ user, teamMembers = [], businessSettings, fabri
           <TabsTrigger value="appearance">Appearance</TabsTrigger>
           <TabsTrigger value="fabric">Fabric History</TabsTrigger>
           {isAdmin && <TabsTrigger value="team">Team</TabsTrigger>}
+          {isSuperAdmin && <TabsTrigger value="branches">Branches</TabsTrigger>}
         </TabsList>
 
         <TabsContent value="profile" className="mt-6 space-y-4">
@@ -954,7 +1196,19 @@ export function SettingsClient({ user, teamMembers = [], businessSettings, fabri
 
         {isAdmin && (
           <TabsContent value="team" className="mt-6">
-            <TeamTab teamMembers={teamMembers} currentUserId={user.id} />
+            <TeamTab
+              teamMembers={teamMembers}
+              currentUserId={user.id}
+              branches={branches}
+              isSuperAdmin={isSuperAdmin}
+              ownBranches={user.branches ?? []}
+            />
+          </TabsContent>
+        )}
+
+        {isSuperAdmin && (
+          <TabsContent value="branches" className="mt-6">
+            <BranchesTab initialBranches={branches} />
           </TabsContent>
         )}
       </Tabs>

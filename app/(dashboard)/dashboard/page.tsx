@@ -27,8 +27,8 @@ async function DashboardContent() {
   const userId = session.user.id;
   const userName = (dbUser as any)?.name ?? session.user.name ?? session.user.email ?? "Team";
 
-  // Admin & Manager → full business overview
-  if (role === "ADMIN" || role === "MANAGER") {
+  // Super Admin, Admin & Manager → full business overview
+  if (role === "SUPER_ADMIN" || role === "ADMIN" || role === "MANAGER") {
     return <AdminDashboard userId={userId} userName={userName} />;
   }
 

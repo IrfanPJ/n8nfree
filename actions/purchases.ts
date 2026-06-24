@@ -2,8 +2,10 @@
 
 import { revalidatePath } from "next/cache";
 import { randomUUID } from "crypto";
-import { supabase } from "@/lib/supabase";
 import { auth } from "@/lib/auth";
+import { getScopedClient } from "@/lib/supabase-scoped";
+import { getActiveBranchCookie } from "@/lib/active-branch";
+import { resolveActiveBranchId, resolveReadBranchFilter } from "@/lib/branch-context";
 import { z } from "zod";
 import type { ApiResponse, PaginatedResult, PurchaseWithRelations, Supplier } from "@/types";
 
@@ -41,19 +43,21 @@ export async function getPurchases(params: {
   category?: string;
   supplierId?: string;
   status?: string;
-  branch?: string;
 }): Promise<PaginatedResult<PurchaseWithRelations>> {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
+  const db = await getScopedClient(session);
 
   const { page = 1, pageSize = 20, search, category, supplierId, status } = params;
   const skip = (page - 1) * pageSize;
+  const branchFilter = resolveReadBranchFilter(session, await getActiveBranchCookie());
 
   const PURCHASE_SELECT = `*, supplier:Supplier!supplierId(*), order:Order!orderId(id, orderNumber, customOrderNumber, status, customer:Customer!customerId(id, name), items:OrderItem(id, garmentType, quantity, unitPrice, fabricCode, fabricComposition, fabricColor, fabricImageUrl, notes))`;
 
-  let countQ = supabase.from("Purchase").select("*", { count: "exact", head: true });
-  let dataQ = supabase.from("Purchase").select(PURCHASE_SELECT);
+  let countQ = db.from("Purchase").select("*", { count: "exact", head: true });
+  let dataQ = db.from("Purchase").select(PURCHASE_SELECT);
 
+  if (branchFilter) { countQ = countQ.eq("branchId", branchFilter); dataQ = dataQ.eq("branchId", branchFilter); }
   if (supplierId) { countQ = countQ.eq("supplierId", supplierId); dataQ = dataQ.eq("supplierId", supplierId); }
   if (category) { countQ = countQ.eq("category", category); dataQ = dataQ.eq("category", category); }
   if (status) { countQ = countQ.eq("status", status); dataQ = dataQ.eq("status", status); }
@@ -79,6 +83,8 @@ export async function getPurchases(params: {
 export async function createPurchase(data: unknown): Promise<ApiResponse<PurchaseWithRelations>> {
   const session = await auth();
   if (!session?.user) return { success: false, error: "Unauthorized" };
+  const db = await getScopedClient(session);
+  const branchId = resolveActiveBranchId(session, await getActiveBranchCookie());
 
   const parsed = purchaseSchema.safeParse(data);
   if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message };
@@ -87,7 +93,7 @@ export async function createPurchase(data: unknown): Promise<ApiResponse<Purchas
     const id = randomUUID();
     const now = new Date().toISOString();
 
-    const { data: purchase, error } = await supabase
+    const { data: purchase, error } = await db
       .from("Purchase")
       .insert({
         id,
@@ -99,6 +105,7 @@ export async function createPurchase(data: unknown): Promise<ApiResponse<Purchas
         status: parsed.data.status || "PENDING_PURCHASE",
         purchaseNotes: parsed.data.purchaseNotes || null,
         purchaseDate: parsed.data.purchaseDate ? new Date(parsed.data.purchaseDate).toISOString() : now,
+        branchId,
         createdAt: now,
         updatedAt: now,
       })
@@ -117,14 +124,21 @@ export async function createPurchase(data: unknown): Promise<ApiResponse<Purchas
 export async function getSuppliers(): Promise<Supplier[]> {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
+  const db = await getScopedClient(session);
+  const branchId = resolveReadBranchFilter(session, await getActiveBranchCookie());
 
-  const { data } = await supabase.from("Supplier").select("*").eq("isActive", true).order("name", { ascending: true });
+  let q = db.from("Supplier").select("*").eq("isActive", true);
+  if (branchId) q = q.eq("branchId", branchId);
+
+  const { data } = await q.order("name", { ascending: true });
   return (data ?? []) as Supplier[];
 }
 
 export async function createSupplier(data: unknown): Promise<ApiResponse<Supplier>> {
   const session = await auth();
   if (!session?.user) return { success: false, error: "Unauthorized" };
+  const db = await getScopedClient(session);
+  const branchId = resolveActiveBranchId(session, await getActiveBranchCookie());
 
   const parsed = supplierSchema.safeParse(data);
   if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message };
@@ -133,9 +147,9 @@ export async function createSupplier(data: unknown): Promise<ApiResponse<Supplie
     const id = randomUUID();
     const now = new Date().toISOString();
 
-    const { data: supplier, error } = await supabase
+    const { data: supplier, error } = await db
       .from("Supplier")
-      .insert({ id, ...parsed.data, email: parsed.data.email || null, createdAt: now, updatedAt: now })
+      .insert({ id, ...parsed.data, email: parsed.data.email || null, branchId, createdAt: now, updatedAt: now })
       .select()
       .single();
 
@@ -154,18 +168,19 @@ export async function updatePurchaseStatus(
 ): Promise<ApiResponse<void>> {
   const session = await auth();
   if (!session?.user) return { success: false, error: "Unauthorized" };
+  const db = await getScopedClient(session);
 
   try {
     const now = new Date().toISOString();
 
     // Fetch current purchase to get linked orderId
-    const { data: purchase } = await supabase
+    const { data: purchase } = await db
       .from("Purchase")
       .select("orderId")
       .eq("id", id)
       .maybeSingle();
 
-    const { error } = await supabase
+    const { error } = await db
       .from("Purchase")
       .update({ status, updatedAt: now })
       .eq("id", id);
@@ -174,7 +189,7 @@ export async function updatePurchaseStatus(
 
     // Sync linked order's kanban status
     if (purchase?.orderId) {
-      const { data: order } = await supabase
+      const { data: order } = await db
         .from("Order")
         .select("status")
         .eq("id", purchase.orderId)
@@ -191,12 +206,12 @@ export async function updatePurchaseStatus(
         };
         const newOrderStatus = orderStatusMap[status];
         if (newOrderStatus && newOrderStatus !== cur) {
-          await supabase
+          await db
             .from("Order")
             .update({ status: newOrderStatus, updatedAt: now })
             .eq("id", purchase.orderId);
 
-          await supabase.from("OrderHistory").insert({
+          await db.from("OrderHistory").insert({
             id: randomUUID(),
             orderId: purchase.orderId,
             status: newOrderStatus,
@@ -219,9 +234,10 @@ export async function updatePurchaseStatus(
 export async function deletePurchase(id: string): Promise<ApiResponse<void>> {
   const session = await auth();
   if (!session?.user) return { success: false, error: "Unauthorized" };
+  const db = await getScopedClient(session);
 
   try {
-    const { error } = await supabase.from("Purchase").delete().eq("id", id);
+    const { error } = await db.from("Purchase").delete().eq("id", id);
     if (error) throw error;
     revalidatePath("/purchases");
     return { success: true, message: "Purchase deleted" };
@@ -233,8 +249,9 @@ export async function deletePurchase(id: string): Promise<ApiResponse<void>> {
 export async function getPurchasesForOrder(orderId: string): Promise<PurchaseWithRelations[]> {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
+  const db = await getScopedClient(session);
 
-  const { data } = await supabase
+  const { data } = await db
     .from("Purchase")
     .select(`*, supplier:Supplier!supplierId(*), order:Order!orderId(id, orderNumber, customOrderNumber, customer:Customer!customerId(id, name))`)
     .eq("orderId", orderId)
@@ -246,8 +263,12 @@ export async function getPurchasesForOrder(orderId: string): Promise<PurchaseWit
 export async function getPurchaseStats() {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
+  const db = await getScopedClient(session);
 
-  const { data: purchases } = await supabase.from("Purchase").select("totalAmount, paidAmount, category");
+  let q = db.from("Purchase").select("totalAmount, paidAmount, category");
+  const branchFilter = resolveReadBranchFilter(session, await getActiveBranchCookie());
+  if (branchFilter) q = q.eq("branchId", branchFilter);
+  const { data: purchases } = await q;
 
   const totalSpend = purchases?.reduce((s, p) => s + (p.totalAmount ?? 0), 0) ?? 0;
   const paidAmount = purchases?.reduce((s, p) => s + (p.paidAmount ?? 0), 0) ?? 0;

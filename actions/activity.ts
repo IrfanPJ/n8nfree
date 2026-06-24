@@ -1,7 +1,9 @@
 "use server";
 
-import { supabase } from "@/lib/supabase";
 import { auth } from "@/lib/auth";
+import { getScopedClient } from "@/lib/supabase-scoped";
+import { getActiveBranchCookie } from "@/lib/active-branch";
+import { resolveReadBranchFilter } from "@/lib/branch-context";
 import type { PaginatedResult } from "@/types";
 
 export type ActivityLogEntry = {
@@ -35,15 +37,18 @@ export async function getActivityLogs(
 ): Promise<PaginatedResult<ActivityLogEntry>> {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
+  const db = await getScopedClient(session);
 
   const { page = 1, pageSize = 50, userId, entity, action, search, dateFrom, dateTo } = params;
   const skip = (page - 1) * pageSize;
+  const branchId = resolveReadBranchFilter(session, await getActiveBranchCookie());
 
-  let countQ = supabase.from("ActivityLog").select("*", { count: "exact", head: true });
-  let dataQ = supabase
+  let countQ = db.from("ActivityLog").select("*", { count: "exact", head: true });
+  let dataQ = db
     .from("ActivityLog")
     .select(`*, user:User!userId(id, name, email), customer:Customer!customerId(id, name)`);
 
+  if (branchId) { countQ = countQ.eq("branchId", branchId); dataQ = dataQ.eq("branchId", branchId); }
   if (userId) { countQ = countQ.eq("userId", userId); dataQ = dataQ.eq("userId", userId); }
   if (entity) { countQ = countQ.eq("entity", entity); dataQ = dataQ.eq("entity", entity); }
   if (action) { countQ = countQ.eq("action", action); dataQ = dataQ.eq("action", action); }
@@ -79,8 +84,9 @@ export async function getActivityLogs(
 export async function getActivityUsers() {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
+  const db = await getScopedClient(session);
 
-  const { data } = await supabase
+  const { data } = await db
     .from("User")
     .select("id, name, email")
     .eq("isActive", true)

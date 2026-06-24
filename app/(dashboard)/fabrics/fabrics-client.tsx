@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -197,6 +197,14 @@ function StockAdjustModal({
 
 export function FabricsClient({ initialFabrics }: FabricsClientProps) {
   const [fabrics, setFabrics] = useState<Fabric[]>(initialFabrics);
+
+  // Sync local state whenever the server re-fetches (e.g. router.refresh()
+  // after a branch switch) — without this, switching branches would keep
+  // showing whatever fabrics were loaded on first render.
+  useEffect(() => {
+    setFabrics(initialFabrics);
+  }, [initialFabrics]);
+
   const [search, setSearch] = useState("");
   const [showLowStock, setShowLowStock] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);

@@ -33,7 +33,7 @@ export async function getBusinessSettings(): Promise<BusinessSettings> {
 
 export async function updateBusinessSettings(data: unknown) {
   const session = await auth();
-  if (!session?.user || session.user.role !== "ADMIN") {
+  if (!session?.user || !["SUPER_ADMIN", "ADMIN"].includes(session.user.role)) {
     return { success: false as const, error: "Unauthorized" };
   }
 

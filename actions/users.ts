@@ -2,42 +2,55 @@
 
 import { auth } from "@/lib/auth";
 import { supabase } from "@/lib/supabase";
+import { sharesBranch } from "@/lib/branch-context";
 import bcrypt from "bcryptjs";
 import type { StaffPosition, UserRole } from "@/types";
+
+const ADMIN_ROLES = ["SUPER_ADMIN", "ADMIN"];
 
 export async function getAssignableStaff() {
   const session = await auth();
   if (!session?.user) return { success: false as const, error: "Unauthorized" };
-  const { data, error } = await supabase
+
+  let q = supabase
     .from("User")
-    .select("id, name, role, position, isActive")
+    .select("id, name, role, position, isActive, branches")
     .eq("isActive", true)
     .order("name");
+
+  if (session.user.role !== "SUPER_ADMIN") {
+    q = q.overlaps("branches", session.user.branches ?? []);
+  }
+
+  const { data, error } = await q;
   if (error) return { success: false as const, error: error.message };
   return { success: true as const, data: (data ?? []) as { id: string; name: string; role: string; position: string | null; isActive: boolean }[] };
 }
 
 export async function getTeamMembers() {
   const session = await auth();
-  if (!session?.user || session.user.role !== "ADMIN") {
+  if (!session?.user || !ADMIN_ROLES.includes(session.user.role)) {
     return { success: false as const, error: "Unauthorized" };
   }
-  // Try with branches column first; fall back to without it if the migration hasn't run yet
-  let { data, error } = await supabase
+
+  let q = supabase
     .from("User")
     .select("id, name, email, role, position, isActive, createdAt, pagePermissions, branches")
     .eq("isActive", true)
     .order("createdAt", { ascending: true });
-  if (error) {
-    const fallback = await supabase
-      .from("User")
-      .select("id, name, email, role, position, isActive, createdAt, pagePermissions")
-      .eq("isActive", true)
-      .order("createdAt", { ascending: true });
-    if (fallback.error) return { success: false as const, error: fallback.error.message };
-    data = (fallback.data ?? []).map((u: any) => ({ ...u, branches: null })) as any;
+
+  if (session.user.role !== "SUPER_ADMIN") {
+    q = q.overlaps("branches", session.user.branches ?? []);
   }
+
+  const { data, error } = await q;
+  if (error) return { success: false as const, error: error.message };
   return { success: true as const, data: (data ?? []) as any[] };
+}
+
+async function getTargetBranches(userId: string): Promise<string[] | null> {
+  const { data } = await supabase.from("User").select("branches").eq("id", userId).maybeSingle();
+  return data?.branches ?? null;
 }
 
 export async function updateUserPermissions(
@@ -45,11 +58,14 @@ export async function updateUserPermissions(
   pagePermissions: string[] | null
 ) {
   const session = await auth();
-  if (!session?.user || session.user.role !== "ADMIN") {
+  if (!session?.user || !ADMIN_ROLES.includes(session.user.role)) {
     return { success: false as const, error: "Unauthorized" };
   }
   if (userId === session.user.id) {
     return { success: false as const, error: "Cannot change your own permissions" };
+  }
+  if (!sharesBranch(session, await getTargetBranches(userId))) {
+    return { success: false as const, error: "Unauthorized" };
   }
   const { error } = await supabase
     .from("User")
@@ -59,9 +75,11 @@ export async function updateUserPermissions(
   return { success: true as const };
 }
 
+// Branch (re-)assignment can grant access to a branch the acting ADMIN
+// doesn't manage — restricted to SUPER_ADMIN to avoid that escalation path.
 export async function updateUserBranches(userId: string, branches: string[]) {
   const session = await auth();
-  if (!session?.user || session.user.role !== "ADMIN") {
+  if (!session?.user || session.user.role !== "SUPER_ADMIN") {
     return { success: false as const, error: "Unauthorized" };
   }
   if (userId === session.user.id) {
@@ -80,11 +98,14 @@ export async function updateUserBranches(userId: string, branches: string[]) {
 
 export async function deleteTeamMember(userId: string) {
   const session = await auth();
-  if (!session?.user || session.user.role !== "ADMIN") {
+  if (!session?.user || !ADMIN_ROLES.includes(session.user.role)) {
     return { success: false as const, error: "Unauthorized" };
   }
   if (userId === session.user.id) {
     return { success: false as const, error: "You cannot delete your own account" };
+  }
+  if (!sharesBranch(session, await getTargetBranches(userId))) {
+    return { success: false as const, error: "Unauthorized" };
   }
   const { error } = await supabase
     .from("User")
@@ -99,11 +120,14 @@ export async function resetMemberPassword(
   newPassword: string
 ): Promise<{ success: boolean; error?: string }> {
   const session = await auth();
-  if (!session?.user || session.user.role !== "ADMIN") {
+  if (!session?.user || !ADMIN_ROLES.includes(session.user.role)) {
     return { success: false, error: "Unauthorized" };
   }
   if (userId === session.user.id) {
     return { success: false, error: "Use Change Password to update your own password" };
+  }
+  if (!sharesBranch(session, await getTargetBranches(userId))) {
+    return { success: false, error: "Unauthorized" };
   }
   if (newPassword.length < 8) {
     return { success: false, error: "Password must be at least 8 characters" };
@@ -122,11 +146,18 @@ export async function updateTeamMember(
   updates: { position?: StaffPosition | null; role?: UserRole }
 ) {
   const session = await auth();
-  if (!session?.user || session.user.role !== "ADMIN") {
+  if (!session?.user || !ADMIN_ROLES.includes(session.user.role)) {
     return { success: false as const, error: "Unauthorized" };
   }
   if (userId === session.user.id) {
     return { success: false as const, error: "You cannot change your own role or position" };
+  }
+  if (!sharesBranch(session, await getTargetBranches(userId))) {
+    return { success: false as const, error: "Unauthorized" };
+  }
+  // Only a SUPER_ADMIN can promote someone else to SUPER_ADMIN
+  if (updates.role === "SUPER_ADMIN" && session.user.role !== "SUPER_ADMIN") {
+    return { success: false as const, error: "Only a Super Admin can assign that role" };
   }
   const { error } = await supabase
     .from("User")

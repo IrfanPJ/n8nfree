@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -177,6 +177,14 @@ export function InvoicesClient({ initialData, customers, orders }: InvoicesClien
   const router = useRouter();
   const searchParams = useSearchParams();
   const [data, setData] = useState(initialData);
+
+  // Sync local state whenever the server re-fetches (e.g. router.refresh()
+  // after a branch switch) — without this, switching branches would keep
+  // showing whatever invoices were loaded on first render.
+  useEffect(() => {
+    setData(initialData);
+  }, [initialData]);
+
   const [createOpen, setCreateOpen] = useState(false);
   const [editInvoice, setEditInvoice] = useState<InvoiceWithRelations | null>(null);
   const [viewInvoice, setViewInvoice] = useState<InvoiceWithRelations | null>(null);

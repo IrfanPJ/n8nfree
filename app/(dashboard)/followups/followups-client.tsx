@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -138,6 +138,14 @@ function FollowUpItem({
 export function FollowUpsClient({ initialData }: FollowUpsClientProps) {
   const router = useRouter();
   const [data, setData] = useState(initialData);
+
+  // Sync local state whenever the server re-fetches (e.g. router.refresh()
+  // after a branch switch) — without this, switching branches would keep
+  // showing whatever follow-ups were loaded on first render.
+  useEffect(() => {
+    setData(initialData);
+  }, [initialData]);
+
   const [createOpen, setCreateOpen] = useState(false);
   const [editFollowUp, setEditFollowUp] = useState<FollowUpWithRelations | null>(null);
   const [viewMode, setViewMode] = useState<ViewMode>("list");

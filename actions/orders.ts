@@ -2,8 +2,11 @@
 
 import { revalidatePath } from "next/cache";
 import { randomUUID } from "crypto";
-import { supabase } from "@/lib/supabase";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { auth } from "@/lib/auth";
+import { getScopedClient } from "@/lib/supabase-scoped";
+import { getActiveBranchCookie } from "@/lib/active-branch";
+import { resolveActiveBranchId, resolveReadBranchFilter } from "@/lib/branch-context";
 import { orderSchema, orderStatusUpdateSchema } from "@/validators/order";
 import { upsertFabricValues } from "@/actions/fabric-history";
 import { generateOrderNumber } from "@/lib/utils";
@@ -28,22 +31,24 @@ export async function getOrders(params: {
   search?: string;
   status?: string;
   priority?: string;
-  branch?: string;
   cursor?: string; // createdAt ISO string of last item for cursor-based pagination
 }): Promise<PaginatedResult<OrderWithRelations>> {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
+  const db = await getScopedClient(session);
 
   const { page = 1, pageSize = 20, search, status, priority, cursor } = params;
+  const branchFilter = resolveReadBranchFilter(session, await getActiveBranchCookie());
 
-  let countQ = supabase.from("Order").select("*", { count: "exact", head: true }).eq("isActive", true);
-  let dataQ = supabase.from("Order").select(ORDER_SELECT).eq("isActive", true);
+  let countQ = db.from("Order").select("*", { count: "exact", head: true }).eq("isActive", true);
+  let dataQ = db.from("Order").select(ORDER_SELECT).eq("isActive", true);
 
+  if (branchFilter) { countQ = countQ.eq("branchId", branchFilter); dataQ = dataQ.eq("branchId", branchFilter); }
   if (status) { countQ = countQ.eq("status", status); dataQ = dataQ.eq("status", status); }
   if (priority) { countQ = countQ.eq("priority", priority); dataQ = dataQ.eq("priority", priority); }
   if (search) {
     const safe = search.replace(/[%_,().]/g, "\\$&");
-    const { data: matchedCustomers } = await supabase
+    const { data: matchedCustomers } = await db
       .from("Customer")
       .select("id")
       .ilike("name", `%${safe}%`);
@@ -90,8 +95,9 @@ export async function getOrders(params: {
 export async function getOrderById(id: string): Promise<OrderWithRelations | null> {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
+  const db = await getScopedClient(session);
 
-  const { data } = await supabase
+  const { data } = await db
     .from("Order")
     .select(ORDER_SELECT)
     .eq("id", id)
@@ -111,6 +117,8 @@ export async function getOrderById(id: string): Promise<OrderWithRelations | nul
 export async function createOrder(data: unknown): Promise<ApiResponse<OrderWithRelations>> {
   const session = await auth();
   if (!session?.user) return { success: false, error: "Unauthorized" };
+  const db = await getScopedClient(session);
+  const branchId = resolveActiveBranchId(session, await getActiveBranchCookie());
 
   const parsed = orderSchema.safeParse(data);
   if (!parsed.success) {
@@ -129,7 +137,7 @@ export async function createOrder(data: unknown): Promise<ApiResponse<OrderWithR
         ? items[0].garmentType
         : `${items[0].garmentType} +${items.length - 1} more`;
 
-    const { error: orderError } = await supabase.from("Order").insert({
+    const { error: orderError } = await db.from("Order").insert({
       id: orderId,
       orderNumber,
       customOrderNumber: parsed.data.customOrderNumber || null,
@@ -154,7 +162,7 @@ export async function createOrder(data: unknown): Promise<ApiResponse<OrderWithR
       stylingImageUrls: parsed.data.stylingImageUrls ?? [],
       purchaseNotes: parsed.data.purchaseNotes ?? null,
       specialNotes: parsed.data.specialNotes ?? null,
-      branch: "Business Bay",
+      branchId,
       status: "MEASUREMENT",
       createdAt: now,
       updatedAt: now,
@@ -162,7 +170,7 @@ export async function createOrder(data: unknown): Promise<ApiResponse<OrderWithR
 
     if (orderError) throw orderError;
 
-    const { error: itemsError } = await supabase.from("OrderItem").insert(
+    const { error: itemsError } = await db.from("OrderItem").insert(
       items.map((item, idx) => ({
         id: randomUUID(),
         orderId,
@@ -192,7 +200,7 @@ export async function createOrder(data: unknown): Promise<ApiResponse<OrderWithR
 
     // Sync customOrderNumber to linked invoice's internalRef
     if (parsed.data.customOrderNumber) {
-      supabase
+      db
         .from("Invoice")
         .update({ internalRef: parsed.data.customOrderNumber })
         .eq("orderId", orderId)
@@ -201,7 +209,7 @@ export async function createOrder(data: unknown): Promise<ApiResponse<OrderWithR
 
     // Create advance payment record if amount > 0 and method provided
     if (parsed.data.advanceAmount > 0 && parsed.data.advancePaymentMethod) {
-      await supabase.from("Payment").insert({
+      await db.from("Payment").insert({
         id: randomUUID(),
         orderId,
         amount: parsed.data.advanceAmount,
@@ -214,9 +222,9 @@ export async function createOrder(data: unknown): Promise<ApiResponse<OrderWithR
     }
 
     // Auto-create purchase records for items with fabric codes
-    autoCreatePurchasesForOrder(orderId, items, parsed.data.purchaseNotes ?? null).catch(() => {});
+    autoCreatePurchasesForOrder(db, orderId, branchId, items, parsed.data.purchaseNotes ?? null).catch(() => {});
 
-    await supabase.from("OrderHistory").insert({
+    await db.from("OrderHistory").insert({
       id: historyId,
       orderId,
       status: "MEASUREMENT",
@@ -225,24 +233,25 @@ export async function createOrder(data: unknown): Promise<ApiResponse<OrderWithR
       changedAt: now,
     });
 
-    const { data: customer } = await supabase
+    const { data: customer } = await db
       .from("Customer")
       .select("name")
       .eq("id", parsed.data.customerId)
       .maybeSingle();
 
-    await supabase.from("ActivityLog").insert({
+    await db.from("ActivityLog").insert({
       id: randomUUID(),
       userId: session.user.id,
       customerId: parsed.data.customerId,
       orderId,
+      branchId,
       action: "CREATE",
       entity: "Order",
       entityId: orderId,
       description: `Order "${orderNumber}" was created for ${customer?.name ?? "customer"}`,
     });
 
-    const { data: order } = await supabase
+    const { data: order } = await db
       .from("Order")
       .select(ORDER_SELECT)
       .eq("id", orderId)
@@ -263,6 +272,7 @@ export async function createOrder(data: unknown): Promise<ApiResponse<OrderWithR
 export async function updateOrder(id: string, data: unknown): Promise<ApiResponse<OrderWithRelations>> {
   const session = await auth();
   if (!session?.user) return { success: false, error: "Unauthorized" };
+  const db = await getScopedClient(session);
 
   const parsed = orderSchema.safeParse(data);
   if (!parsed.success) {
@@ -277,7 +287,7 @@ export async function updateOrder(id: string, data: unknown): Promise<ApiRespons
         : `${items[0].garmentType} +${items.length - 1} more`;
     const now = new Date().toISOString();
 
-    const { error } = await supabase
+    const { error } = await db
       .from("Order")
       .update({
         customOrderNumber: parsed.data.customOrderNumber || null,
@@ -331,10 +341,10 @@ export async function updateOrder(id: string, data: unknown): Promise<ApiRespons
           updatedAt: now,
         };
       });
-      const { error: itemsError } = await supabase.from("OrderItem").insert(rows);
+      const { error: itemsError } = await db.from("OrderItem").insert(rows);
       if (itemsError) throw itemsError;
       // Only delete old rows after new ones are confirmed saved
-      await supabase.from("OrderItem").delete().eq("orderId", id).not("id", "in", `(${newItemIds.map((x) => `"${x}"`).join(",")})`);
+      await db.from("OrderItem").delete().eq("orderId", id).not("id", "in", `(${newItemIds.map((x) => `"${x}"`).join(",")})`);
 
       // Save new fabric values to global history
       const fabricEntries = parsed.data.items.flatMap((item: any) => [
@@ -346,23 +356,24 @@ export async function updateOrder(id: string, data: unknown): Promise<ApiRespons
 
       // Sync customOrderNumber → linked invoice internalRef
       if (parsed.data.customOrderNumber) {
-        supabase
+        db
           .from("Invoice")
           .update({ internalRef: parsed.data.customOrderNumber })
           .eq("orderId", id)
           .then(() => {});
       }
     } else {
-      await supabase.from("OrderItem").delete().eq("orderId", id);
+      await db.from("OrderItem").delete().eq("orderId", id);
     }
 
-    const { data: order } = await supabase.from("Order").select(ORDER_SELECT).eq("id", id).maybeSingle();
+    const { data: order } = await db.from("Order").select(ORDER_SELECT).eq("id", id).maybeSingle();
 
-    await supabase.from("ActivityLog").insert({
+    await db.from("ActivityLog").insert({
       id: randomUUID(),
       userId: session.user.id,
       customerId: parsed.data.customerId,
       orderId: id,
+      branchId: (order as any)?.branchId,
       action: "UPDATE",
       entity: "Order",
       entityId: id,
@@ -386,6 +397,7 @@ export async function updateOrderStatus(
 ): Promise<ApiResponse<OrderWithRelations>> {
   const session = await auth();
   if (!session?.user) return { success: false, error: "Unauthorized" };
+  const db = await getScopedClient(session);
 
   const parsed = orderStatusUpdateSchema.safeParse({ status, notes });
   if (!parsed.success) {
@@ -395,7 +407,7 @@ export async function updateOrderStatus(
   try {
     const now = new Date().toISOString();
 
-    const { error } = await supabase
+    const { error } = await db
       .from("Order")
       .update({ status: parsed.data.status, updatedAt: now })
       .eq("id", id);
@@ -410,13 +422,13 @@ export async function updateOrderStatus(
     };
     const syncedPurchaseStatus = purchaseStatusMap[parsed.data.status];
     if (syncedPurchaseStatus) {
-      await supabase
+      await db
         .from("Purchase")
         .update({ status: syncedPurchaseStatus, updatedAt: now })
         .eq("orderId", id);
     }
 
-    await supabase.from("OrderHistory").insert({
+    await db.from("OrderHistory").insert({
       id: randomUUID(),
       orderId: id,
       status: parsed.data.status,
@@ -425,13 +437,14 @@ export async function updateOrderStatus(
       changedAt: now,
     });
 
-    const { data: order } = await supabase.from("Order").select(ORDER_SELECT).eq("id", id).maybeSingle();
+    const { data: order } = await db.from("Order").select(ORDER_SELECT).eq("id", id).maybeSingle();
 
-    await supabase.from("ActivityLog").insert({
+    await db.from("ActivityLog").insert({
       id: randomUUID(),
       userId: session.user.id,
       customerId: (order as any)?.customerId,
       orderId: id,
+      branchId: (order as any)?.branchId,
       action: "STATUS_UPDATE",
       entity: "Order",
       entityId: id,
@@ -468,24 +481,26 @@ export async function updateOrderStatus(
 export async function deleteOrder(id: string): Promise<ApiResponse<void>> {
   const session = await auth();
   if (!session?.user) return { success: false, error: "Unauthorized" };
-  if (!["ADMIN", "MANAGER"].includes(session.user.role)) {
+  if (!["SUPER_ADMIN", "ADMIN", "MANAGER"].includes(session.user.role)) {
     return { success: false, error: "Insufficient permissions" };
   }
+  const db = await getScopedClient(session);
 
   try {
-    const { data: order } = await supabase
+    const { data: order } = await db
       .from("Order")
-      .select("orderNumber, customerId")
+      .select("orderNumber, customerId, branchId")
       .eq("id", id)
       .maybeSingle();
 
-    await supabase.from("Order").update({ isActive: false, updatedAt: new Date().toISOString() }).eq("id", id);
+    await db.from("Order").update({ isActive: false, updatedAt: new Date().toISOString() }).eq("id", id);
 
-    await supabase.from("ActivityLog").insert({
+    await db.from("ActivityLog").insert({
       id: randomUUID(),
       userId: session.user.id,
       customerId: order?.customerId,
       orderId: id,
+      branchId: (order as any)?.branchId,
       action: "DELETE",
       entity: "Order",
       entityId: id,
@@ -504,8 +519,9 @@ export async function deleteOrder(id: string): Promise<ApiResponse<void>> {
 export async function updateOrderDesign(id: string, specText: string, design?: unknown): Promise<void> {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
-  const allowedDesignRoles = ["ADMIN","MANAGER","PRODUCTION_IN_CHARGE","MASTER","TAILOR"];
+  const allowedDesignRoles = ["SUPER_ADMIN","ADMIN","MANAGER","PRODUCTION_IN_CHARGE","MASTER","TAILOR"];
   if (!allowedDesignRoles.includes(session.user.role)) throw new Error("Insufficient permissions");
+  const db = await getScopedClient(session);
 
   // Store full design JSON alongside spec text so the designer can reload it
   const payload = design
@@ -514,7 +530,7 @@ export async function updateOrderDesign(id: string, specText: string, design?: u
 
   if (payload.length > 20000) throw new Error("Design data exceeds maximum length");
 
-  const { error } = await supabase
+  const { error } = await db
     .from("Order")
     .update({ designNotes: payload, updatedAt: new Date().toISOString() })
     .eq("id", id);
@@ -530,7 +546,9 @@ export async function updateOrderDesign(id: string, specText: string, design?: u
 
 
 async function autoCreatePurchasesForOrder(
+  db: SupabaseClient,
   orderId: string,
+  branchId: string,
   items: Array<any>,
   purchaseNotes: string | null
 ): Promise<void> {
@@ -541,6 +559,7 @@ async function autoCreatePurchasesForOrder(
   const rows = fabricItems.map((item) => ({
     id: randomUUID(),
     orderId,
+    branchId,
     itemName: item.fabricCode,
     category: "FABRIC",
     fabricCode: item.fabricCode || null,
@@ -557,19 +576,25 @@ async function autoCreatePurchasesForOrder(
     updatedAt: now,
   }));
 
-  await supabase.from("Purchase").insert(rows);
+  await db.from("Purchase").insert(rows);
   revalidatePath("/purchases");
 }
 
 export async function getOrdersForKanban(): Promise<OrderWithRelations[]> {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
+  const db = await getScopedClient(session);
 
-  const { data } = await supabase
+  let q = db
     .from("Order")
     .select(ORDER_SELECT)
     .eq("isActive", true)
-    .not("status", "in", '("DELIVERED","ORDER_CLOSED")')
+    .not("status", "in", '("DELIVERED","ORDER_CLOSED")');
+
+  const branchFilter = resolveReadBranchFilter(session, await getActiveBranchCookie());
+  if (branchFilter) q = q.eq("branchId", branchFilter);
+
+  const { data } = await q
     .order("deliveryDate", { ascending: true })
     .limit(200);
 
@@ -593,10 +618,12 @@ export async function checkDateConflicts(
 ): Promise<DateConflictResult> {
   const session = await auth();
   if (!session?.user) return { count: 0, orders: [] };
+  const db = await getScopedClient(session);
+  const branchId = resolveReadBranchFilter(session, await getActiveBranchCookie());
 
   const col = type === "delivery" ? "deliveryDate" : "trialDate";
 
-  let q = supabase
+  let q = db
     .from("Order")
     .select("orderNumber, customOrderNumber, customer:Customer!customerId(name)")
     .eq("isActive", true)
@@ -604,6 +631,7 @@ export async function checkDateConflicts(
     .gte(col, `${date}T00:00:00`)
     .lte(col, `${date}T23:59:59`);
 
+  if (branchId) q = q.eq("branchId", branchId);
   if (excludeOrderId) q = q.neq("id", excludeOrderId);
 
   const { data } = await q.limit(10);

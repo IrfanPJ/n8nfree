@@ -7,25 +7,24 @@ import { Skeleton } from "@/components/ui/skeleton";
 async function CalendarContent({
   searchParams,
 }: {
-  searchParams: Promise<{ branch?: string; dateFrom?: string; dateTo?: string }>;
+  searchParams: Promise<{ dateFrom?: string; dateTo?: string }>;
 }) {
   const params = await searchParams;
-  const branch = params.branch;
 
   // Default to current month
   const now = new Date();
   const dateFrom = params.dateFrom ?? new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
   const dateTo = params.dateTo ?? new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59).toISOString();
 
-  const events = await getCalendarEvents({ dateFrom, dateTo, branch });
+  const events = await getCalendarEvents({ dateFrom, dateTo });
 
-  return <CalendarClient initialEvents={events} branch={branch} />;
+  return <CalendarClient initialEvents={events} />;
 }
 
 export default function CalendarPage({
   searchParams,
 }: {
-  searchParams: Promise<{ branch?: string; dateFrom?: string; dateTo?: string }>;
+  searchParams: Promise<{ dateFrom?: string; dateTo?: string }>;
 }) {
   return (
     <Suspense fallback={<CalendarSkeleton />}>

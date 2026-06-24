@@ -2,8 +2,10 @@
 
 import { revalidatePath } from "next/cache";
 import { randomUUID } from "crypto";
-import { supabase } from "@/lib/supabase";
 import { auth } from "@/lib/auth";
+import { getScopedClient } from "@/lib/supabase-scoped";
+import { getActiveBranchCookie } from "@/lib/active-branch";
+import { resolveActiveBranchId, resolveReadBranchFilter } from "@/lib/branch-context";
 import { followUpSchema } from "@/validators/followup";
 import type { ApiResponse, FollowUpWithRelations, PaginatedResult } from "@/types";
 
@@ -16,17 +18,19 @@ export async function getFollowUps(params: {
   status?: string;
   priority?: string;
   customerId?: string;
-  branch?: string;
 }): Promise<PaginatedResult<FollowUpWithRelations>> {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
+  const db = await getScopedClient(session);
 
   const { page = 1, pageSize = 20, search, status, priority, customerId } = params;
   const skip = (page - 1) * pageSize;
+  const branchFilter = resolveReadBranchFilter(session, await getActiveBranchCookie());
 
-  let countQ = supabase.from("FollowUp").select("*", { count: "exact", head: true }).eq("isActive", true);
-  let dataQ = supabase.from("FollowUp").select(FU_SELECT).eq("isActive", true);
+  let countQ = db.from("FollowUp").select("*", { count: "exact", head: true }).eq("isActive", true);
+  let dataQ = db.from("FollowUp").select(FU_SELECT).eq("isActive", true);
 
+  if (branchFilter) { countQ = countQ.eq("branchId", branchFilter); dataQ = dataQ.eq("branchId", branchFilter); }
   if (customerId) { countQ = countQ.eq("customerId", customerId); dataQ = dataQ.eq("customerId", customerId); }
   if (status) { countQ = countQ.eq("status", status); dataQ = dataQ.eq("status", status); }
   if (priority) { countQ = countQ.eq("priority", priority); dataQ = dataQ.eq("priority", priority); }
@@ -52,6 +56,8 @@ export async function getFollowUps(params: {
 export async function createFollowUp(data: unknown): Promise<ApiResponse<FollowUpWithRelations>> {
   const session = await auth();
   if (!session?.user) return { success: false, error: "Unauthorized" };
+  const db = await getScopedClient(session);
+  const branchId = resolveActiveBranchId(session, await getActiveBranchCookie());
 
   const parsed = followUpSchema.safeParse(data);
   if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message };
@@ -60,28 +66,30 @@ export async function createFollowUp(data: unknown): Promise<ApiResponse<FollowU
     const id = randomUUID();
     const now = new Date().toISOString();
 
-    const { error } = await supabase.from("FollowUp").insert({
+    const { error } = await db.from("FollowUp").insert({
       id,
       ...parsed.data,
       dueDate: parsed.data.dueDate ? new Date(parsed.data.dueDate).toISOString() : null,
       staffId: parsed.data.staffId || null,
+      branchId,
       createdAt: now,
       updatedAt: now,
     });
 
     if (error) throw error;
 
-    await supabase.from("ActivityLog").insert({
+    await db.from("ActivityLog").insert({
       id: randomUUID(),
       userId: session.user.id,
       customerId: parsed.data.customerId,
+      branchId,
       action: "CREATE",
       entity: "FollowUp",
       entityId: id,
       description: `Follow-up "${parsed.data.title}" created for customer`,
     });
 
-    const { data: followUp } = await supabase.from("FollowUp").select(FU_SELECT).eq("id", id).single();
+    const { data: followUp } = await db.from("FollowUp").select(FU_SELECT).eq("id", id).single();
     revalidatePath("/followups");
     return { success: true, data: followUp as FollowUpWithRelations, message: "Follow-up created" };
   } catch {
@@ -92,12 +100,13 @@ export async function createFollowUp(data: unknown): Promise<ApiResponse<FollowU
 export async function updateFollowUp(id: string, data: unknown): Promise<ApiResponse<FollowUpWithRelations>> {
   const session = await auth();
   if (!session?.user) return { success: false, error: "Unauthorized" };
+  const db = await getScopedClient(session);
 
   const parsed = followUpSchema.safeParse(data);
   if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message };
 
   try {
-    const { data: existing } = await supabase.from("FollowUp").select("completedAt, status").eq("id", id).maybeSingle();
+    const { data: existing } = await db.from("FollowUp").select("completedAt, status").eq("id", id).maybeSingle();
     // Only set completedAt when transitioning INTO completed; preserve it if already completed; clear it if re-opened
     const wasCompleted = existing?.status === "COMPLETED";
     const isNowCompleted = parsed.data.status === "COMPLETED";
@@ -105,7 +114,7 @@ export async function updateFollowUp(id: string, data: unknown): Promise<ApiResp
       ? (wasCompleted ? existing.completedAt : new Date().toISOString())
       : null;
 
-    const { error } = await supabase.from("FollowUp").update({
+    const { error } = await db.from("FollowUp").update({
       ...parsed.data,
       dueDate: parsed.data.dueDate ? new Date(parsed.data.dueDate).toISOString() : null,
       staffId: parsed.data.staffId || null,
@@ -115,7 +124,7 @@ export async function updateFollowUp(id: string, data: unknown): Promise<ApiResp
 
     if (error) throw error;
 
-    const { data: followUp } = await supabase.from("FollowUp").select(FU_SELECT).eq("id", id).single();
+    const { data: followUp } = await db.from("FollowUp").select(FU_SELECT).eq("id", id).single();
     revalidatePath("/followups");
     return { success: true, data: followUp as FollowUpWithRelations, message: "Follow-up updated" };
   } catch {
@@ -126,8 +135,9 @@ export async function updateFollowUp(id: string, data: unknown): Promise<ApiResp
 export async function deleteFollowUp(id: string): Promise<ApiResponse<void>> {
   const session = await auth();
   if (!session?.user) return { success: false, error: "Unauthorized" };
+  const db = await getScopedClient(session);
 
-  await supabase.from("FollowUp").update({ isActive: false, updatedAt: new Date().toISOString() }).eq("id", id);
+  await db.from("FollowUp").update({ isActive: false, updatedAt: new Date().toISOString() }).eq("id", id);
   revalidatePath("/followups");
   return { success: true, message: "Follow-up deleted" };
 }

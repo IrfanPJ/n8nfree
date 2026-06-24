@@ -1,4 +1,7 @@
 import { supabase } from "@/lib/supabase";
+import { getScopedClient } from "@/lib/supabase-scoped";
+import { getActiveBranchCookie } from "@/lib/active-branch";
+import { resolveReadBranchFilter } from "@/lib/branch-context";
 
 export function fmt(d: string | null | undefined) {
   if (!d) return "N/A";
@@ -9,7 +12,45 @@ export function aed(n: number | null | undefined) {
   return `AED ${(n ?? 0).toLocaleString("en-AE")}`;
 }
 
-export async function fetchBusinessContext(): Promise<string> {
+type AiSession = { user: { id: string; role: string; branches?: string[] | null } };
+
+/**
+ * Builds the live business-data context fed to the AI assistant.
+ * - Called with a session (web AI Assistant chat) -> scoped to the caller's
+ *   branch via the same RLS-backed client every other action uses.
+ * - Called with no session (Telegram bot, gated by TELEGRAM_ALLOWED_CHAT_IDS
+ *   and not tied to any CRM user) -> full cross-branch owner view, by design.
+ */
+export async function fetchBusinessContext(session?: AiSession): Promise<string> {
+  const db = session ? await getScopedClient(session) : supabase;
+  const branchId = session ? resolveReadBranchFilter(session, await getActiveBranchCookie()) : undefined;
+
+  let totalOrdersQ = db.from("Order").select("*", { count: "exact", head: true }).eq("isActive", true);
+  let activeOrdersQ = db.from("Order").select("*", { count: "exact", head: true }).eq("isActive", true).not("status", "in", '("DELIVERED","ORDER_CLOSED")');
+  let totalCustomersQ = db.from("Customer").select("*", { count: "exact", head: true }).eq("isActive", true);
+  let totalLeadsQ = db.from("Lead").select("*", { count: "exact", head: true });
+  let invoicesQ = db.from("Invoice").select("invoiceNumber, totalAmount, paidAmount, balanceAmount, status, dueDate, order:Order!orderId(orderNumber, customer:Customer!customerId(name))").eq("isActive", true);
+  let ordersQ = db.from("Order").select("orderNumber, status, garmentType, deliveryDate, totalAmount, advanceAmount, priority, notes, customer:Customer!customerId(name, phone), assignedTo:User!assignedToId(name)").eq("isActive", true);
+  let customersQ = db.from("Customer").select("name, phone, email, notes, createdAt").eq("isActive", true);
+  let leadsQ = db.from("Lead").select("name, phone, status, source, garmentType, notes, createdAt");
+  let followupsQ = db.from("FollowUp").select("notes, dueDate, status, lead:Lead!leadId(name, phone)");
+  let appointmentsQ = db.from("Appointment").select("title, startTime, endTime, status, notes, customer:Customer!customerId(name, phone)").eq("isActive", true);
+  let purchasesQ = db.from("Purchase").select("description, amount, category, date, vendor");
+
+  if (branchId) {
+    totalOrdersQ = totalOrdersQ.eq("branchId", branchId);
+    activeOrdersQ = activeOrdersQ.eq("branchId", branchId);
+    totalCustomersQ = totalCustomersQ.eq("branchId", branchId);
+    totalLeadsQ = totalLeadsQ.eq("branchId", branchId);
+    invoicesQ = invoicesQ.eq("branchId", branchId);
+    ordersQ = ordersQ.eq("branchId", branchId);
+    customersQ = customersQ.eq("branchId", branchId);
+    leadsQ = leadsQ.eq("branchId", branchId);
+    followupsQ = followupsQ.eq("branchId", branchId);
+    appointmentsQ = appointmentsQ.eq("branchId", branchId);
+    purchasesQ = purchasesQ.eq("branchId", branchId);
+  }
+
   const [
     { count: totalOrders },
     { count: activeOrders },
@@ -24,18 +65,18 @@ export async function fetchBusinessContext(): Promise<string> {
     { data: staff },
     { data: purchases },
   ] = await Promise.all([
-    supabase.from("Order").select("*", { count: "exact", head: true }).eq("isActive", true),
-    supabase.from("Order").select("*", { count: "exact", head: true }).eq("isActive", true).not("status", "in", '("DELIVERED","ORDER_CLOSED")'),
-    supabase.from("Customer").select("*", { count: "exact", head: true }).eq("isActive", true),
-    supabase.from("Lead").select("*", { count: "exact", head: true }),
-    supabase.from("Invoice").select("invoiceNumber, totalAmount, paidAmount, balanceAmount, status, dueDate, order:Order!orderId(orderNumber, customer:Customer!customerId(name))").eq("isActive", true).order("createdAt", { ascending: false }).limit(50),
-    supabase.from("Order").select("orderNumber, status, garmentType, deliveryDate, totalAmount, advanceAmount, priority, notes, customer:Customer!customerId(name, phone), assignedTo:User!assignedToId(name)").eq("isActive", true).order("createdAt", { ascending: false }).limit(100),
-    supabase.from("Customer").select("name, phone, email, notes, createdAt").eq("isActive", true).order("name").limit(100),
-    supabase.from("Lead").select("name, phone, status, source, garmentType, notes, createdAt").order("createdAt", { ascending: false }).limit(50),
-    supabase.from("FollowUp").select("notes, dueDate, status, lead:Lead!leadId(name, phone)").order("dueDate", { ascending: true }).limit(30),
-    supabase.from("Appointment").select("title, startTime, endTime, status, notes, customer:Customer!customerId(name, phone)").eq("isActive", true).order("startTime", { ascending: false }).limit(100),
-    supabase.from("User").select("name, role, position, isActive").order("name"),
-    supabase.from("Purchase").select("description, amount, category, date, vendor").order("date", { ascending: false }).limit(30),
+    totalOrdersQ,
+    activeOrdersQ,
+    totalCustomersQ,
+    totalLeadsQ,
+    invoicesQ.order("createdAt", { ascending: false }).limit(50),
+    ordersQ.order("createdAt", { ascending: false }).limit(100),
+    customersQ.order("name").limit(100),
+    leadsQ.order("createdAt", { ascending: false }).limit(50),
+    followupsQ.order("dueDate", { ascending: true }).limit(30),
+    appointmentsQ.order("startTime", { ascending: false }).limit(100),
+    db.from("User").select("name, role, position, isActive").order("name"),
+    purchasesQ.order("date", { ascending: false }).limit(30),
   ]);
 
   const paid = (invoices ?? []).reduce((s, r: any) => s + (r.paidAmount ?? 0), 0);

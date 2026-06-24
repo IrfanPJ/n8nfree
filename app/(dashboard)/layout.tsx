@@ -3,6 +3,8 @@ import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
 import { supabase } from "@/lib/supabase";
 import { hasPageAccess } from "@/lib/permissions";
+import { getBranches } from "@/actions/branches";
+import { getActiveBranchCookie } from "@/lib/active-branch";
 import { DashboardLayoutClient } from "./dashboard-layout-client";
 import Link from "next/link";
 import { Lock } from "lucide-react";
@@ -58,8 +60,15 @@ export default async function DashboardLayout({
     !ALWAYS_ALLOWED.has(pageKey) &&
     !hasPageAccess(pageKey, pagePermissions, session.user.role);
 
+  const [branches, activeBranchId] = await Promise.all([getBranches(), getActiveBranchCookie()]);
+
   return (
-    <DashboardLayoutClient user={session.user} pagePermissions={pagePermissions}>
+    <DashboardLayoutClient
+      user={session.user}
+      pagePermissions={pagePermissions}
+      branches={branches}
+      activeBranchId={activeBranchId}
+    >
       {isRestricted ? <AccessDeniedPage /> : children}
     </DashboardLayoutClient>
   );

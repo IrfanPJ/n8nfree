@@ -2,18 +2,22 @@
 
 import { revalidatePath } from "next/cache";
 import { randomUUID } from "crypto";
-import { supabase } from "@/lib/supabase";
 import { auth } from "@/lib/auth";
+import { getScopedClient } from "@/lib/supabase-scoped";
+import { getActiveBranchCookie } from "@/lib/active-branch";
+import { resolveActiveBranchId, resolveReadBranchFilter } from "@/lib/branch-context";
 import type { ApiResponse, TailorMaster, Salesperson, GarmentTypeMaster } from "@/types";
 
 // ── Tailor Master ─────────────────────────────────────────────────────────────
 
-export async function getTailorMasters(branch?: string): Promise<TailorMaster[]> {
+export async function getTailorMasters(): Promise<TailorMaster[]> {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
+  const db = await getScopedClient(session);
 
-  let q = supabase.from("TailorMaster").select("*").eq("isActive", true).order("name");
-  if (branch) q = q.eq("branch", branch);
+  let q = db.from("TailorMaster").select("*").eq("isActive", true).order("name");
+  const branchFilter = resolveReadBranchFilter(session, await getActiveBranchCookie());
+  if (branchFilter) q = q.eq("branchId", branchFilter);
 
   const { data } = await q;
   return (data ?? []) as TailorMaster[];
@@ -24,16 +28,17 @@ export async function createTailorMaster(data: {
   phone?: string;
   specialization?: string;
   notes?: string;
-  branch?: string;
 }): Promise<ApiResponse<TailorMaster>> {
   const session = await auth();
   if (!session?.user) return { success: false, error: "Unauthorized" };
+  const db = await getScopedClient(session);
+  const branchId = resolveActiveBranchId(session, await getActiveBranchCookie());
 
   if (!data.name?.trim()) return { success: false, error: "Name is required" };
 
   try {
     const now = new Date().toISOString();
-    const { data: tailor, error } = await supabase
+    const { data: tailor, error } = await db
       .from("TailorMaster")
       .insert({
         id: randomUUID(),
@@ -41,7 +46,7 @@ export async function createTailorMaster(data: {
         phone: data.phone || null,
         specialization: data.specialization || null,
         notes: data.notes || null,
-        branch: data.branch || null,
+        branchId,
         isActive: true,
         createdAt: now,
         updatedAt: now,
@@ -58,12 +63,14 @@ export async function createTailorMaster(data: {
 
 // ── Salesperson ───────────────────────────────────────────────────────────────
 
-export async function getSalespersons(branch?: string): Promise<Salesperson[]> {
+export async function getSalespersons(): Promise<Salesperson[]> {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
+  const db = await getScopedClient(session);
 
-  let q = supabase.from("Salesperson").select("*").eq("isActive", true).order("name");
-  if (branch) q = q.eq("branch", branch);
+  let q = db.from("Salesperson").select("*").eq("isActive", true).order("name");
+  const branchFilter = resolveReadBranchFilter(session, await getActiveBranchCookie());
+  if (branchFilter) q = q.eq("branchId", branchFilter);
 
   const { data } = await q;
   return (data ?? []) as Salesperson[];
@@ -72,22 +79,23 @@ export async function getSalespersons(branch?: string): Promise<Salesperson[]> {
 export async function createSalesperson(data: {
   name: string;
   phone?: string;
-  branch?: string;
 }): Promise<ApiResponse<Salesperson>> {
   const session = await auth();
   if (!session?.user) return { success: false, error: "Unauthorized" };
+  const db = await getScopedClient(session);
+  const branchId = resolveActiveBranchId(session, await getActiveBranchCookie());
 
   if (!data.name?.trim()) return { success: false, error: "Name is required" };
 
   try {
     const now = new Date().toISOString();
-    const { data: sp, error } = await supabase
+    const { data: sp, error } = await db
       .from("Salesperson")
       .insert({
         id: randomUUID(),
         name: data.name.trim(),
         phone: data.phone || null,
-        branch: data.branch || null,
+        branchId,
         isActive: true,
         createdAt: now,
         updatedAt: now,
@@ -102,13 +110,14 @@ export async function createSalesperson(data: {
   }
 }
 
-// ── Garment Type Master ───────────────────────────────────────────────────────
+// ── Garment Type Master (global, shared across branches) ──────────────────────
 
 export async function getGarmentTypes(): Promise<GarmentTypeMaster[]> {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
+  const db = await getScopedClient(session);
 
-  const { data } = await supabase
+  const { data } = await db
     .from("GarmentTypeMaster")
     .select("*")
     .eq("isActive", true)
@@ -120,11 +129,12 @@ export async function getGarmentTypes(): Promise<GarmentTypeMaster[]> {
 export async function createGarmentType(name: string): Promise<ApiResponse<GarmentTypeMaster>> {
   const session = await auth();
   if (!session?.user) return { success: false, error: "Unauthorized" };
+  const db = await getScopedClient(session);
 
   if (!name?.trim()) return { success: false, error: "Name is required" };
 
   try {
-    const { data: existing } = await supabase
+    const { data: existing } = await db
       .from("GarmentTypeMaster")
       .select("id, name, isActive, createdAt")
       .eq("name", name.trim())
@@ -132,12 +142,12 @@ export async function createGarmentType(name: string): Promise<ApiResponse<Garme
 
     if (existing) {
       if (!existing.isActive) {
-        await supabase.from("GarmentTypeMaster").update({ isActive: true }).eq("id", existing.id);
+        await db.from("GarmentTypeMaster").update({ isActive: true }).eq("id", existing.id);
       }
       return { success: true, data: { ...existing, isActive: true } as GarmentTypeMaster };
     }
 
-    const { data: gt, error } = await supabase
+    const { data: gt, error } = await db
       .from("GarmentTypeMaster")
       .insert({ id: randomUUID(), name: name.trim(), isActive: true, createdAt: new Date().toISOString() })
       .select()
@@ -150,13 +160,14 @@ export async function createGarmentType(name: string): Promise<ApiResponse<Garme
   }
 }
 
-// ── Custom Countries & Cities ─────────────────────────────────────────────────
+// ── Custom Countries & Cities (global, shared across branches) ────────────────
 
 export async function getCustomCountries(): Promise<string[]> {
   const session = await auth();
   if (!session?.user) return [];
+  const db = await getScopedClient(session);
 
-  const { data } = await supabase.from("CustomCountry").select("name").order("name");
+  const { data } = await db.from("CustomCountry").select("name").order("name");
   return (data ?? []).map((r: any) => r.name as string);
 }
 
@@ -164,8 +175,9 @@ export async function saveCustomCountry(name: string): Promise<void> {
   const session = await auth();
   if (!session?.user) return;
   if (!name?.trim()) return;
+  const db = await getScopedClient(session);
 
-  await supabase
+  await db
     .from("CustomCountry")
     .upsert({ id: randomUUID(), name: name.trim(), createdAt: new Date().toISOString() }, { onConflict: "name", ignoreDuplicates: true });
 }
@@ -173,8 +185,9 @@ export async function saveCustomCountry(name: string): Promise<void> {
 export async function getCustomCities(country?: string): Promise<string[]> {
   const session = await auth();
   if (!session?.user) return [];
+  const db = await getScopedClient(session);
 
-  let q = supabase.from("CustomCity").select("name").order("name");
+  let q = db.from("CustomCity").select("name").order("name");
   if (country) q = q.eq("country", country);
 
   const { data } = await q;
@@ -185,8 +198,9 @@ export async function saveCustomCity(name: string, country?: string): Promise<vo
   const session = await auth();
   if (!session?.user) return;
   if (!name?.trim()) return;
+  const db = await getScopedClient(session);
 
-  await supabase
+  await db
     .from("CustomCity")
     .upsert({ id: randomUUID(), name: name.trim(), country: country || null, createdAt: new Date().toISOString() }, { onConflict: "name, country", ignoreDuplicates: true });
 

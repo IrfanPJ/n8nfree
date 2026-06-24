@@ -8,15 +8,19 @@ import { useTheme } from "next-themes";
 import { GlobalSearch } from "@/components/shared/global-search";
 import { NotificationsPanel } from "@/components/shared/notifications-panel";
 import { LanguageToggle } from "@/components/shared/language-toggle";
+import { BranchSelector } from "@/components/shared/branch-selector";
 import { cn } from "@/lib/utils";
 
 interface TopbarProps {
   title?: string;
   subtitle?: string;
   onMobileMenuToggle?: () => void;
+  userRole?: string;
+  branches?: { id: string; name: string }[];
+  activeBranchId?: string;
 }
 
-export function Topbar({ title, subtitle, onMobileMenuToggle }: TopbarProps) {
+export function Topbar({ title, subtitle, onMobileMenuToggle, userRole, branches, activeBranchId }: TopbarProps) {
   const { setSidebarCollapsed, sidebarCollapsed } = useUIStore();
   const { resolvedTheme, setTheme } = useTheme();
   const [searchOpen, setSearchOpen] = useState(false);
@@ -51,6 +55,10 @@ export function Topbar({ title, subtitle, onMobileMenuToggle }: TopbarProps) {
         </div>
 
         <div className="flex items-center gap-1 sm:gap-2">
+
+          {branches && branches.length > 0 && (
+            <BranchSelector branches={branches} activeBranchId={activeBranchId} role={userRole ?? "STAFF"} />
+          )}
 
           <Button
             variant="ghost"

@@ -2,8 +2,10 @@
 
 import { revalidatePath } from "next/cache";
 import { randomUUID } from "crypto";
-import { supabase } from "@/lib/supabase";
 import { auth } from "@/lib/auth";
+import { getScopedClient } from "@/lib/supabase-scoped";
+import { getActiveBranchCookie } from "@/lib/active-branch";
+import { resolveActiveBranchId, resolveReadBranchFilter } from "@/lib/branch-context";
 import { measurementSchema } from "@/validators/measurement";
 import type { ApiResponse, Measurement } from "@/types";
 
@@ -62,10 +64,13 @@ function measurementFields(d: ReturnType<typeof measurementSchema.parse>) {
 export async function getMeasurements(customerId?: string): Promise<Measurement[]> {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
+  const db = await getScopedClient(session);
+  const branchId = resolveReadBranchFilter(session, await getActiveBranchCookie());
 
   try {
-    let q = supabase.from("Measurement").select("*").order("takenAt", { ascending: false });
+    let q = db.from("Measurement").select("*").order("takenAt", { ascending: false });
     if (customerId) q = q.eq("customerId", customerId);
+    if (branchId) q = q.eq("branchId", branchId);
     const { data } = await q;
     return (data ?? []) as Measurement[];
   } catch {
@@ -76,9 +81,10 @@ export async function getMeasurements(customerId?: string): Promise<Measurement[
 export async function getMeasurementById(id: string): Promise<Measurement | null> {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
+  const db = await getScopedClient(session);
 
   try {
-    const { data } = await supabase.from("Measurement").select("*").eq("id", id).maybeSingle();
+    const { data } = await db.from("Measurement").select("*").eq("id", id).maybeSingle();
     return data as Measurement | null;
   } catch {
     return null;
@@ -88,6 +94,8 @@ export async function getMeasurementById(id: string): Promise<Measurement | null
 export async function createMeasurement(data: unknown): Promise<ApiResponse<Measurement>> {
   const session = await auth();
   if (!session?.user) return { success: false, error: "Unauthorized" };
+  const db = await getScopedClient(session);
+  const branchId = resolveActiveBranchId(session, await getActiveBranchCookie());
 
   const parsed = measurementSchema.safeParse(data);
   if (!parsed.success) {
@@ -98,11 +106,12 @@ export async function createMeasurement(data: unknown): Promise<ApiResponse<Meas
     const id = randomUUID();
     const now = new Date().toISOString();
 
-    const { data: measurement, error } = await supabase.from("Measurement").insert({
+    const { data: measurement, error } = await db.from("Measurement").insert({
       id,
       customerId: parsed.data.customerId,
       takenBy: parsed.data.takenBy ?? session.user.name ?? null,
       takenAt: now,
+      branchId,
       createdAt: now,
       updatedAt: now,
       ...measurementFields(parsed.data),
@@ -110,10 +119,11 @@ export async function createMeasurement(data: unknown): Promise<ApiResponse<Meas
 
     if (error) throw error;
 
-    await supabase.from("ActivityLog").insert({
+    await db.from("ActivityLog").insert({
       id: randomUUID(),
       userId: session.user.id,
       customerId: parsed.data.customerId,
+      branchId,
       action: "CREATE",
       entity: "Measurement",
       entityId: id,
@@ -132,6 +142,7 @@ export async function createMeasurement(data: unknown): Promise<ApiResponse<Meas
 export async function updateMeasurement(id: string, data: unknown): Promise<ApiResponse<Measurement>> {
   const session = await auth();
   if (!session?.user) return { success: false, error: "Unauthorized" };
+  const db = await getScopedClient(session);
 
   const parsed = measurementSchema.safeParse(data);
   if (!parsed.success) {
@@ -139,7 +150,7 @@ export async function updateMeasurement(id: string, data: unknown): Promise<ApiR
   }
 
   try {
-    const { data: measurement, error } = await supabase.from("Measurement").update({
+    const { data: measurement, error } = await db.from("Measurement").update({
       takenBy: parsed.data.takenBy ?? null,
       updatedAt: new Date().toISOString(),
       ...measurementFields(parsed.data),
@@ -159,11 +170,12 @@ export async function updateMeasurement(id: string, data: unknown): Promise<ApiR
 export async function deleteMeasurement(id: string): Promise<ApiResponse<void>> {
   const session = await auth();
   if (!session?.user) return { success: false, error: "Unauthorized" };
+  const db = await getScopedClient(session);
 
   try {
-    const { data: measurement } = await supabase.from("Measurement").select("customerId").eq("id", id).maybeSingle();
+    const { data: measurement } = await db.from("Measurement").select("customerId").eq("id", id).maybeSingle();
     if (!measurement) return { success: false, error: "Measurement not found" };
-    await supabase.from("Measurement").delete().eq("id", id);
+    await db.from("Measurement").delete().eq("id", id);
     revalidatePath("/measurements");
     if (measurement.customerId) revalidatePath(`/customers/${measurement.customerId}`);
     return { success: true, message: "Measurement deleted" };

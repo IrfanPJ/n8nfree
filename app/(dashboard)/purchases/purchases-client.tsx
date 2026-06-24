@@ -72,6 +72,14 @@ interface PurchasesClientProps {
 export function PurchasesClient({ initialData, stats, suppliers }: PurchasesClientProps) {
   const router = useRouter();
   const [data, setData] = useState(initialData);
+
+  // Sync local state whenever the server re-fetches (e.g. router.refresh()
+  // after a branch switch) — without this, switching branches would keep
+  // showing whatever purchases were loaded on first render.
+  React.useEffect(() => {
+    setData(initialData);
+  }, [initialData]);
+
   const [createOpen, setCreateOpen] = useState(false);
   const [activeStatus, setActiveStatus] = useState<"ALL" | "PENDING_PURCHASE" | "FABRIC_ORDERED" | "FABRIC_COLLECTED">("ALL");
   const [updatingId, setUpdatingId] = useState<string | null>(null);

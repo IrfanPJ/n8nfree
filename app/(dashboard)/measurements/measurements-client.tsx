@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -384,6 +384,14 @@ export function MeasurementsClient({
 }: MeasurementsClientProps) {
   const router = useRouter();
   const [measurements, setMeasurements] = useState(initialMeasurements);
+
+  // Sync local state whenever the server re-fetches (e.g. router.refresh()
+  // after a branch switch) — without this, switching branches would keep
+  // showing whatever measurements were loaded on first render.
+  useEffect(() => {
+    setMeasurements(initialMeasurements);
+  }, [initialMeasurements]);
+
   const [search, setSearch] = useState("");
   const [createOpen, setCreateOpen] = useState(false);
   const [editMeasurement, setEditMeasurement] = useState<Measurement | null>(null);

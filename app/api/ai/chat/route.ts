@@ -31,7 +31,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ choices: [{ message: { content: "Please ask a question." } }] });
   }
 
-  const businessContext = await fetchBusinessContext();
+  const businessContext = await fetchBusinessContext(session);
   const systemInstruction = buildSystemInstruction(businessContext);
 
   // Build Gemini conversation — skip leading assistant messages, requires user-first alternating turns

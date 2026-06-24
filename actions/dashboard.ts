@@ -1,61 +1,68 @@
 "use server";
 
-import { supabase } from "@/lib/supabase";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { auth } from "@/lib/auth";
+import { getScopedClient } from "@/lib/supabase-scoped";
+import { getActiveBranchCookie } from "@/lib/active-branch";
+import { resolveReadBranchFilter } from "@/lib/branch-context";
 import { startOfMonth, endOfMonth, subMonths, startOfDay, endOfDay } from "date-fns";
 import type { DashboardStats, RevenueData, OrderStatusData } from "@/types";
 
-async function countWhere(table: string, filters: Record<string, unknown>, branch?: string): Promise<number> {
-  let q = supabase.from(table).select("*", { count: "exact", head: true });
+async function countWhere(db: SupabaseClient, table: string, filters: Record<string, unknown>, branchId?: string): Promise<number> {
+  let q = db.from(table).select("*", { count: "exact", head: true });
   for (const [k, v] of Object.entries(filters)) q = q.eq(k, v);
-  if (branch && branch !== "All Branches") q = q.eq("branch", branch);
+  if (branchId) q = q.eq("branchId", branchId);
   const { count } = await q;
   return count ?? 0;
 }
 
 async function countRange(
+  db: SupabaseClient,
   table: string,
   base: Record<string, unknown>,
   rangeCol: string,
   start: Date,
   end: Date,
-  branch?: string,
+  branchId?: string,
 ): Promise<number> {
-  let q = supabase.from(table).select("*", { count: "exact", head: true });
+  let q = db.from(table).select("*", { count: "exact", head: true });
   for (const [k, v] of Object.entries(base)) q = q.eq(k, v);
   q = q.gte(rangeCol, start.toISOString()).lte(rangeCol, end.toISOString());
-  if (branch && branch !== "All Branches") q = q.eq("branch", branch);
+  if (branchId) q = q.eq("branchId", branchId);
   const { count } = await q;
   return count ?? 0;
 }
 
-async function sumRevenue(start: Date, end: Date, branch?: string): Promise<number> {
-  let q = supabase
+async function sumRevenue(db: SupabaseClient, start: Date, end: Date, branchId?: string): Promise<number> {
+  let q = db
     .from("Invoice")
     .select("paidAmount")
     .eq("isActive", true)
     .eq("status", "PAID")
     .gte("createdAt", start.toISOString())
     .lte("createdAt", end.toISOString());
-  if (branch && branch !== "All Branches") q = q.eq("branch", branch);
+  if (branchId) q = q.eq("branchId", branchId);
   const { data } = await q;
   return data?.reduce((s, r) => s + (r.paidAmount ?? 0), 0) ?? 0;
 }
 
-async function sumPOSRevenue(start: Date, end: Date, branch?: string): Promise<number> {
-  let q = supabase
+async function sumPOSRevenue(db: SupabaseClient, start: Date, end: Date, branchId?: string): Promise<number> {
+  let q = db
     .from("POSSale")
     .select("total")
     .gte("createdAt", start.toISOString())
     .lte("createdAt", end.toISOString());
-  if (branch && branch !== "All Branches") q = q.eq("branch", branch);
+  if (branchId) q = q.eq("branchId", branchId);
   const { data } = await q;
   return data?.reduce((s, r) => s + (r.total ?? 0), 0) ?? 0;
 }
 
-export async function getDashboardStats(_branch?: string): Promise<DashboardStats> {
+export async function getDashboardStats(): Promise<DashboardStats> {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
+  const db = await getScopedClient(session);
+  const branchId = resolveReadBranchFilter(session, await getActiveBranchCookie());
+
   const now = new Date();
   const curStart = startOfMonth(now);
   const curEnd = endOfMonth(now);
@@ -64,6 +71,32 @@ export async function getDashboardStats(_branch?: string): Promise<DashboardStat
   const todayStart = startOfDay(now);
   const todayEnd = endOfDay(now);
   const weekOut = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+
+  let todayApptsQ = db.from("Appointment").select("*", { count: "exact", head: true }).eq("isActive", true).gte("startTime", todayStart.toISOString()).lte("startTime", todayEnd.toISOString());
+  let upcomingDeliveriesQ = db.from("Order").select("*", { count: "exact", head: true }).eq("isActive", true).eq("status", "READY_FOR_DELIVERY").gte("deliveryDate", now.toISOString()).lte("deliveryDate", weekOut.toISOString());
+  let totalRevDataQ = db.from("Invoice").select("paidAmount").eq("isActive", true).eq("status", "PAID");
+  let posSalesTodayQ = db.from("POSSale").select("*", { count: "exact", head: true }).gte("createdAt", todayStart.toISOString()).lte("createdAt", todayEnd.toISOString());
+  let totalPOSRevenueQ = db.from("POSSale").select("total");
+  let activeLeadsQ = db.from("Lead").select("*", { count: "exact", head: true }).eq("isActive", true).not("stage", "in", '("CLOSED_WON","CLOSED_LOST")');
+  let closedWonLeadsQ = db.from("Lead").select("*", { count: "exact", head: true }).eq("isActive", true).eq("stage", "CLOSED_WON");
+  let pipelineLeadsQ = db.from("Lead").select("value").eq("isActive", true).not("stage", "in", '("CLOSED_WON","CLOSED_LOST")');
+  let fabricsQ = db.from("Fabric").select("stockQty, reorderLevel").eq("isActive", true);
+  let pendingFollowUpsQ = db.from("FollowUp").select("*", { count: "exact", head: true }).eq("isActive", true).eq("status", "PENDING");
+  let overdueFollowUpsQ = db.from("FollowUp").select("*", { count: "exact", head: true }).eq("isActive", true).eq("status", "PENDING").lt("dueDate", now.toISOString());
+
+  if (branchId) {
+    todayApptsQ = todayApptsQ.eq("branchId", branchId);
+    upcomingDeliveriesQ = upcomingDeliveriesQ.eq("branchId", branchId);
+    totalRevDataQ = totalRevDataQ.eq("branchId", branchId);
+    posSalesTodayQ = posSalesTodayQ.eq("branchId", branchId);
+    totalPOSRevenueQ = totalPOSRevenueQ.eq("branchId", branchId);
+    activeLeadsQ = activeLeadsQ.eq("branchId", branchId);
+    closedWonLeadsQ = closedWonLeadsQ.eq("branchId", branchId);
+    pipelineLeadsQ = pipelineLeadsQ.eq("branchId", branchId);
+    fabricsQ = fabricsQ.eq("branchId", branchId);
+    pendingFollowUpsQ = pendingFollowUpsQ.eq("branchId", branchId);
+    overdueFollowUpsQ = overdueFollowUpsQ.eq("branchId", branchId);
+  }
 
   const [
     totalOrders, pendingOrders, completedOrders,
@@ -81,33 +114,33 @@ export async function getDashboardStats(_branch?: string): Promise<DashboardStat
     // Follow-ups
     pendingFollowUpsCount, overdueFollowUpsCount,
   ] = await Promise.all([
-    countWhere("Order", { isActive: true }),
-    supabase.from("Order").select("*", { count: "exact", head: true }).eq("isActive", true).not("status", "in", '("DELIVERED","ORDER_CLOSED")').then(r => r.count ?? 0),
-    countWhere("Order", { isActive: true, status: "DELIVERED" }),
-    countWhere("Customer", { isActive: true }),
-    countRange("Customer", { isActive: true }, "createdAt", curStart, curEnd),
-    countRange("Customer", { isActive: true }, "createdAt", lastStart, lastEnd),
-    sumRevenue(curStart, curEnd),
-    sumRevenue(lastStart, lastEnd),
-    countRange("Order", { isActive: true }, "createdAt", curStart, curEnd),
-    countRange("Order", { isActive: true }, "createdAt", lastStart, lastEnd),
-    supabase.from("Appointment").select("*", { count: "exact", head: true }).eq("isActive", true).gte("startTime", todayStart.toISOString()).lte("startTime", todayEnd.toISOString()).then(r => r.count ?? 0),
-    supabase.from("Order").select("*", { count: "exact", head: true }).eq("isActive", true).eq("status", "READY_FOR_DELIVERY").gte("deliveryDate", now.toISOString()).lte("deliveryDate", weekOut.toISOString()).then(r => r.count ?? 0),
-    countWhere("Invoice", { isActive: true, status: "OVERDUE" }),
-    supabase.from("Invoice").select("paidAmount").eq("isActive", true).eq("status", "PAID").then(r => r.data?.reduce((s: number, i: any) => s + (i.paidAmount ?? 0), 0) ?? 0),
+    countWhere(db, "Order", { isActive: true }, branchId),
+    db.from("Order").select("*", { count: "exact", head: true }).eq("isActive", true).not("status", "in", '("DELIVERED","ORDER_CLOSED")').then(r => r.count ?? 0),
+    countWhere(db, "Order", { isActive: true, status: "DELIVERED" }, branchId),
+    countWhere(db, "Customer", { isActive: true }, branchId),
+    countRange(db, "Customer", { isActive: true }, "createdAt", curStart, curEnd, branchId),
+    countRange(db, "Customer", { isActive: true }, "createdAt", lastStart, lastEnd, branchId),
+    sumRevenue(db, curStart, curEnd, branchId),
+    sumRevenue(db, lastStart, lastEnd, branchId),
+    countRange(db, "Order", { isActive: true }, "createdAt", curStart, curEnd, branchId),
+    countRange(db, "Order", { isActive: true }, "createdAt", lastStart, lastEnd, branchId),
+    todayApptsQ.then(r => r.count ?? 0),
+    upcomingDeliveriesQ.then(r => r.count ?? 0),
+    countWhere(db, "Invoice", { isActive: true, status: "OVERDUE" }, branchId),
+    totalRevDataQ.then(r => r.data?.reduce((s: number, i: any) => s + (i.paidAmount ?? 0), 0) ?? 0),
     // POS
-    supabase.from("POSSale").select("*", { count: "exact", head: true }).gte("createdAt", todayStart.toISOString()).lte("createdAt", todayEnd.toISOString()).then(r => r.count ?? 0),
-    sumPOSRevenue(todayStart, todayEnd),
-    supabase.from("POSSale").select("total").then(r => r.data?.reduce((s: number, i: any) => s + (i.total ?? 0), 0) ?? 0),
+    posSalesTodayQ.then(r => r.count ?? 0),
+    sumPOSRevenue(db, todayStart, todayEnd, branchId),
+    totalPOSRevenueQ.then(r => r.data?.reduce((s: number, i: any) => s + (i.total ?? 0), 0) ?? 0),
     // Leads
-    supabase.from("Lead").select("*", { count: "exact", head: true }).eq("isActive", true).not("stage", "in", '("CLOSED_WON","CLOSED_LOST")').then(r => r.count ?? 0),
-    supabase.from("Lead").select("*", { count: "exact", head: true }).eq("isActive", true).eq("stage", "CLOSED_WON").then(r => r.count ?? 0),
-    supabase.from("Lead").select("value").eq("isActive", true).not("stage", "in", '("CLOSED_WON","CLOSED_LOST")').then(r => r.data?.reduce((s: number, i: any) => s + (i.value ?? 0), 0) ?? 0),
+    activeLeadsQ.then(r => r.count ?? 0),
+    closedWonLeadsQ.then(r => r.count ?? 0),
+    pipelineLeadsQ.then(r => r.data?.reduce((s: number, i: any) => s + (i.value ?? 0), 0) ?? 0),
     // Fabrics
-    supabase.from("Fabric").select("stockQty, reorderLevel").eq("isActive", true),
+    fabricsQ,
     // Follow-ups
-    supabase.from("FollowUp").select("*", { count: "exact", head: true }).eq("isActive", true).eq("status", "PENDING").then(r => r.count ?? 0),
-    supabase.from("FollowUp").select("*", { count: "exact", head: true }).eq("isActive", true).eq("status", "PENDING").lt("dueDate", now.toISOString()).then(r => r.count ?? 0),
+    pendingFollowUpsQ.then(r => r.count ?? 0),
+    overdueFollowUpsQ.then(r => r.count ?? 0),
   ]);
 
   const revenueGrowth = lastRev === 0 ? 100 : ((curRev - lastRev) / lastRev) * 100;
@@ -143,9 +176,11 @@ export async function getDashboardStats(_branch?: string): Promise<DashboardStat
   };
 }
 
-export async function getRevenueData(_branch?: string): Promise<RevenueData[]> {
+export async function getRevenueData(): Promise<RevenueData[]> {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
+  const db = await getScopedClient(session);
+  const branchId = resolveReadBranchFilter(session, await getActiveBranchCookie());
 
   const months = Array.from({ length: 6 }, (_, i) => {
     const date = subMonths(new Date(), 5 - i);
@@ -155,8 +190,8 @@ export async function getRevenueData(_branch?: string): Promise<RevenueData[]> {
   return Promise.all(
     months.map(async ({ start, end, label }) => {
       const [rev, orderCount] = await Promise.all([
-        sumRevenue(start, end),
-        countRange("Order", { isActive: true }, "createdAt", start, end),
+        sumRevenue(db, start, end, branchId),
+        countRange(db, "Order", { isActive: true }, "createdAt", start, end, branchId),
       ]);
       return { month: label, revenue: rev, orders: orderCount };
     })
@@ -166,6 +201,8 @@ export async function getRevenueData(_branch?: string): Promise<RevenueData[]> {
 export async function getOrderStatusData(): Promise<OrderStatusData[]> {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
+  const db = await getScopedClient(session);
+  const branchId = resolveReadBranchFilter(session, await getActiveBranchCookie());
 
   const statuses = [
     "MEASUREMENT", "FABRIC_ORDERING", "FABRIC_COLLECTED", "CUTTING",
@@ -179,7 +216,7 @@ export async function getOrderStatusData(): Promise<OrderStatusData[]> {
   ];
 
   const counts = await Promise.all(
-    statuses.map((s) => countWhere("Order", { isActive: true, status: s }))
+    statuses.map((s) => countWhere(db, "Order", { isActive: true, status: s }, branchId))
   );
 
   const labels: Record<string, string> = {
@@ -196,20 +233,24 @@ export async function getOrderStatusData(): Promise<OrderStatusData[]> {
   }));
 }
 
-export async function getUrgentOrders(_branch?: string) {
+export async function getUrgentOrders() {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
+  const db = await getScopedClient(session);
+  const branchId = resolveReadBranchFilter(session, await getActiveBranchCookie());
 
   const now = new Date();
   const sevenDaysOut = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
 
-  const { data } = await supabase
+  let q = db
     .from("Order")
     .select("id, orderNumber, garmentType, deliveryDate, status, customer:Customer!customerId(name, phone)")
     .eq("isActive", true)
     .not("status", "in", '("DELIVERED","ORDER_CLOSED")')
-    .lte("deliveryDate", sevenDaysOut.toISOString())
-    .order("deliveryDate", { ascending: true });
+    .lte("deliveryDate", sevenDaysOut.toISOString());
+  if (branchId) q = q.eq("branchId", branchId);
+
+  const { data } = await q.order("deliveryDate", { ascending: true });
 
   return (data ?? []).map((o: any) => {
     const due = new Date(o.deliveryDate);
@@ -222,49 +263,61 @@ export async function getUrgentOrders(_branch?: string) {
   });
 }
 
-export async function getWorkshopCapacity(_branch?: string) {
+export async function getWorkshopCapacity() {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
+  const db = await getScopedClient(session);
+  const branchId = resolveReadBranchFilter(session, await getActiveBranchCookie());
 
   const MAX_SLOTS = 20;
-  const { count } = await supabase
+  let q = db
     .from("Order")
     .select("*", { count: "exact", head: true })
     .eq("isActive", true)
     .not("status", "in", '("DELIVERED","ORDER_CLOSED")');
+  if (branchId) q = q.eq("branchId", branchId);
+  const { count } = await q;
 
   const current = count ?? 0;
   return { current, max: MAX_SLOTS, percentage: Math.round((current / MAX_SLOTS) * 100) };
 }
 
-export async function getNextDelivery(_branch?: string) {
+export async function getNextDelivery() {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
+  const db = await getScopedClient(session);
+  const branchId = resolveReadBranchFilter(session, await getActiveBranchCookie());
 
-  const { data } = await supabase
+  let q = db
     .from("Order")
     .select("id, orderNumber, garmentType, deliveryDate, customer:Customer!customerId(name)")
     .eq("isActive", true)
     .not("status", "in", '("DELIVERED","ORDER_CLOSED")')
-    .gte("deliveryDate", new Date().toISOString())
-    .order("deliveryDate", { ascending: true })
-    .limit(1);
+    .gte("deliveryDate", new Date().toISOString());
+  if (branchId) q = q.eq("branchId", branchId);
+
+  const { data } = await q.order("deliveryDate", { ascending: true }).limit(1);
 
   return data?.[0] ?? null;
 }
 
-export async function getBookingHeatmap(_branch?: string) {
+export async function getBookingHeatmap() {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
+  const db = await getScopedClient(session);
+  const branchId = resolveReadBranchFilter(session, await getActiveBranchCookie());
 
   const fourWeeksAgo = new Date();
   fourWeeksAgo.setDate(fourWeeksAgo.getDate() - 28);
 
-  const { data } = await supabase
+  let q = db
     .from("Appointment")
     .select("startTime")
     .eq("isActive", true)
     .gte("startTime", fourWeeksAgo.toISOString());
+  if (branchId) q = q.eq("branchId", branchId);
+
+  const { data } = await q;
 
   const counts = [0, 0, 0, 0, 0, 0, 0];
   (data ?? []).forEach((apt: any) => {
@@ -274,36 +327,43 @@ export async function getBookingHeatmap(_branch?: string) {
   return counts;
 }
 
-export async function getTodayAppointments(_branch?: string) {
+export async function getTodayAppointments() {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
+  const db = await getScopedClient(session);
+  const branchId = resolveReadBranchFilter(session, await getActiveBranchCookie());
 
   const now = new Date();
   const todayStart = startOfDay(now);
   const todayEnd = endOfDay(now);
 
-  const { data } = await supabase
+  let q = db
     .from("Appointment")
     .select("id, title, type, startTime, endTime, status, customer:Customer!customerId(name, phone)")
     .eq("isActive", true)
     .gte("startTime", todayStart.toISOString())
-    .lte("startTime", todayEnd.toISOString())
-    .order("startTime", { ascending: true });
+    .lte("startTime", todayEnd.toISOString());
+  if (branchId) q = q.eq("branchId", branchId);
+
+  const { data } = await q.order("startTime", { ascending: true });
 
   return data ?? [];
 }
 
-export async function getReadyOrders(_branch?: string) {
+export async function getReadyOrders() {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
+  const db = await getScopedClient(session);
+  const branchId = resolveReadBranchFilter(session, await getActiveBranchCookie());
 
-  const { data } = await supabase
+  let q = db
     .from("Order")
     .select("id, orderNumber, garmentType, deliveryDate, customer:Customer!customerId(name, phone)")
     .eq("isActive", true)
-    .eq("status", "READY_FOR_DELIVERY")
-    .order("deliveryDate", { ascending: true })
-    .limit(10);
+    .eq("status", "READY_FOR_DELIVERY");
+  if (branchId) q = q.eq("branchId", branchId);
+
+  const { data } = await q.order("deliveryDate", { ascending: true }).limit(10);
 
   return data ?? [];
 }
@@ -313,9 +373,10 @@ export async function getReadyOrders(_branch?: string) {
 export async function getMyAssignedOrders(userId: string) {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
+  const db = await getScopedClient(session);
 
   // Orders directly assigned to user
-  const { data: directOrders } = await supabase
+  const { data: directOrders } = await db
     .from("Order")
     .select("id, orderNumber, garmentType, status, deliveryDate, priority, customer:Customer!customerId(name, phone)")
     .eq("isActive", true)
@@ -325,7 +386,7 @@ export async function getMyAssignedOrders(userId: string) {
     .limit(20);
 
   // Orders with items assigned to this user
-  const { data: itemOrders } = await supabase
+  const { data: itemOrders } = await db
     .from("OrderItem")
     .select("orderId, order:Order!orderId(id, orderNumber, garmentType, status, deliveryDate, priority, customer:Customer!customerId(name, phone))")
     .eq("assignedToId", userId)
@@ -347,18 +408,19 @@ export async function getMyAssignedOrders(userId: string) {
 export async function getMyFollowUps(userId: string) {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
+  const db = await getScopedClient(session);
 
   const now = new Date().toISOString();
 
   const [{ data: pending }, { count: overdueCount }] = await Promise.all([
-    supabase.from("FollowUp")
+    db.from("FollowUp")
       .select("id, title, dueDate, priority, status, customer:Customer!customerId(id, name, phone)")
       .eq("isActive", true)
       .eq("staffId", userId)
       .eq("status", "PENDING")
       .order("dueDate", { ascending: true })
       .limit(10),
-    supabase.from("FollowUp")
+    db.from("FollowUp")
       .select("*", { count: "exact", head: true })
       .eq("isActive", true)
       .eq("staffId", userId)
@@ -372,11 +434,12 @@ export async function getMyFollowUps(userId: string) {
 export async function getMyAppointmentsToday(staffId: string) {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
+  const db = await getScopedClient(session);
 
   const todayStart = startOfDay(new Date()).toISOString();
   const todayEnd = endOfDay(new Date()).toISOString();
 
-  const { data } = await supabase
+  const { data } = await db
     .from("Appointment")
     .select("id, title, type, status, startTime, endTime, location, customer:Customer!customerId(name, phone)")
     .eq("isActive", true)
@@ -391,6 +454,7 @@ export async function getMyAppointmentsToday(staffId: string) {
 export async function getSalesStats(userId: string) {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
+  const db = await getScopedClient(session);
 
   const now = new Date();
   const monthStart = startOfMonth(now).toISOString();
@@ -403,11 +467,11 @@ export async function getSalesStats(userId: string) {
     { count: closedThisMonth },
     { data: stageData },
   ] = await Promise.all([
-    supabase.from("Lead").select("*", { count: "exact", head: true }).eq("isActive", true).not("stage", "in", '("CLOSED_WON","CLOSED_LOST","IRRELEVANT")'),
-    supabase.from("FollowUp").select("*", { count: "exact", head: true }).eq("isActive", true).eq("staffId", userId).eq("status", "PENDING"),
-    supabase.from("Appointment").select("*", { count: "exact", head: true }).eq("isActive", true).eq("staffId", userId).gte("startTime", startOfDay(now).toISOString()).lte("startTime", endOfDay(now).toISOString()),
-    supabase.from("Lead").select("*", { count: "exact", head: true }).eq("isActive", true).eq("stage", "CLOSED_WON").gte("updatedAt", monthStart).lte("updatedAt", monthEnd),
-    supabase.from("Lead").select("stage").eq("isActive", true).not("stage", "in", '("CLOSED_WON","CLOSED_LOST","IRRELEVANT")'),
+    db.from("Lead").select("*", { count: "exact", head: true }).eq("isActive", true).not("stage", "in", '("CLOSED_WON","CLOSED_LOST","IRRELEVANT")'),
+    db.from("FollowUp").select("*", { count: "exact", head: true }).eq("isActive", true).eq("staffId", userId).eq("status", "PENDING"),
+    db.from("Appointment").select("*", { count: "exact", head: true }).eq("isActive", true).eq("staffId", userId).gte("startTime", startOfDay(now).toISOString()).lte("startTime", endOfDay(now).toISOString()),
+    db.from("Lead").select("*", { count: "exact", head: true }).eq("isActive", true).eq("stage", "CLOSED_WON").gte("updatedAt", monthStart).lte("updatedAt", monthEnd),
+    db.from("Lead").select("stage").eq("isActive", true).not("stage", "in", '("CLOSED_WON","CLOSED_LOST","IRRELEVANT")'),
   ]);
 
   const stageBreakdown: Record<string, number> = {};
@@ -421,14 +485,15 @@ export async function getSalesStats(userId: string) {
 export async function getFabricDashboard() {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
+  const db = await getScopedClient(session);
 
   const now = new Date();
   const monthStart = startOfMonth(now).toISOString();
 
   const [{ data: fabrics }, { data: recentPurchases }, { data: pendingPayments }] = await Promise.all([
-    supabase.from("Fabric").select("id, name, stockQty, reorderLevel, unit").eq("isActive", true).order("stockQty", { ascending: true }),
-    supabase.from("Purchase").select("id, itemName, totalAmount, paidAmount, category, purchaseDate, supplier:Supplier!supplierId(name)").gte("purchaseDate", monthStart).order("purchaseDate", { ascending: false }).limit(8),
-    supabase.from("Purchase").select("id, itemName, totalAmount, paidAmount, supplier:Supplier!supplierId(name)").filter("paidAmount", "lt", "totalAmount").order("purchaseDate", { ascending: true }).limit(10),
+    db.from("Fabric").select("id, name, stockQty, reorderLevel, unit").eq("isActive", true).order("stockQty", { ascending: true }),
+    db.from("Purchase").select("id, itemName, totalAmount, paidAmount, category, purchaseDate, supplier:Supplier!supplierId(name)").gte("purchaseDate", monthStart).order("purchaseDate", { ascending: false }).limit(8),
+    db.from("Purchase").select("id, itemName, totalAmount, paidAmount, supplier:Supplier!supplierId(name)").filter("paidAmount", "lt", "totalAmount").order("purchaseDate", { ascending: true }).limit(10),
   ]);
 
   const allFabrics = fabrics ?? [];
@@ -442,14 +507,15 @@ export async function getFabricDashboard() {
 export async function getLogisticsDashboard() {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
+  const db = await getScopedClient(session);
 
   const now = new Date();
   const weekOut = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
 
   const [{ data: readyOrders }, { data: upcomingDeliveries }, { data: overdueDeliveries }] = await Promise.all([
-    supabase.from("Order").select("id, orderNumber, garmentType, deliveryDate, status, customer:Customer!customerId(name, phone)").eq("isActive", true).eq("status", "READY_FOR_DELIVERY").order("deliveryDate", { ascending: true }),
-    supabase.from("Order").select("id, orderNumber, garmentType, deliveryDate, status, customer:Customer!customerId(name, phone)").eq("isActive", true).not("status", "in", '("DELIVERED","ORDER_CLOSED")').gte("deliveryDate", now.toISOString()).lte("deliveryDate", weekOut.toISOString()).order("deliveryDate", { ascending: true }),
-    supabase.from("Order").select("id, orderNumber, garmentType, deliveryDate, status, customer:Customer!customerId(name, phone)").eq("isActive", true).not("status", "in", '("DELIVERED","ORDER_CLOSED")').lt("deliveryDate", now.toISOString()).order("deliveryDate", { ascending: false }).limit(10),
+    db.from("Order").select("id, orderNumber, garmentType, deliveryDate, status, customer:Customer!customerId(name, phone)").eq("isActive", true).eq("status", "READY_FOR_DELIVERY").order("deliveryDate", { ascending: true }),
+    db.from("Order").select("id, orderNumber, garmentType, deliveryDate, status, customer:Customer!customerId(name, phone)").eq("isActive", true).not("status", "in", '("DELIVERED","ORDER_CLOSED")').gte("deliveryDate", now.toISOString()).lte("deliveryDate", weekOut.toISOString()).order("deliveryDate", { ascending: true }),
+    db.from("Order").select("id, orderNumber, garmentType, deliveryDate, status, customer:Customer!customerId(name, phone)").eq("isActive", true).not("status", "in", '("DELIVERED","ORDER_CLOSED")').lt("deliveryDate", now.toISOString()).order("deliveryDate", { ascending: false }).limit(10),
   ]);
 
   return { readyOrders: readyOrders ?? [], upcomingDeliveries: upcomingDeliveries ?? [], overdueDeliveries: overdueDeliveries ?? [] };
@@ -458,12 +524,15 @@ export async function getLogisticsDashboard() {
 export async function getRecentActivities() {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
+  const db = await getScopedClient(session);
+  const branchId = resolveReadBranchFilter(session, await getActiveBranchCookie());
 
-  const { data } = await supabase
+  let q = db
     .from("ActivityLog")
-    .select(`*, user:User!userId(name), customer:Customer!customerId(name)`)
-    .order("createdAt", { ascending: false })
-    .limit(10);
+    .select(`*, user:User!userId(name), customer:Customer!customerId(name)`);
+  if (branchId) q = q.eq("branchId", branchId);
+
+  const { data } = await q.order("createdAt", { ascending: false }).limit(10);
 
   return (data ?? []).map((a: any) => ({
     ...a,

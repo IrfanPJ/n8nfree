@@ -1,5 +1,5 @@
 // ── Enums ────────────────────────────────────────────────────────────────────
-export type UserRole = "ADMIN" | "MANAGER" | "STAFF";
+export type UserRole = "SUPER_ADMIN" | "ADMIN" | "MANAGER" | "STAFF";
 export type StaffPosition =
   | "SALES_STAFF"
   | "PURCHASE_STAFF"
@@ -43,6 +43,17 @@ export type User = {
   role: UserRole;
   position: StaffPosition | null;
   pagePermissions: string[] | null;
+  branches: string[];
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type Branch = {
+  id: string;
+  name: string;
+  code: string;
+  address: string | null;
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
@@ -64,7 +75,7 @@ export type Customer = {
   tags: string[];
   isVIP: boolean;
   isActive: boolean;
-  branch: string;
+  branchId: string;
   createdAt: string;
   updatedAt: string;
 };
@@ -156,7 +167,7 @@ export type Order = {
   specialNotes: string | null;
   cancelReason: string | null;
   isActive: boolean;
-  branch: string;
+  branchId: string;
   createdAt: string;
   updatedAt: string;
 };
@@ -184,7 +195,7 @@ export type Appointment = {
   notes: string | null;
   reminderAt: string | null;
   isActive: boolean;
-  branch: string;
+  branchId: string;
   createdAt: string;
   updatedAt: string;
 };
@@ -389,7 +400,7 @@ export type TailorMaster = {
   phone: string | null;
   specialization: string | null;
   notes: string | null;
-  branch: string | null;
+  branchId: string | null;
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
@@ -399,7 +410,7 @@ export type Salesperson = {
   id: string;
   name: string;
   phone: string | null;
-  branch: string | null;
+  branchId: string | null;
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
@@ -558,11 +569,13 @@ declare module "next-auth" {
       image?: string | null;
       role: string;
       pagePermissions?: string[] | null;
+      branches?: string[];
     };
   }
 
   interface User {
     role?: string;
     pagePermissions?: string[] | null;
+    branches?: string[];
   }
 }

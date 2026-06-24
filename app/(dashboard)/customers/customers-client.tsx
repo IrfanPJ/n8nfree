@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { motion } from "framer-motion";
 import { Plus, Search, Filter, Star, Phone, Mail, ChevronLeft, ChevronRight, Trash2, Edit2, Eye } from "lucide-react";
@@ -29,6 +29,14 @@ export function CustomersClient({ initialData }: CustomersClientProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [data, setData] = useState(initialData);
+
+  // Sync local state whenever the server re-fetches (e.g. router.refresh()
+  // after a branch switch) — without this, switching branches would keep
+  // showing whatever customers were loaded on first render.
+  useEffect(() => {
+    setData(initialData);
+  }, [initialData]);
+
   const [createOpen, setCreateOpen] = useState(false);
   const [editCustomer, setEditCustomer] = useState<CustomerWithRelations | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);

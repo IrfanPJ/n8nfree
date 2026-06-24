@@ -1,7 +1,9 @@
 "use server";
 
-import { supabase } from "@/lib/supabase";
 import { auth } from "@/lib/auth";
+import { getScopedClient } from "@/lib/supabase-scoped";
+import { getActiveBranchCookie } from "@/lib/active-branch";
+import { resolveActiveBranchId, resolveReadBranchFilter } from "@/lib/branch-context";
 import { randomUUID } from "crypto";
 import { revalidatePath } from "next/cache";
 
@@ -13,18 +15,21 @@ export type POSSalePayload = {
   tax: number;
   total: number;
   paymentMethod: "CASH" | "CARD";
-  branch?: string;
 };
 
 export async function getPOSSales(params: { limit?: number } = {}) {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
+  const db = await getScopedClient(session);
 
-  const { data, error } = await supabase
+  let q = db
     .from("POSSale")
-    .select("id, receiptNo, clientName, items, subtotal, tax, total, paymentMethod, branch, createdAt")
-    .order("createdAt", { ascending: false })
-    .limit(params.limit ?? 50);
+    .select("id, receiptNo, clientName, items, subtotal, tax, total, paymentMethod, branchId, createdAt");
+
+  const branchFilter = resolveReadBranchFilter(session, await getActiveBranchCookie());
+  if (branchFilter) q = q.eq("branchId", branchFilter);
+
+  const { data, error } = await q.order("createdAt", { ascending: false }).limit(params.limit ?? 50);
 
   if (error) return [];
   return data ?? [];
@@ -33,9 +38,11 @@ export async function getPOSSales(params: { limit?: number } = {}) {
 export async function createPOSSale(payload: POSSalePayload) {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
+  const db = await getScopedClient(session);
+  const branchId = resolveActiveBranchId(session, await getActiveBranchCookie());
 
   const now = new Date().toISOString();
-  const { error } = await supabase.from("POSSale").insert({
+  const { error } = await db.from("POSSale").insert({
     id: randomUUID(),
     receiptNo: payload.receiptNo,
     clientName: payload.clientName || null,
@@ -44,7 +51,7 @@ export async function createPOSSale(payload: POSSalePayload) {
     tax: payload.tax,
     total: payload.total,
     paymentMethod: payload.paymentMethod,
-    branch: "Business Bay",
+    branchId,
     createdAt: now,
   });
 

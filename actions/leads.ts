@@ -2,17 +2,24 @@
 
 import { revalidatePath } from "next/cache";
 import { randomUUID } from "crypto";
-import { supabase } from "@/lib/supabase";
 import { auth } from "@/lib/auth";
+import { getScopedClient } from "@/lib/supabase-scoped";
+import { getActiveBranchCookie } from "@/lib/active-branch";
+import { resolveActiveBranchId, resolveReadBranchFilter } from "@/lib/branch-context";
 import { leadSchema, LEAD_STAGES } from "@/validators/lead";
 import { z } from "zod";
 import type { ApiResponse, Lead, LeadStage } from "@/types";
 
-export async function getLeads(_params: { branch?: string } = {}): Promise<Lead[]> {
+export async function getLeads(): Promise<Lead[]> {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
+  const db = await getScopedClient(session);
+  const branchId = resolveReadBranchFilter(session, await getActiveBranchCookie());
 
-  const { data } = await supabase.from("Lead").select("*").eq("isActive", true).order("createdAt", { ascending: false });
+  let q = db.from("Lead").select("*").eq("isActive", true);
+  if (branchId) q = q.eq("branchId", branchId);
+
+  const { data } = await q.order("createdAt", { ascending: false });
   return (data ?? []) as Lead[];
 }
 
@@ -38,6 +45,8 @@ function leadFields(d: ReturnType<typeof leadSchema.parse>) {
 export async function createLead(data: unknown): Promise<ApiResponse<Lead>> {
   const session = await auth();
   if (!session?.user) return { success: false, error: "Unauthorized" };
+  const db = await getScopedClient(session);
+  const branchId = resolveActiveBranchId(session, await getActiveBranchCookie());
 
   const parsed = leadSchema.safeParse(data);
   if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message };
@@ -46,10 +55,10 @@ export async function createLead(data: unknown): Promise<ApiResponse<Lead>> {
     const id = randomUUID();
     const now = new Date().toISOString();
 
-    const { error } = await supabase.from("Lead").insert({
+    const { error } = await db.from("Lead").insert({
       id,
       ...leadFields(parsed.data),
-      branch: "Business Bay",
+      branchId,
       isActive: true,
       createdAt: now,
       updatedAt: now,
@@ -57,7 +66,7 @@ export async function createLead(data: unknown): Promise<ApiResponse<Lead>> {
 
     if (error) throw error;
 
-    const { data: lead } = await supabase.from("Lead").select("*").eq("id", id).single();
+    const { data: lead } = await db.from("Lead").select("*").eq("id", id).single();
     revalidatePath("/leads");
     return { success: true, data: lead as Lead, message: "Lead created" };
   } catch {
@@ -68,19 +77,20 @@ export async function createLead(data: unknown): Promise<ApiResponse<Lead>> {
 export async function updateLead(id: string, data: unknown): Promise<ApiResponse<Lead>> {
   const session = await auth();
   if (!session?.user) return { success: false, error: "Unauthorized" };
+  const db = await getScopedClient(session);
 
   const parsed = leadSchema.safeParse(data);
   if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message };
 
   try {
-    const { error } = await supabase.from("Lead").update({
+    const { error } = await db.from("Lead").update({
       ...leadFields(parsed.data),
       updatedAt: new Date().toISOString(),
     }).eq("id", id);
 
     if (error) throw error;
 
-    const { data: lead } = await supabase.from("Lead").select("*").eq("id", id).single();
+    const { data: lead } = await db.from("Lead").select("*").eq("id", id).single();
     revalidatePath("/leads");
     return { success: true, data: lead as Lead, message: "Lead updated" };
   } catch {
@@ -91,14 +101,15 @@ export async function updateLead(id: string, data: unknown): Promise<ApiResponse
 export async function updateLeadStage(id: string, stage: LeadStage): Promise<ApiResponse<Lead>> {
   const session = await auth();
   if (!session?.user) return { success: false, error: "Unauthorized" };
+  const db = await getScopedClient(session);
 
   const parsed = z.enum(LEAD_STAGES).safeParse(stage);
   if (!parsed.success) return { success: false, error: "Invalid stage value" };
 
-  const { error } = await supabase.from("Lead").update({ stage: parsed.data, updatedAt: new Date().toISOString() }).eq("id", id);
+  const { error } = await db.from("Lead").update({ stage: parsed.data, updatedAt: new Date().toISOString() }).eq("id", id);
   if (error) return { success: false, error: "Failed to update stage" };
 
-  const { data: lead } = await supabase.from("Lead").select("*").eq("id", id).single();
+  const { data: lead } = await db.from("Lead").select("*").eq("id", id).single();
   revalidatePath("/leads");
   return { success: true, data: lead as Lead };
 }
@@ -106,6 +117,8 @@ export async function updateLeadStage(id: string, stage: LeadStage): Promise<Api
 export async function bulkCreateLeads(rows: unknown[]): Promise<ApiResponse<{ imported: number; errors: string[] }>> {
   const session = await auth();
   if (!session?.user) return { success: false, error: "Unauthorized" };
+  const db = await getScopedClient(session);
+  const branchId = resolveActiveBranchId(session, await getActiveBranchCookie());
 
   const now = new Date().toISOString();
   const valid: object[] = [];
@@ -119,7 +132,7 @@ export async function bulkCreateLeads(rows: unknown[]): Promise<ApiResponse<{ im
       valid.push({
         id: randomUUID(),
         ...leadFields(parsed.data),
-        branch: "Business Bay",
+        branchId,
         isActive: true,
         createdAt: now,
         updatedAt: now,
@@ -129,7 +142,7 @@ export async function bulkCreateLeads(rows: unknown[]): Promise<ApiResponse<{ im
 
   if (valid.length === 0) return { success: false, error: "No valid rows to import", data: { imported: 0, errors } };
 
-  const { error } = await supabase.from("Lead").insert(valid);
+  const { error } = await db.from("Lead").insert(valid);
   if (error) return { success: false, error: "Database error: " + error.message };
 
   revalidatePath("/leads");
@@ -140,11 +153,12 @@ export async function bulkCreateLeads(rows: unknown[]): Promise<ApiResponse<{ im
 export async function deleteLead(id: string): Promise<ApiResponse<void>> {
   const session = await auth();
   if (!session?.user) return { success: false, error: "Unauthorized" };
-  if (!["ADMIN", "MANAGER"].includes(session.user.role)) {
+  if (!["SUPER_ADMIN", "ADMIN", "MANAGER"].includes(session.user.role)) {
     return { success: false, error: "Insufficient permissions" };
   }
+  const db = await getScopedClient(session);
 
-  await supabase.from("Lead").update({ isActive: false, updatedAt: new Date().toISOString() }).eq("id", id);
+  await db.from("Lead").update({ isActive: false, updatedAt: new Date().toISOString() }).eq("id", id);
   revalidatePath("/leads");
   return { success: true, message: "Lead deleted" };
 }

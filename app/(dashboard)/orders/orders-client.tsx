@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useCallback, useTransition, useEffect } from "react";
+import React, { useState, useCallback, useTransition, useEffect, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
@@ -245,6 +245,13 @@ export function OrdersClient({
     setData(initialData);
   }, [initialData]);
 
+  // Mirrors `data.data` ids for the realtime handler below, which is set up once
+  // and must not rely on a stale closure over `data` to know what's visible.
+  const visibleIdsRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    visibleIdsRef.current = new Set(data.data.map((o) => o.id));
+  }, [data]);
+
   // Realtime: patch local state on UPDATE, full refresh only on INSERT/DELETE
   useEffect(() => {
     const sb = getSupabaseBrowser();
@@ -253,6 +260,11 @@ export function OrdersClient({
       .channel("orders-realtime")
       .on("postgres_changes", { event: "UPDATE", schema: "public", table: "Order" }, (payload) => {
         const updated = payload.new as any;
+        // Realtime broadcasts aren't branch-filtered client-side — only act on
+        // orders already present in this branch-scoped list, never show details
+        // (toast, status) for an order the viewer wouldn't otherwise see.
+        if (!visibleIdsRef.current.has(updated.id)) return;
+
         setData((prev) => ({
           ...prev,
           data: prev.data.map((o) =>

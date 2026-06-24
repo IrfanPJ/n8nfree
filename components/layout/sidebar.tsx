@@ -129,7 +129,7 @@ export function Sidebar({ user, mobileOpen = false, onMobileClose }: SidebarProp
         <nav className="flex-1 py-4 overflow-y-auto scrollbar-hide">
           <ul className="space-y-1 px-2">
             {navItems.filter((item) => {
-              if (user?.role === "ADMIN" || user?.role === "MANAGER") return true;
+              if (user?.role === "SUPER_ADMIN" || user?.role === "ADMIN" || user?.role === "MANAGER") return true;
               if (user?.pagePermissions === null || user?.pagePermissions === undefined) return true;
               const key = item.href.slice(1); // "/orders" → "orders"
               return user.pagePermissions.includes(key);

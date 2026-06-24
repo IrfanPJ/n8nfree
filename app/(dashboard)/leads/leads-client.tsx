@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo, useRef } from "react";
+import React, { useState, useMemo, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useForm, Controller, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -343,6 +343,14 @@ function exportLeadsCSV(leads: Lead[]) {
 
 export function LeadsClient({ initialLeads, customers }: LeadsClientProps) {
   const [leads, setLeads] = useState<Lead[]>(initialLeads);
+
+  // Sync local state whenever the server re-fetches (e.g. router.refresh()
+  // after a branch switch) — without this, switching branches would keep
+  // showing whatever leads were loaded on first render.
+  useEffect(() => {
+    setLeads(initialLeads);
+  }, [initialLeads]);
+
   const [modalOpen, setModalOpen] = useState(false);
   const [editLead, setEditLead] = useState<Lead | null>(null);
   const [defaultStage, setDefaultStage] = useState<LeadStage>("ENQUIRY");

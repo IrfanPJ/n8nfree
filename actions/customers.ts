@@ -2,8 +2,10 @@
 
 import { revalidatePath } from "next/cache";
 import { randomUUID } from "crypto";
-import { supabase } from "@/lib/supabase";
 import { auth } from "@/lib/auth";
+import { getScopedClient } from "@/lib/supabase-scoped";
+import { getActiveBranchCookie } from "@/lib/active-branch";
+import { resolveActiveBranchId, resolveReadBranchFilter } from "@/lib/branch-context";
 import { customerSchema } from "@/validators/customer";
 import { saveCustomCountry, saveCustomCity } from "@/actions/master-lists";
 import * as Sentry from "@sentry/nextjs";
@@ -15,24 +17,26 @@ export async function getCustomers(params: {
   search?: string;
   isVIP?: boolean;
   gender?: string;
-  branch?: string;
 }): Promise<PaginatedResult<CustomerWithRelations>> {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
+  const db = await getScopedClient(session);
 
   const { page = 1, pageSize = 20, search, isVIP, gender } = params;
   const skip = (page - 1) * pageSize;
+  const branchFilter = resolveReadBranchFilter(session, await getActiveBranchCookie());
 
-  let countQ = supabase
+  let countQ = db
     .from("Customer")
     .select("*", { count: "exact", head: true })
     .eq("isActive", true);
 
-  let dataQ = supabase
+  let dataQ = db
     .from("Customer")
     .select(`*, Order(count), Measurement(count), Appointment(count), Invoice(count), FollowUp(count)`)
     .eq("isActive", true);
 
+  if (branchFilter) { countQ = countQ.eq("branchId", branchFilter); dataQ = dataQ.eq("branchId", branchFilter); }
   if (search) {
     const safe = search.replace(/[%_,().]/g, "\\$&");
     const f = `name.ilike.%${safe}%,email.ilike.%${safe}%,phone.ilike.%${safe}%`;
@@ -56,7 +60,7 @@ export async function getCustomers(params: {
   // Embedded Order(count) includes soft-deleted rows — fetch active counts separately
   const customerIds = (rawData ?? []).map((c: any) => c.id as string);
   const { data: activeOrderRows } = customerIds.length > 0
-    ? await supabase.from("Order").select("customerId").eq("isActive", true).in("customerId", customerIds)
+    ? await db.from("Order").select("customerId").eq("isActive", true).in("customerId", customerIds)
     : { data: [] };
   const activeOrderCount: Record<string, number> = {};
   for (const row of (activeOrderRows ?? [])) {
@@ -96,6 +100,7 @@ export async function getCustomers(params: {
 export async function getCustomerById(id: string): Promise<CustomerWithRelations | null> {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
+  const db = await getScopedClient(session);
 
   const [
     { data: customer },
@@ -110,17 +115,17 @@ export async function getCustomerById(id: string): Promise<CustomerWithRelations
     { count: invoiceCount },
     { count: followUpCount },
   ] = await Promise.all([
-    supabase.from("Customer").select("*").eq("id", id).eq("isActive", true).maybeSingle(),
-    supabase.from("Measurement").select("*").eq("customerId", id).order("takenAt", { ascending: false }),
-    supabase.from("Order").select("*").eq("customerId", id).eq("isActive", true).order("createdAt", { ascending: false }).limit(10),
-    supabase.from("Appointment").select("*").eq("customerId", id).order("startTime", { ascending: false }).limit(5),
-    supabase.from("Invoice").select("*").eq("customerId", id).order("createdAt", { ascending: false }).limit(5),
-    supabase.from("FollowUp").select("*").eq("customerId", id).order("createdAt", { ascending: false }).limit(5),
-    supabase.from("Order").select("*", { count: "exact", head: true }).eq("customerId", id).eq("isActive", true),
-    supabase.from("Measurement").select("*", { count: "exact", head: true }).eq("customerId", id),
-    supabase.from("Appointment").select("*", { count: "exact", head: true }).eq("customerId", id),
-    supabase.from("Invoice").select("*", { count: "exact", head: true }).eq("customerId", id),
-    supabase.from("FollowUp").select("*", { count: "exact", head: true }).eq("customerId", id),
+    db.from("Customer").select("*").eq("id", id).eq("isActive", true).maybeSingle(),
+    db.from("Measurement").select("*").eq("customerId", id).order("takenAt", { ascending: false }),
+    db.from("Order").select("*").eq("customerId", id).eq("isActive", true).order("createdAt", { ascending: false }).limit(10),
+    db.from("Appointment").select("*").eq("customerId", id).order("startTime", { ascending: false }).limit(5),
+    db.from("Invoice").select("*").eq("customerId", id).order("createdAt", { ascending: false }).limit(5),
+    db.from("FollowUp").select("*").eq("customerId", id).order("createdAt", { ascending: false }).limit(5),
+    db.from("Order").select("*", { count: "exact", head: true }).eq("customerId", id).eq("isActive", true),
+    db.from("Measurement").select("*", { count: "exact", head: true }).eq("customerId", id),
+    db.from("Appointment").select("*", { count: "exact", head: true }).eq("customerId", id),
+    db.from("Invoice").select("*", { count: "exact", head: true }).eq("customerId", id),
+    db.from("FollowUp").select("*", { count: "exact", head: true }).eq("customerId", id),
   ]);
 
   if (!customer) return null;
@@ -145,6 +150,8 @@ export async function getCustomerById(id: string): Promise<CustomerWithRelations
 export async function createCustomer(data: unknown): Promise<ApiResponse<CustomerWithRelations>> {
   const session = await auth();
   if (!session?.user) return { success: false, error: "Unauthorized" };
+  const db = await getScopedClient(session);
+  const branchId = resolveActiveBranchId(session, await getActiveBranchCookie());
 
   const parsed = customerSchema.safeParse(data);
   if (!parsed.success) {
@@ -155,7 +162,7 @@ export async function createCustomer(data: unknown): Promise<ApiResponse<Custome
     const now = new Date().toISOString();
     const id = randomUUID();
 
-    const { data: customer, error } = await supabase
+    const { data: customer, error } = await db
       .from("Customer")
       .insert({
         id,
@@ -166,7 +173,7 @@ export async function createCustomer(data: unknown): Promise<ApiResponse<Custome
         country: parsed.data.country || null,
         countryCustom: parsed.data.countryCustom || null,
         tags: parsed.data.tags ?? [],
-        branch: "Business Bay",
+        branchId,
         createdAt: now,
         updatedAt: now,
       })
@@ -179,10 +186,11 @@ export async function createCustomer(data: unknown): Promise<ApiResponse<Custome
     if (parsed.data.countryCustom) saveCustomCountry(parsed.data.countryCustom).catch(() => {});
     if (parsed.data.city) saveCustomCity(parsed.data.city, parsed.data.country || undefined).catch(() => {});
 
-    await supabase.from("ActivityLog").insert({
+    await db.from("ActivityLog").insert({
       id: randomUUID(),
       userId: session.user.id,
       customerId: id,
+      branchId,
       action: "CREATE",
       entity: "Customer",
       entityId: id,
@@ -204,6 +212,7 @@ export async function createCustomer(data: unknown): Promise<ApiResponse<Custome
 export async function updateCustomer(id: string, data: unknown): Promise<ApiResponse<CustomerWithRelations>> {
   const session = await auth();
   if (!session?.user) return { success: false, error: "Unauthorized" };
+  const db = await getScopedClient(session);
 
   const parsed = customerSchema.safeParse(data);
   if (!parsed.success) {
@@ -211,7 +220,7 @@ export async function updateCustomer(id: string, data: unknown): Promise<ApiResp
   }
 
   try {
-    const { data: customer, error } = await supabase
+    const { data: customer, error } = await db
       .from("Customer")
       .update({
         ...parsed.data,
@@ -233,10 +242,11 @@ export async function updateCustomer(id: string, data: unknown): Promise<ApiResp
     if (parsed.data.countryCustom) saveCustomCountry(parsed.data.countryCustom).catch(() => {});
     if (parsed.data.city) saveCustomCity(parsed.data.city, parsed.data.country || undefined).catch(() => {});
 
-    await supabase.from("ActivityLog").insert({
+    await db.from("ActivityLog").insert({
       id: randomUUID(),
       userId: session.user.id,
       customerId: id,
+      branchId: (customer as any)?.branchId,
       action: "UPDATE",
       entity: "Customer",
       entityId: id,
@@ -260,34 +270,35 @@ export async function createCustomerFromLead(
 ): Promise<{ customerId: string | null; customerName: string; isNew: boolean }> {
   const session = await auth();
   if (!session?.user) return { customerId: null, customerName: "", isNew: false };
+  const db = await getScopedClient(session);
 
-  const { data: lead } = await supabase.from("Lead").select("*").eq("id", leadId).maybeSingle();
+  const { data: lead } = await db.from("Lead").select("*").eq("id", leadId).maybeSingle();
   if (!lead) return { customerId: null, customerName: "", isNew: false };
 
   // Try matching an existing customer by phone, then email, then name
   if (lead.phone) {
     const clean = lead.phone.replace(/\s/g, "");
-    const { data: byPhone } = await supabase
+    const { data: byPhone } = await db
       .from("Customer").select("id, name").eq("isActive", true)
       .or(`phone.eq.${clean},phone.eq.${lead.phone}`)
       .maybeSingle();
     if (byPhone) return { customerId: byPhone.id, customerName: byPhone.name, isNew: false };
   }
   if (lead.email) {
-    const { data: byEmail } = await supabase
+    const { data: byEmail } = await db
       .from("Customer").select("id, name").eq("isActive", true).eq("email", lead.email).maybeSingle();
     if (byEmail) return { customerId: byEmail.id, customerName: byEmail.name, isNew: false };
   }
   // Fallback: match by exact name to prevent duplicates when phone/email are absent
-  const { data: byName } = await supabase
+  const { data: byName } = await db
     .from("Customer").select("id, name").eq("isActive", true).ilike("name", lead.name.trim()).maybeSingle();
   if (byName) return { customerId: byName.id, customerName: byName.name, isNew: false };
 
-  // Create a new customer from lead data
+  // Create a new customer from lead data, in the same branch as the lead
   const id = randomUUID();
   const now = new Date().toISOString();
   const phone = lead.phone?.replace(/\s/g, "") || "0000000000"; // placeholder updated later
-  const { error } = await supabase.from("Customer").insert({
+  const { error } = await db.from("Customer").insert({
     id,
     name: lead.name,
     phone: phone.length >= 10 ? phone : phone.padEnd(10, "0"),
@@ -298,7 +309,7 @@ export async function createCustomerFromLead(
     notes: lead.notes ? `Lead source: ${lead.source ?? ""}. ${lead.notes}` : (lead.source ? `Lead source: ${lead.source}` : null),
     tags: [],
     isVIP: false,
-    branch: "Business Bay",
+    branchId: lead.branchId,
     isActive: true,
     createdAt: now,
     updatedAt: now,
@@ -309,10 +320,11 @@ export async function createCustomerFromLead(
     return { customerId: null, customerName: lead.name, isNew: false };
   }
 
-  await supabase.from("ActivityLog").insert({
+  await db.from("ActivityLog").insert({
     id: randomUUID(),
     userId: session.user.id,
     customerId: id,
+    branchId: lead.branchId,
     action: "CREATE",
     entity: "Customer",
     entityId: id,
@@ -326,12 +338,13 @@ export async function createCustomerFromLead(
 export async function deleteCustomer(id: string): Promise<ApiResponse<void>> {
   const session = await auth();
   if (!session?.user) return { success: false, error: "Unauthorized" };
-  if (!["ADMIN", "MANAGER"].includes(session.user.role)) {
+  if (!["SUPER_ADMIN", "ADMIN", "MANAGER"].includes(session.user.role)) {
     return { success: false, error: "Insufficient permissions" };
   }
+  const db = await getScopedClient(session);
 
   try {
-    await supabase
+    await db
       .from("Customer")
       .update({ isActive: false, updatedAt: new Date().toISOString() })
       .eq("id", id);
@@ -341,4 +354,42 @@ export async function deleteCustomer(id: string): Promise<ApiResponse<void>> {
   } catch {
     return { success: false, error: "Failed to delete customer" };
   }
+}
+
+// Moves a customer to a different branch going forward. Deliberately does
+// NOT touch their existing Order/Appointment/Invoice/Measurement rows —
+// those keep the branchId they were created with, so historical records
+// stay attributed to the branch that actually served them.
+export async function transferCustomerBranch(customerId: string, newBranchId: string): Promise<ApiResponse<void>> {
+  const session = await auth();
+  if (!session?.user) return { success: false, error: "Unauthorized" };
+  if (!["SUPER_ADMIN", "ADMIN"].includes(session.user.role)) {
+    return { success: false, error: "Insufficient permissions" };
+  }
+  const db = await getScopedClient(session);
+
+  const { data: customer } = await db.from("Customer").select("id, name, branchId").eq("id", customerId).maybeSingle();
+  if (!customer) return { success: false, error: "Customer not found" };
+
+  const { error } = await db
+    .from("Customer")
+    .update({ branchId: newBranchId, updatedAt: new Date().toISOString() })
+    .eq("id", customerId);
+
+  if (error) return { success: false, error: error.message };
+
+  await db.from("ActivityLog").insert({
+    id: randomUUID(),
+    userId: session.user.id,
+    customerId,
+    branchId: newBranchId,
+    action: "UPDATE",
+    entity: "Customer",
+    entityId: customerId,
+    description: `Customer "${customer.name}" was transferred from branch ${customer.branchId} to ${newBranchId}`,
+  });
+
+  revalidatePath("/customers");
+  revalidatePath(`/customers/${customerId}`);
+  return { success: true, message: "Customer transferred successfully" };
 }

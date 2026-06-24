@@ -13,7 +13,6 @@ async function OrdersContent({
     status?: string;
     priority?: string;
     view?: string;
-    branch?: string;
   }>;
 }) {
   const params = await searchParams;
@@ -21,9 +20,8 @@ async function OrdersContent({
   const search = params.search;
   const status = params.status;
   const priority = params.priority;
-  const branch = params.branch;
 
-  const result = await getOrders({ page, search, status, priority, branch, pageSize: 20 });
+  const result = await getOrders({ page, search, status, priority, pageSize: 20 });
   return (
     <OrdersClient
       initialData={result}
@@ -41,7 +39,6 @@ export default function OrdersPage({
     status?: string;
     priority?: string;
     view?: string;
-    branch?: string;
   }>;
 }) {
   return (

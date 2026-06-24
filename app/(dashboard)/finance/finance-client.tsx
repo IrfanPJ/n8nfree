@@ -79,7 +79,7 @@ type POSSale = {
   tax: number;
   total: number;
   paymentMethod: string;
-  branch: string;
+  branchId: string;
   createdAt: string;
 };
 
@@ -245,7 +245,7 @@ export function FinanceClient({
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium truncate">{sale.receiptNo}</p>
                     <p className="text-xs text-muted-foreground">
-                      {sale.clientName ?? "Walk-in"} · {sale.branch} · {(sale.items ?? []).length} item{(sale.items ?? []).length !== 1 ? "s" : ""}
+                      {sale.clientName ?? "Walk-in"} · {(sale.items ?? []).length} item{(sale.items ?? []).length !== 1 ? "s" : ""}
                     </p>
                   </div>
                   <div className="text-right shrink-0">

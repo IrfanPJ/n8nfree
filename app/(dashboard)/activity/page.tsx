@@ -12,7 +12,7 @@ export default async function ActivityPage({
 }) {
   const session = await auth();
   if (!session?.user) redirect("/login");
-  if (!["ADMIN", "MANAGER"].includes(session.user.role)) redirect("/dashboard");
+  if (!["SUPER_ADMIN", "ADMIN", "MANAGER"].includes(session.user.role)) redirect("/dashboard");
 
   const sp = await searchParams;
   const page = parseInt(sp.page ?? "1");

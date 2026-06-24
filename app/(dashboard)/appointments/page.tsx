@@ -2,7 +2,7 @@ export const dynamic = "force-dynamic";
 import React, { Suspense } from "react";
 import { getAppointments } from "@/actions/appointments";
 import { getCustomers } from "@/actions/customers";
-import { supabase } from "@/lib/supabase";
+import { getAssignableStaff } from "@/actions/users";
 import { auth } from "@/lib/auth";
 import { AppointmentsClient } from "./appointments-client";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -16,27 +16,22 @@ async function AppointmentsContent({
     dateFrom?: string;
     dateTo?: string;
     customerId?: string;
-    branch?: string;
   }>;
 }) {
   const params = await searchParams;
   await auth();
 
-  const [appointments, customersResult, { data: staffUsers }] = await Promise.all([
+  const [appointments, customersResult, staffResult] = await Promise.all([
     getAppointments({
       status: params.status as AppointmentStatus | undefined,
       dateFrom: params.dateFrom,
       dateTo: params.dateTo,
       customerId: params.customerId,
-      branch: params.branch,
     }),
     getCustomers({ pageSize: 500 }),
-    supabase
-      .from("User")
-      .select("id, name, email, role")
-      .eq("isActive", true)
-      .order("name", { ascending: true }),
+    getAssignableStaff(),
   ]);
+  const staffUsers = staffResult.success ? staffResult.data : [];
 
   return (
     <AppointmentsClient
@@ -55,7 +50,6 @@ export default function AppointmentsPage({
     dateFrom?: string;
     dateTo?: string;
     customerId?: string;
-    branch?: string;
   }>;
 }) {
   return (

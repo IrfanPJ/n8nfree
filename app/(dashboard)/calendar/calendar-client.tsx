@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useEffect } from "react";
 import { ChevronLeft, ChevronRight, Calendar, Clock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -22,7 +22,6 @@ const TYPE_FILTER_OPTIONS = [
 
 interface CalendarClientProps {
   initialEvents: CalendarEvent[];
-  branch?: string;
 }
 
 function getMonthRange(year: number, month: number) {
@@ -39,11 +38,19 @@ function getFirstDayOfMonth(year: number, month: number) {
   return new Date(year, month, 1).getDay(); // 0=Sun
 }
 
-export function CalendarClient({ initialEvents, branch }: CalendarClientProps) {
+export function CalendarClient({ initialEvents }: CalendarClientProps) {
   const now = new Date();
   const [year, setYear] = useState(now.getFullYear());
   const [month, setMonth] = useState(now.getMonth());
   const [events, setEvents] = useState<CalendarEvent[]>(initialEvents);
+
+  // Sync local state whenever the server re-fetches (e.g. router.refresh()
+  // after a branch switch) — without this, switching branches would keep
+  // showing whatever events were loaded on first render.
+  useEffect(() => {
+    setEvents(initialEvents);
+  }, [initialEvents]);
+
   const [loading, setLoading] = useState(false);
   const [typeFilter, setTypeFilter] = useState<"all" | "appointment" | "trial" | "delivery">("all");
   const [selectedDay, setSelectedDay] = useState<number | null>(null);
@@ -55,13 +62,12 @@ export function CalendarClient({ initialEvents, branch }: CalendarClientProps) {
       const data = await getCalendarEvents({
         dateFrom: from.toISOString(),
         dateTo: to.toISOString(),
-        branch,
       });
       setEvents(data);
     } finally {
       setLoading(false);
     }
-  }, [branch]);
+  }, []);
 
   const goToPrev = () => {
     const newMonth = month === 0 ? 11 : month - 1;

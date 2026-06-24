@@ -1,7 +1,9 @@
 "use server";
 
-import { supabase } from "@/lib/supabase";
 import { auth } from "@/lib/auth";
+import { getScopedClient } from "@/lib/supabase-scoped";
+import { getActiveBranchCookie } from "@/lib/active-branch";
+import { resolveReadBranchFilter } from "@/lib/branch-context";
 import type { CalendarEvent } from "@/types";
 
 const APPOINTMENT_COLORS: Record<string, string> = {
@@ -16,13 +18,14 @@ const APPOINTMENT_COLORS: Record<string, string> = {
 export async function getCalendarEvents(params: {
   dateFrom: string;
   dateTo: string;
-  branch?: string;
   types?: Array<"appointment" | "trial" | "delivery">;
 }): Promise<CalendarEvent[]> {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
+  const db = await getScopedClient(session);
+  const branchFilter = resolveReadBranchFilter(session, await getActiveBranchCookie());
 
-  const { dateFrom, dateTo, branch, types } = params;
+  const { dateFrom, dateTo, types } = params;
   const includeAll = !types || types.length === 0;
   const includeAppointments = includeAll || types!.includes("appointment");
   const includeTrial = includeAll || types!.includes("trial");
@@ -32,7 +35,7 @@ export async function getCalendarEvents(params: {
 
   // ── Appointments ─────────────────────────────────────────────────────────
   if (includeAppointments) {
-    let q = supabase
+    let q = db
       .from("Appointment")
       .select("id, title, type, startTime, endTime, customerId, customer:Customer!customerId(name)")
       .eq("isActive", true)
@@ -40,7 +43,7 @@ export async function getCalendarEvents(params: {
       .lte("startTime", dateTo)
       .order("startTime");
 
-    if (branch) q = q.eq("branch", branch);
+    if (branchFilter) q = q.eq("branchId", branchFilter);
 
     const { data: appts } = await q;
     for (const a of appts ?? []) {
@@ -58,7 +61,7 @@ export async function getCalendarEvents(params: {
 
   // ── Order trial dates ─────────────────────────────────────────────────────
   if (includeTrial) {
-    let q = supabase
+    let q = db
       .from("Order")
       .select("id, customOrderNumber, orderNumber, trialDate, customerId, customer:Customer!customerId(name)")
       .eq("isActive", true)
@@ -68,7 +71,7 @@ export async function getCalendarEvents(params: {
       .lte("trialDate", dateTo)
       .order("trialDate");
 
-    if (branch) q = q.eq("branch", branch);
+    if (branchFilter) q = q.eq("branchId", branchFilter);
 
     const { data: orders } = await q;
     for (const o of orders ?? []) {
@@ -88,7 +91,7 @@ export async function getCalendarEvents(params: {
 
   // ── Order delivery dates ──────────────────────────────────────────────────
   if (includeDelivery) {
-    let q = supabase
+    let q = db
       .from("Order")
       .select("id, customOrderNumber, orderNumber, deliveryDate, customerId, customer:Customer!customerId(name)")
       .eq("isActive", true)
@@ -97,7 +100,7 @@ export async function getCalendarEvents(params: {
       .lte("deliveryDate", dateTo)
       .order("deliveryDate");
 
-    if (branch) q = q.eq("branch", branch);
+    if (branchFilter) q = q.eq("branchId", branchFilter);
 
     const { data: orders } = await q;
     for (const o of orders ?? []) {

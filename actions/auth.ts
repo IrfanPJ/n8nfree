@@ -47,8 +47,7 @@ export async function signUpAction(
     role: "STAFF",
     position: null,
     isActive: true,
-    branch: "Business Bay",
-    branches: ["Business Bay"],
+    branches: ["business-bay"],
     createdAt: now,
     updatedAt: now,
   });
@@ -102,15 +101,16 @@ const addTeamMemberSchema = z.object({
   name: z.string().min(2, "Name must be at least 2 characters"),
   email: z.string().email("Invalid email address"),
   password: z.string().min(8, "Password must be at least 8 characters"),
-  role: z.enum(["ADMIN", "MANAGER", "STAFF"]),
+  role: z.enum(["SUPER_ADMIN", "ADMIN", "MANAGER", "STAFF"]),
   position: z.string().nullable(),
+  branchIds: z.array(z.string()).default([]),
 });
 
 export async function addTeamMemberAction(
   data: unknown
 ): Promise<{ success: boolean; error?: string }> {
   const session = await auth();
-  if (!session?.user || session.user.role !== "ADMIN") {
+  if (!session?.user || !["SUPER_ADMIN", "ADMIN"].includes(session.user.role)) {
     return { success: false, error: "Unauthorized" };
   }
 
@@ -119,7 +119,22 @@ export async function addTeamMemberAction(
     return { success: false, error: parsed.error.issues[0]?.message ?? "Validation failed" };
   }
 
-  const { name, email, password, role, position } = parsed.data;
+  const { name, email, password, role, position, branchIds } = parsed.data;
+
+  if (role === "SUPER_ADMIN" && session.user.role !== "SUPER_ADMIN") {
+    return { success: false, error: "Only a Super Admin can assign that role" };
+  }
+
+  const ownBranches = session.user.branches ?? [];
+  if (session.user.role !== "SUPER_ADMIN") {
+    const allowed = branchIds.length > 0 && branchIds.every((b) => ownBranches.includes(b));
+    if (!allowed) {
+      return { success: false, error: "You can only assign branches you yourself belong to" };
+    }
+  }
+  if (role !== "SUPER_ADMIN" && branchIds.length === 0) {
+    return { success: false, error: "At least one branch must be assigned" };
+  }
 
   const { data: existing } = await supabase
     .from("User")
@@ -140,8 +155,7 @@ export async function addTeamMemberAction(
     role,
     position: position || null,
     isActive: true,
-    branch: "Business Bay",
-    branches: ["Business Bay"],
+    branches: branchIds,
     createdAt: now,
     updatedAt: now,
   });

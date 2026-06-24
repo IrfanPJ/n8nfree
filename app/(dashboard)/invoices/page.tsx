@@ -2,7 +2,7 @@ export const dynamic = "force-dynamic";
 import React, { Suspense } from "react";
 import { getInvoices } from "@/actions/invoices";
 import { getCustomers } from "@/actions/customers";
-import { supabase } from "@/lib/supabase";
+import { getScopedClient } from "@/lib/supabase-scoped";
 import { auth } from "@/lib/auth";
 import { InvoicesClient } from "./invoices-client";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -21,7 +21,9 @@ async function InvoicesContent({
   }>;
 }) {
   const params = await searchParams;
-  await auth();
+  const session = await auth();
+  if (!session?.user) throw new Error("Unauthorized");
+  const db = await getScopedClient(session);
 
   const page = parseInt(params.page ?? "1", 10);
 
@@ -36,7 +38,7 @@ async function InvoicesContent({
       customerId: params.customerId,
     }),
     getCustomers({ pageSize: 500 }),
-    supabase.from("Order").select("id, orderNumber, customOrderNumber, customerId, status, totalAmount").eq("isActive", true).order("createdAt", { ascending: false }).limit(200),
+    db.from("Order").select("id, orderNumber, customOrderNumber, customerId, status, totalAmount").eq("isActive", true).order("createdAt", { ascending: false }).limit(200),
   ]);
 
   return (

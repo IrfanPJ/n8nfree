@@ -1,7 +1,7 @@
 "use server";
 
 import { auth } from "@/lib/auth";
-import { supabase } from "@/lib/supabase";
+import { getScopedClient } from "@/lib/supabase-scoped";
 import { revalidatePath } from "next/cache";
 import { randomUUID } from "crypto";
 import * as Sentry from "@sentry/nextjs";
@@ -26,8 +26,9 @@ export async function getOrderForScan(orderId: string): Promise<ApiResponse<{
 }>> {
   const session = await auth();
   if (!session?.user) return { success: false, error: "Unauthorized" };
+  const db = await getScopedClient(session);
 
-  const { data: dbUser } = await supabase
+  const { data: dbUser } = await db
     .from("User")
     .select("position, name")
     .eq("id", session.user.id)
@@ -37,13 +38,13 @@ export async function getOrderForScan(orderId: string): Promise<ApiResponse<{
   const userName: string = (dbUser as any)?.name ?? session.user.email ?? "Unknown";
 
   const allowedStages: OrderStatus[] =
-    session.user.role === "ADMIN"
+    session.user.role === "SUPER_ADMIN" || session.user.role === "ADMIN"
       ? ALL_STAGES
       : position
       ? (POSITION_STAGE_MAP[position] ?? [])
       : [];
 
-  const { data: order } = await supabase
+  const { data: order } = await db
     .from("Order")
     .select(ORDER_SELECT)
     .eq("id", orderId)
@@ -74,8 +75,9 @@ export async function processOrderScan(
 ): Promise<ApiResponse<OrderWithRelations>> {
   const session = await auth();
   if (!session?.user) return { success: false, error: "Unauthorized" };
+  const db = await getScopedClient(session);
 
-  const { data: dbUser } = await supabase
+  const { data: dbUser } = await db
     .from("User")
     .select("position, name")
     .eq("id", session.user.id)
@@ -84,7 +86,7 @@ export async function processOrderScan(
   const position: string | null = (dbUser as any)?.position ?? null;
   const userName: string = (dbUser as any)?.name ?? session.user.email ?? "Unknown";
   const allowedStages: OrderStatus[] =
-    session.user.role === "ADMIN"
+    session.user.role === "SUPER_ADMIN" || session.user.role === "ADMIN"
       ? ALL_STAGES
       : position
       ? (POSITION_STAGE_MAP[position] ?? [])
@@ -100,7 +102,7 @@ export async function processOrderScan(
   }
 
   // Prevent scanning the same status twice (duplicate history entries)
-  const { data: currentOrder } = await supabase
+  const { data: currentOrder } = await db
     .from("Order").select("status").eq("id", orderId).maybeSingle();
   if (currentOrder?.status === validatedStatus) {
     return { success: false, error: "Order is already in this stage" };
@@ -109,13 +111,13 @@ export async function processOrderScan(
   try {
     const now = new Date().toISOString();
 
-    const { error } = await supabase
+    const { error } = await db
       .from("Order")
       .update({ status: validatedStatus, updatedAt: now })
       .eq("id", orderId);
     if (error) throw error;
 
-    await supabase.from("OrderHistory").insert({
+    await db.from("OrderHistory").insert({
       id: randomUUID(),
       orderId,
       status: validatedStatus,
@@ -124,17 +126,18 @@ export async function processOrderScan(
       changedAt: now,
     });
 
-    const { data: order } = await supabase
+    const { data: order } = await db
       .from("Order")
       .select(ORDER_SELECT)
       .eq("id", orderId)
       .maybeSingle();
 
-    await supabase.from("ActivityLog").insert({
+    await db.from("ActivityLog").insert({
       id: randomUUID(),
       userId: session.user.id,
       customerId: (order as any)?.customerId,
       orderId,
+      branchId: (order as any)?.branchId,
       action: "STATUS_UPDATE",
       entity: "Order",
       entityId: orderId,

@@ -98,6 +98,9 @@ export async function getDashboardStats(): Promise<DashboardStats> {
     overdueFollowUpsQ = overdueFollowUpsQ.eq("branchId", branchId);
   }
 
+  let pendingOrdersQ = db.from("Order").select("*", { count: "exact", head: true }).eq("isActive", true).not("status", "in", '("DELIVERED","ORDER_CLOSED")');
+  if (branchId) pendingOrdersQ = pendingOrdersQ.eq("branchId", branchId);
+
   const [
     totalOrders, pendingOrders, completedOrders,
     totalCustomers, curCustomers, lastCustomers,
@@ -115,7 +118,7 @@ export async function getDashboardStats(): Promise<DashboardStats> {
     pendingFollowUpsCount, overdueFollowUpsCount,
   ] = await Promise.all([
     countWhere(db, "Order", { isActive: true }, branchId),
-    db.from("Order").select("*", { count: "exact", head: true }).eq("isActive", true).not("status", "in", '("DELIVERED","ORDER_CLOSED")').then(r => r.count ?? 0),
+    pendingOrdersQ.then(r => r.count ?? 0),
     countWhere(db, "Order", { isActive: true, status: "DELIVERED" }, branchId),
     countWhere(db, "Customer", { isActive: true }, branchId),
     countRange(db, "Customer", { isActive: true }, "createdAt", curStart, curEnd, branchId),

@@ -52,10 +52,21 @@ export async function getCustomers(params: {
     dataQ = dataQ.eq("gender", gender);
   }
 
-  const [{ count: total }, { data: rawData }] = await Promise.all([
+  const [{ count: total, error: countError }, { data: rawData, error: dataError }] = await Promise.all([
     countQ,
     dataQ.order("createdAt", { ascending: false }).range(skip, skip + pageSize - 1),
   ]);
+
+  // TEMP DIAGNOSTIC: surface scoped-client/RLS errors that were previously
+  // silently swallowed by `data ?? []` fallbacks. Remove once branch
+  // isolation is confirmed working for non-SUPER_ADMIN roles.
+  if (countError || dataError) {
+    console.error(
+      `getCustomers scoped-client error | role=${session.user.role} branches=${JSON.stringify(session.user.branches)} ` +
+      `countError=${JSON.stringify(countError, Object.getOwnPropertyNames(countError ?? {}))} ` +
+      `dataError=${JSON.stringify(dataError, Object.getOwnPropertyNames(dataError ?? {}))}`
+    );
+  }
 
   // Embedded Order(count) includes soft-deleted rows — fetch active counts separately
   const customerIds = (rawData ?? []).map((c: any) => c.id as string);

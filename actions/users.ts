@@ -48,9 +48,18 @@ export async function getTeamMembers() {
   return { success: true as const, data: (data ?? []) as any[] };
 }
 
-async function getTargetBranches(userId: string): Promise<string[] | null> {
-  const { data } = await supabase.from("User").select("branches").eq("id", userId).maybeSingle();
-  return data?.branches ?? null;
+async function getTargetUser(userId: string): Promise<{ role: string | null; branches: string[] | null }> {
+  const { data } = await supabase.from("User").select("role, branches").eq("id", userId).maybeSingle();
+  return { role: data?.role ?? null, branches: data?.branches ?? null };
+}
+
+// A branch-scoped ADMIN must never be able to act on a SUPER_ADMIN account —
+// regardless of branch overlap. (Promoting someone to SUPER_ADMIN via direct
+// SQL only changes `role`; their old `branches` array is often left behind,
+// which would otherwise let a branch admin slip through the overlap check.)
+function canActOnTarget(session: { user: { role: string } }, targetRole: string | null): boolean {
+  if (targetRole === "SUPER_ADMIN") return session.user.role === "SUPER_ADMIN";
+  return true;
 }
 
 export async function updateUserPermissions(
@@ -64,7 +73,8 @@ export async function updateUserPermissions(
   if (userId === session.user.id) {
     return { success: false as const, error: "Cannot change your own permissions" };
   }
-  if (!sharesBranch(session, await getTargetBranches(userId))) {
+  const target = await getTargetUser(userId);
+  if (!canActOnTarget(session, target.role) || !sharesBranch(session, target.branches)) {
     return { success: false as const, error: "Unauthorized" };
   }
   const { error } = await supabase
@@ -104,7 +114,8 @@ export async function deleteTeamMember(userId: string) {
   if (userId === session.user.id) {
     return { success: false as const, error: "You cannot delete your own account" };
   }
-  if (!sharesBranch(session, await getTargetBranches(userId))) {
+  const target = await getTargetUser(userId);
+  if (!canActOnTarget(session, target.role) || !sharesBranch(session, target.branches)) {
     return { success: false as const, error: "Unauthorized" };
   }
   const { error } = await supabase
@@ -126,7 +137,8 @@ export async function resetMemberPassword(
   if (userId === session.user.id) {
     return { success: false, error: "Use Change Password to update your own password" };
   }
-  if (!sharesBranch(session, await getTargetBranches(userId))) {
+  const target = await getTargetUser(userId);
+  if (!canActOnTarget(session, target.role) || !sharesBranch(session, target.branches)) {
     return { success: false, error: "Unauthorized" };
   }
   if (newPassword.length < 8) {
@@ -152,7 +164,8 @@ export async function updateTeamMember(
   if (userId === session.user.id) {
     return { success: false as const, error: "You cannot change your own role or position" };
   }
-  if (!sharesBranch(session, await getTargetBranches(userId))) {
+  const target = await getTargetUser(userId);
+  if (!canActOnTarget(session, target.role) || !sharesBranch(session, target.branches)) {
     return { success: false as const, error: "Unauthorized" };
   }
   // Only a SUPER_ADMIN can promote someone else to SUPER_ADMIN

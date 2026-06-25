@@ -67,10 +67,21 @@ export async function getOrders(params: {
     dataQ = dataQ.range(skip, skip + pageSize - 1);
   }
 
-  const [{ count: total }, { data: rawData }] = await Promise.all([
+  const [{ count: total, error: countError }, { data: rawData, error: dataError }] = await Promise.all([
     countQ,
     dataQ.order("createdAt", { ascending: false }).limit(pageSize),
   ]);
+
+  // TEMP DIAGNOSTIC: surface scoped-client/RLS errors that were previously
+  // silently swallowed by `data ?? []` fallbacks. Remove once branch
+  // isolation is confirmed working for non-SUPER_ADMIN roles.
+  if (countError || dataError) {
+    console.error(
+      `getOrders scoped-client error | role=${session.user.role} branches=${JSON.stringify(session.user.branches)} ` +
+      `countError=${JSON.stringify(countError, Object.getOwnPropertyNames(countError ?? {}))} ` +
+      `dataError=${JSON.stringify(dataError, Object.getOwnPropertyNames(dataError ?? {}))}`
+    );
+  }
 
   const data = (rawData ?? []).map((o: any) => ({
     ...o,

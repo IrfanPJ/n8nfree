@@ -779,6 +779,11 @@ function TeamTab({ teamMembers, currentUserId, branches, isSuperAdmin, ownBranch
         )}
         {members.map((member) => {
           const isSelf = member.id === currentUserId;
+          // Only a SUPER_ADMIN may view/edit another SUPER_ADMIN's role,
+          // position, branches, password, or delete them — matches the
+          // server-side check in actions/users.ts. Show read-only instead
+          // of controls that would just fail with "Unauthorized".
+          const isProtected = member.role === "SUPER_ADMIN" && !isSuperAdmin;
           return (
             <div key={member.id} className="space-y-2 p-3 rounded-lg border border-border">
               <div className="flex items-center gap-3">
@@ -795,6 +800,11 @@ function TeamTab({ teamMembers, currentUserId, branches, isSuperAdmin, ownBranch
 
                 {isSelf ? (
                   <Badge variant="gold" className="text-xs shrink-0">You</Badge>
+                ) : isProtected ? (
+                  <Badge variant="outline" className="text-xs shrink-0 gap-1">
+                    <Lock className="w-3 h-3" />
+                    Super Admin
+                  </Badge>
                 ) : (
                   <div className="flex items-center gap-2 shrink-0 flex-wrap">
                     <Select
@@ -854,7 +864,7 @@ function TeamTab({ teamMembers, currentUserId, branches, isSuperAdmin, ownBranch
                 )}
               </div>
 
-              {!isSelf && (
+              {!isSelf && !isProtected && (
                 <MemberBranchesRow
                   member={member}
                   branches={branches}

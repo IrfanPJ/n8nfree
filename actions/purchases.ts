@@ -5,7 +5,7 @@ import { randomUUID } from "crypto";
 import { auth } from "@/lib/auth";
 import { getScopedClient } from "@/lib/supabase-scoped";
 import { getActiveBranchCookie } from "@/lib/active-branch";
-import { resolveActiveBranchId, resolveReadBranchFilter } from "@/lib/branch-context";
+import { resolveActiveBranchId, resolveReadBranchFilter, NO_ACTIVE_BRANCH_ERROR } from "@/lib/branch-context";
 import { z } from "zod";
 import type { ApiResponse, PaginatedResult, PurchaseWithRelations, Supplier } from "@/types";
 
@@ -85,6 +85,7 @@ export async function createPurchase(data: unknown): Promise<ApiResponse<Purchas
   if (!session?.user) return { success: false, error: "Unauthorized" };
   const db = await getScopedClient(session);
   const branchId = resolveActiveBranchId(session, await getActiveBranchCookie());
+  if (!branchId) return { success: false, error: NO_ACTIVE_BRANCH_ERROR };
 
   const parsed = purchaseSchema.safeParse(data);
   if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message };
@@ -139,6 +140,7 @@ export async function createSupplier(data: unknown): Promise<ApiResponse<Supplie
   if (!session?.user) return { success: false, error: "Unauthorized" };
   const db = await getScopedClient(session);
   const branchId = resolveActiveBranchId(session, await getActiveBranchCookie());
+  if (!branchId) return { success: false, error: NO_ACTIVE_BRANCH_ERROR };
 
   const parsed = supplierSchema.safeParse(data);
   if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message };

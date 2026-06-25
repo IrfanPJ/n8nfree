@@ -5,7 +5,7 @@ import { randomUUID } from "crypto";
 import { auth } from "@/lib/auth";
 import { getScopedClient } from "@/lib/supabase-scoped";
 import { getActiveBranchCookie } from "@/lib/active-branch";
-import { resolveActiveBranchId, resolveReadBranchFilter } from "@/lib/branch-context";
+import { resolveActiveBranchId, resolveReadBranchFilter, NO_ACTIVE_BRANCH_ERROR } from "@/lib/branch-context";
 import { leadSchema, LEAD_STAGES } from "@/validators/lead";
 import { z } from "zod";
 import type { ApiResponse, Lead, LeadStage } from "@/types";
@@ -47,6 +47,7 @@ export async function createLead(data: unknown): Promise<ApiResponse<Lead>> {
   if (!session?.user) return { success: false, error: "Unauthorized" };
   const db = await getScopedClient(session);
   const branchId = resolveActiveBranchId(session, await getActiveBranchCookie());
+  if (!branchId) return { success: false, error: NO_ACTIVE_BRANCH_ERROR };
 
   const parsed = leadSchema.safeParse(data);
   if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message };
@@ -119,6 +120,7 @@ export async function bulkCreateLeads(rows: unknown[]): Promise<ApiResponse<{ im
   if (!session?.user) return { success: false, error: "Unauthorized" };
   const db = await getScopedClient(session);
   const branchId = resolveActiveBranchId(session, await getActiveBranchCookie());
+  if (!branchId) return { success: false, error: NO_ACTIVE_BRANCH_ERROR };
 
   const now = new Date().toISOString();
   const valid: object[] = [];

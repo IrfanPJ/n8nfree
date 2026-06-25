@@ -5,7 +5,7 @@ import { randomUUID } from "crypto";
 import { auth } from "@/lib/auth";
 import { getScopedClient } from "@/lib/supabase-scoped";
 import { getActiveBranchCookie } from "@/lib/active-branch";
-import { resolveActiveBranchId, resolveReadBranchFilter } from "@/lib/branch-context";
+import { resolveActiveBranchId, resolveReadBranchFilter, NO_ACTIVE_BRANCH_ERROR } from "@/lib/branch-context";
 import type { ApiResponse, TailorMaster, Salesperson, GarmentTypeMaster } from "@/types";
 
 // ── Tailor Master ─────────────────────────────────────────────────────────────
@@ -33,6 +33,7 @@ export async function createTailorMaster(data: {
   if (!session?.user) return { success: false, error: "Unauthorized" };
   const db = await getScopedClient(session);
   const branchId = resolveActiveBranchId(session, await getActiveBranchCookie());
+  if (!branchId) return { success: false, error: NO_ACTIVE_BRANCH_ERROR };
 
   if (!data.name?.trim()) return { success: false, error: "Name is required" };
 
@@ -84,6 +85,7 @@ export async function createSalesperson(data: {
   if (!session?.user) return { success: false, error: "Unauthorized" };
   const db = await getScopedClient(session);
   const branchId = resolveActiveBranchId(session, await getActiveBranchCookie());
+  if (!branchId) return { success: false, error: NO_ACTIVE_BRANCH_ERROR };
 
   if (!data.name?.trim()) return { success: false, error: "Name is required" };
 

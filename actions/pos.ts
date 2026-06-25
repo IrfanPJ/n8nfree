@@ -3,7 +3,7 @@
 import { auth } from "@/lib/auth";
 import { getScopedClient } from "@/lib/supabase-scoped";
 import { getActiveBranchCookie } from "@/lib/active-branch";
-import { resolveActiveBranchId, resolveReadBranchFilter } from "@/lib/branch-context";
+import { resolveActiveBranchId, resolveReadBranchFilter, NO_ACTIVE_BRANCH_ERROR } from "@/lib/branch-context";
 import { randomUUID } from "crypto";
 import { revalidatePath } from "next/cache";
 
@@ -40,6 +40,7 @@ export async function createPOSSale(payload: POSSalePayload) {
   if (!session?.user) throw new Error("Unauthorized");
   const db = await getScopedClient(session);
   const branchId = resolveActiveBranchId(session, await getActiveBranchCookie());
+  if (!branchId) throw new Error(NO_ACTIVE_BRANCH_ERROR);
 
   const now = new Date().toISOString();
   const { error } = await db.from("POSSale").insert({

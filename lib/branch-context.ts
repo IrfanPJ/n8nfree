@@ -3,21 +3,22 @@ type BranchSession = {
 };
 
 /**
- * Resolves which branchId a write should be attributed to.
+ * Resolves which branchId a write should be attributed to, or null if it
+ * can't be resolved (caller should return a normal {success:false, error}
+ * response in that case rather than letting an exception propagate — every
+ * call site here runs as part of a server action whose callers expect a
+ * settled result, not a rejected promise).
  * - SUPER_ADMIN must explicitly pick a branch (they have no default branch
- *   of their own) — throws if none was supplied.
+ *   of their own) — null if none was supplied.
  * - Everyone else is locked to their assigned branches: an explicitly
  *   requested branch is honored only if they actually belong to it,
  *   otherwise their first assigned branch is used.
  */
-export function resolveActiveBranchId(session: BranchSession, requestedBranchId?: string | null): string {
+export function resolveActiveBranchId(session: BranchSession, requestedBranchId?: string | null): string | null {
   const branches = session.user.branches ?? [];
 
   if (session.user.role === "SUPER_ADMIN") {
-    if (!requestedBranchId) {
-      throw new Error("SUPER_ADMIN must select a branch before creating branch-scoped records");
-    }
-    return requestedBranchId;
+    return requestedBranchId || null;
   }
 
   if (requestedBranchId && branches.includes(requestedBranchId)) {
@@ -25,11 +26,14 @@ export function resolveActiveBranchId(session: BranchSession, requestedBranchId?
   }
 
   if (branches.length === 0) {
-    throw new Error("User has no assigned branch");
+    return null;
   }
 
   return branches[0];
 }
+
+export const NO_ACTIVE_BRANCH_ERROR =
+  "No active branch selected. Please select a branch from the switcher, or contact your administrator if you have no branch assigned.";
 
 /**
  * Resolves which branchId a read should be narrowed to, if any.

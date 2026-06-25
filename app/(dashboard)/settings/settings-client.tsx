@@ -2,7 +2,7 @@
 
 import { useState, useTransition, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { User, Bell, Palette, Building2, Save, Users, ShieldCheck, ChevronDown, Lock, Trash2, Scissors, Plus, Eye, EyeOff, KeyRound, MapPin } from "lucide-react";
+import { User, Bell, Palette, Building2, Save, Users, ShieldCheck, ChevronDown, Lock, Trash2, Scissors, Plus, Eye, EyeOff, KeyRound, MapPin, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -19,7 +19,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { getInitials } from "@/lib/utils";
 import { updateTeamMember, updateUserPermissions, updateUserBranches, deleteTeamMember, resetMemberPassword } from "@/actions/users";
 import { addTeamMemberAction, changePasswordAction } from "@/actions/auth";
-import { createBranch, deactivateBranch } from "@/actions/branches";
+import { createBranch, deactivateBranch, activateBranch, permanentlyDeleteBranch } from "@/actions/branches";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { updateBusinessSettings, type BusinessSettings } from "@/actions/business-settings";
 import { addFabricHistoryEntry, deleteFabricHistoryEntry, type FabricHistoryEntry, type FabricHistoryType } from "@/actions/fabric-history";
@@ -246,7 +246,7 @@ function MemberBranchesRow({ member, branches, editable, onUpdate }: {
                 onChange={() => handleToggle(b.id)}
                 className="w-3.5 h-3.5 rounded accent-[#D4AF37]"
               />
-              <span className="text-xs text-muted-foreground">{b.name}</span>
+              <span className="text-xs text-muted-foreground">{b.name}{!b.isActive && " (Inactive)"}</span>
             </label>
           ))}
         </div>
@@ -301,6 +301,29 @@ function BranchesTab({ initialBranches }: { initialBranches: Branch[] }) {
     }
   }
 
+  async function handleActivate(id: string, name: string) {
+    const result = await activateBranch(id);
+    if (result.success) {
+      setBranches((prev) => prev.map((b) => (b.id === id ? { ...b, isActive: true } : b)));
+      toast.success(`"${name}" reactivated`);
+      router.refresh();
+    } else {
+      toast.error(result.error ?? "Failed to reactivate branch");
+    }
+  }
+
+  async function handleDelete(id: string, name: string) {
+    if (!confirm(`Permanently delete "${name}"? This cannot be undone. It will be refused if any orders, customers, or other data still belong to it.`)) return;
+    const result = await permanentlyDeleteBranch(id);
+    if (result.success) {
+      setBranches((prev) => prev.filter((b) => b.id !== id));
+      toast.success(`"${name}" permanently deleted`);
+      router.refresh();
+    } else {
+      toast.error(result.error ?? "Failed to delete branch");
+    }
+  }
+
   return (
     <Card>
       <CardHeader>
@@ -332,10 +355,21 @@ function BranchesTab({ initialBranches }: { initialBranches: Branch[] }) {
               </div>
               <div className="flex items-center gap-2">
                 {!b.isActive && <Badge variant="outline" className="text-xs">Inactive</Badge>}
-                {b.isActive && b.id !== "business-bay" && (
-                  <Button variant="ghost" size="icon-sm" onClick={() => handleDeactivate(b.id, b.name)} className="h-8 w-8 text-red-400 hover:text-red-300 hover:bg-red-500/10">
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </Button>
+                {b.id !== "business-bay" && (
+                  b.isActive ? (
+                    <Button variant="ghost" size="icon-sm" onClick={() => handleDeactivate(b.id, b.name)} title="Deactivate" className="h-8 w-8 text-muted-foreground hover:text-foreground">
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </Button>
+                  ) : (
+                    <>
+                      <Button variant="ghost" size="icon-sm" onClick={() => handleActivate(b.id, b.name)} title="Reactivate" className="h-8 w-8 text-green-400 hover:text-green-300 hover:bg-green-500/10">
+                        <RotateCcw className="w-3.5 h-3.5" />
+                      </Button>
+                      <Button variant="ghost" size="icon-sm" onClick={() => handleDelete(b.id, b.name)} title="Delete permanently" className="h-8 w-8 text-red-400 hover:text-red-300 hover:bg-red-500/10">
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </Button>
+                    </>
+                  )
                 )}
               </div>
             </div>
@@ -662,7 +696,7 @@ function AddMemberDialog({ open, onClose, onAdded, branches, isSuperAdmin, ownBr
                       onChange={() => toggleBranch(b.id)}
                       className="w-3.5 h-3.5 rounded accent-[#D4AF37]"
                     />
-                    <span className="text-xs text-muted-foreground">{b.name}</span>
+                    <span className="text-xs text-muted-foreground">{b.name}{!b.isActive && " (Inactive)"}</span>
                   </label>
                 ))}
               </div>

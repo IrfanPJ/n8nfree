@@ -5,7 +5,7 @@ import { randomUUID } from "crypto";
 import { auth } from "@/lib/auth";
 import { getScopedClient } from "@/lib/supabase-scoped";
 import { getActiveBranchCookie } from "@/lib/active-branch";
-import { resolveActiveBranchId, resolveReadBranchFilter } from "@/lib/branch-context";
+import { resolveActiveBranchId, resolveReadBranchFilter, NO_ACTIVE_BRANCH_ERROR } from "@/lib/branch-context";
 import { customerSchema } from "@/validators/customer";
 import { saveCustomCountry, saveCustomCity } from "@/actions/master-lists";
 import * as Sentry from "@sentry/nextjs";
@@ -163,6 +163,7 @@ export async function createCustomer(data: unknown): Promise<ApiResponse<Custome
   if (!session?.user) return { success: false, error: "Unauthorized" };
   const db = await getScopedClient(session);
   const branchId = resolveActiveBranchId(session, await getActiveBranchCookie());
+  if (!branchId) return { success: false, error: NO_ACTIVE_BRANCH_ERROR };
 
   const parsed = customerSchema.safeParse(data);
   if (!parsed.success) {
@@ -377,6 +378,13 @@ export async function transferCustomerBranch(customerId: string, newBranchId: st
   if (!["SUPER_ADMIN", "ADMIN"].includes(session.user.role)) {
     return { success: false, error: "Insufficient permissions" };
   }
+  // RLS would also reject an out-of-scope destination via WITH CHECK, but
+  // validating explicitly here gives a clear error instead of a raw
+  // Postgres permission-denied message, and means correctness doesn't
+  // depend solely on the RLS layer.
+  if (session.user.role !== "SUPER_ADMIN" && !(session.user.branches ?? []).includes(newBranchId)) {
+    return { success: false, error: "You don't have access to that branch" };
+  }
   const db = await getScopedClient(session);
 
   const { data: customer } = await db.from("Customer").select("id, name, branchId").eq("id", customerId).maybeSingle();
@@ -387,7 +395,10 @@ export async function transferCustomerBranch(customerId: string, newBranchId: st
     .update({ branchId: newBranchId, updatedAt: new Date().toISOString() })
     .eq("id", customerId);
 
-  if (error) return { success: false, error: error.message };
+  if (error) {
+    console.error("transferCustomerBranch error:", error);
+    return { success: false, error: "Failed to transfer customer" };
+  }
 
   await db.from("ActivityLog").insert({
     id: randomUUID(),

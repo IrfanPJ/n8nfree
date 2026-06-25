@@ -21,6 +21,22 @@ type ScopedSession = {
 // that's about to expire mid-query.
 const tokenCache = new Map<string, { token: string; expiresAt: number }>();
 
+// Deactivating a branch (Settings -> Branches) should actually revoke
+// access to it, not just hide it cosmetically — filter a user's branches
+// down to currently-active ones before they ever reach the JWT. Cached
+// briefly per-process since this runs on every scoped-client request.
+let activeBranchIdsCache: { ids: Set<string>; expiresAt: number } | null = null;
+
+async function getActiveBranchIds(): Promise<Set<string>> {
+  if (activeBranchIdsCache && activeBranchIdsCache.expiresAt > Date.now()) {
+    return activeBranchIdsCache.ids;
+  }
+  const { data } = await serviceRoleClient.from("Branch").select("id").eq("isActive", true);
+  const ids = new Set((data ?? []).map((b: { id: string }) => b.id));
+  activeBranchIdsCache = { ids, expiresAt: Date.now() + 60_000 };
+  return ids;
+}
+
 async function getBranchToken(branches: string[], userRole: string): Promise<string> {
   const key = `${branches.join(",")}:${userRole}`;
   const cached = tokenCache.get(key);
@@ -53,7 +69,8 @@ export async function getScopedClient(session: ScopedSession): Promise<SupabaseC
     return serviceRoleClient;
   }
 
-  const branches = session.user.branches ?? [];
+  const activeIds = await getActiveBranchIds();
+  const branches = (session.user.branches ?? []).filter((id) => activeIds.has(id));
   const token = await getBranchToken(branches, session.user.role);
 
   return createClient(

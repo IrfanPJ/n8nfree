@@ -32,13 +32,25 @@ export function resolveActiveBranchId(session: BranchSession, requestedBranchId?
 }
 
 /**
- * Resolves which branchId a SUPER_ADMIN's read should be narrowed to, if any.
- * Returns undefined for non-SUPER_ADMIN callers (RLS already scopes their
- * reads at the database level) and for a SUPER_ADMIN viewing "All Branches".
+ * Resolves which branchId a read should be narrowed to, if any.
+ * - SUPER_ADMIN: whatever they've picked in the switcher, or undefined for
+ *   "All Branches".
+ * - Single-branch users: undefined — RLS already restricts them to their
+ *   one branch, no extra filter needed.
+ * - Multi-branch ADMIN/MANAGER/STAFF: RLS allows rows from ANY of their
+ *   assigned branches (their JWT carries all of them), so without this,
+ *   switching the topbar selector would do nothing — every list would show
+ *   all of their branches mixed together. Narrow to whichever branch is
+ *   currently active, defaulting to their first branch if none picked yet.
  */
 export function resolveReadBranchFilter(session: BranchSession, requestedBranchId?: string | null): string | undefined {
-  if (session.user.role !== "SUPER_ADMIN") return undefined;
-  return requestedBranchId ?? undefined;
+  if (session.user.role === "SUPER_ADMIN") return requestedBranchId ?? undefined;
+
+  const branches = session.user.branches ?? [];
+  if (branches.length <= 1) return undefined;
+
+  if (requestedBranchId && branches.includes(requestedBranchId)) return requestedBranchId;
+  return branches[0];
 }
 
 /**

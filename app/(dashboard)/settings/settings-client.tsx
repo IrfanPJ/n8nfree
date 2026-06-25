@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { User, Bell, Palette, Building2, Save, Users, ShieldCheck, ChevronDown, Lock, Trash2, Scissors, Plus, Eye, EyeOff, KeyRound, MapPin } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -255,6 +256,7 @@ function MemberBranchesRow({ member, branches, editable, onUpdate }: {
 }
 
 function BranchesTab({ initialBranches }: { initialBranches: Branch[] }) {
+  const router = useRouter();
   const [branches, setBranches] = useState(initialBranches);
 
   // Sync local state whenever the server re-fetches.
@@ -280,6 +282,11 @@ function BranchesTab({ initialBranches }: { initialBranches: Branch[] }) {
     setBranches((prev) => [...prev, result.data!]);
     setForm({ name: "", code: "", address: "" });
     toast.success("Branch created");
+    // This tab's own list updates immediately above, but the Team tab reads
+    // its own `branches` prop from the same page load — without a refresh,
+    // it wouldn't know about a branch created moments ago in this session,
+    // and would show the new branch's raw id wherever it can't resolve a name.
+    router.refresh();
   }
 
   async function handleDeactivate(id: string, name: string) {
@@ -288,6 +295,7 @@ function BranchesTab({ initialBranches }: { initialBranches: Branch[] }) {
     if (result.success) {
       setBranches((prev) => prev.map((b) => (b.id === id ? { ...b, isActive: false } : b)));
       toast.success("Branch deactivated");
+      router.refresh();
     } else {
       toast.error(result.error ?? "Failed to deactivate branch");
     }

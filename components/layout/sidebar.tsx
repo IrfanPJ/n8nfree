@@ -6,9 +6,9 @@ import { usePathname } from "next/navigation";
 import { motion } from "framer-motion";
 import {
   LayoutDashboard, Users, ShoppingBag, Calendar, CalendarDays, FileText,
-  Bell, Settings, LogOut, ChevronLeft, ChevronRight,
+  Bell, Settings, LogOut, ChevronLeft, ChevronRight, ChevronDown,
   Scissors, Package, MessageSquare, BarChart3, Phone,
-  Target, Layers, ShoppingCart, X, ScanLine, Activity,
+  Target, Layers, ShoppingCart, X, ScanLine, Activity, Factory,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useUIStore } from "@/store/ui-store";
@@ -42,6 +42,24 @@ const bottomItems = [
   { href: "/settings", label: "Settings", icon: Settings },
 ];
 
+const PRODUCTION_NAV_ITEMS: Array<{ href: string; label: string; badgeKey?: "tailors" | "calendarUpcoming" }> = [
+  { href: "/production", label: "Overview" },
+  { href: "/production/calendar", label: "Calendar", badgeKey: "calendarUpcoming" },
+  { href: "/production/tailors", label: "Tailors", badgeKey: "tailors" },
+  { href: "/production/performance", label: "Performance" },
+  { href: "/production/orders", label: "All Orders" },
+  { href: "/production/dispatched", label: "Dispatched & Delivered" },
+  { href: "/production/reports", label: "Reports" },
+  { href: "/production/suggestions", label: "Suggestions" },
+  { href: "/production/sheet", label: "Sheet View" },
+];
+
+function hasProductionAccess(role?: string, pagePermissions?: string[] | null): boolean {
+  if (role === "SUPER_ADMIN" || role === "ADMIN" || role === "MANAGER") return true;
+  if (pagePermissions === null || pagePermissions === undefined) return true;
+  return pagePermissions.includes("production");
+}
+
 interface SidebarProps {
   user?: {
     name?: string | null;
@@ -52,14 +70,16 @@ interface SidebarProps {
   };
   mobileOpen?: boolean;
   onMobileClose?: () => void;
+  productionBadges?: { tailors: number; calendarUpcoming: number } | null;
 }
 
-export function Sidebar({ user, mobileOpen = false, onMobileClose }: SidebarProps) {
+export function Sidebar({ user, mobileOpen = false, onMobileClose, productionBadges }: SidebarProps) {
   const pathname = usePathname();
   const { sidebarCollapsed, setSidebarCollapsed } = useUIStore();
   const { resolvedTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
   const [isLg, setIsLg] = useState(true);
+  const [productionExpanded, setProductionExpanded] = useState(pathname.startsWith("/production"));
   const prevPathname = useRef(pathname);
 
   useEffect(() => setMounted(true), []);
@@ -183,6 +203,73 @@ export function Sidebar({ user, mobileOpen = false, onMobileClose }: SidebarProp
                 </li>
               );
             })}
+
+            {hasProductionAccess(user?.role, user?.pagePermissions) && (
+              <li>
+                {!showLabels ? (
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Link
+                        href="/production"
+                        className={cn(
+                          "flex items-center justify-center h-10 w-10 rounded-lg mx-auto transition-all duration-200",
+                          pathname.startsWith("/production")
+                            ? "bg-primary/10 text-primary"
+                            : "text-muted-foreground hover:bg-secondary hover:text-foreground"
+                        )}
+                      >
+                        <Factory className="w-5 h-5" />
+                      </Link>
+                    </TooltipTrigger>
+                    <TooltipContent side="right">Production</TooltipContent>
+                  </Tooltip>
+                ) : (
+                  <>
+                    <button
+                      onClick={() => setProductionExpanded((v) => !v)}
+                      className={cn(
+                        "flex items-center gap-3 h-10 px-3 rounded-lg transition-all duration-200 w-full",
+                        pathname.startsWith("/production")
+                          ? "bg-primary/10 text-primary"
+                          : "text-muted-foreground hover:bg-secondary hover:text-foreground"
+                      )}
+                    >
+                      <Factory className="w-5 h-5 flex-shrink-0" />
+                      <span className="text-sm font-medium truncate flex-1 text-left">Production</span>
+                      <ChevronDown className={cn("w-4 h-4 transition-transform", productionExpanded ? "rotate-180" : "")} />
+                    </button>
+                    {productionExpanded && (
+                      <ul className="mt-1 ml-4 pl-3 border-l border-border space-y-0.5">
+                        {PRODUCTION_NAV_ITEMS.map((sub) => {
+                          const isSubActive = pathname === sub.href || pathname.startsWith(`${sub.href}/`);
+                          const badgeCount = sub.badgeKey ? productionBadges?.[sub.badgeKey] : undefined;
+                          return (
+                            <li key={sub.href}>
+                              <Link
+                                href={sub.href}
+                                className={cn(
+                                  "flex items-center gap-2 h-8 px-3 rounded-md text-xs transition-all duration-200",
+                                  isSubActive
+                                    ? "bg-primary/10 text-primary font-medium"
+                                    : "text-muted-foreground hover:bg-secondary hover:text-foreground"
+                                )}
+                              >
+                                <span className="truncate flex-1">{sub.label}</span>
+                                {badgeCount !== undefined && badgeCount > 0 && (
+                                  <span className="flex-shrink-0 rounded-full bg-secondary px-1.5 py-0.5 text-[10px] font-semibold text-muted-foreground">
+                                    {badgeCount}
+                                  </span>
+                                )}
+                              </Link>
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    )}
+                  </>
+                )}
+              </li>
+            )}
           </ul>
         </nav>
 

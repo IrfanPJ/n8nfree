@@ -31,6 +31,7 @@ interface DashboardLayoutClientProps {
   pagePermissions?: string[] | null;
   branches?: { id: string; name: string }[];
   activeBranchId?: string;
+  productionBadges?: { tailors: number; calendarUpcoming: number } | null;
 }
 
 function MobileBottomNav() {
@@ -57,7 +58,7 @@ function MobileBottomNav() {
   );
 }
 
-export function DashboardLayoutClient({ children, user, pagePermissions, branches, activeBranchId }: DashboardLayoutClientProps) {
+export function DashboardLayoutClient({ children, user, pagePermissions, branches, activeBranchId, productionBadges }: DashboardLayoutClientProps) {
   const { sidebarCollapsed } = useUIStore();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   useRealtimeNotifications();
@@ -68,6 +69,7 @@ export function DashboardLayoutClient({ children, user, pagePermissions, branche
         user={{ ...user, pagePermissions }}
         mobileOpen={mobileMenuOpen}
         onMobileClose={() => setMobileMenuOpen(false)}
+        productionBadges={productionBadges}
       />
       <Topbar
         onMobileMenuToggle={() => setMobileMenuOpen((v) => !v)}

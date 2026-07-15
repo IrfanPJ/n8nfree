@@ -15,6 +15,7 @@ export const PAGE_PERMISSIONS = [
   { key: "ai-assistant", label: "AI Assistant" },
   { key: "activity", label: "Activity Log" },
   { key: "notifications", label: "Notifications" },
+  { key: "production", label: "Production" },
 ] as const;
 
 export type PageKey = (typeof PAGE_PERMISSIONS)[number]["key"];

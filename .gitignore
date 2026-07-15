@@ -45,3 +45,8 @@ next-env.d.ts
 .agents/
 skills-lock.json
 memory/
+
+# source spreadsheets with sensitive data (salaries, allowances) — import
+# via Production > Sheet View instead of committing the raw file
+*.xlsx
+*.xls
